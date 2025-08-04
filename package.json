@@ -30,7 +30,16 @@
     "clean": "turbo run clean",
     "docker:build": "turbo run docker:build",
     "docker:run": "turbo run docker:run",
-    "health-check": "turbo run health-check"
+    "health-check": "turbo run health-check",
+    "podman:build": "./podman.sh build",
+    "podman:run": "./podman.sh run",
+    "podman:stop": "./podman.sh stop",
+    "podman:clean": "./podman.sh clean",
+    "podman:logs": "./podman.sh logs",
+    "podman:status": "./podman.sh status",
+    "podman:dev": "./podman.sh dev",
+    "podman:compose:up": "./podman.sh compose-up",
+    "podman:compose:down": "./podman.sh compose-down"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",

@@ -1,0 +1,91 @@
+# Swipick Backend Pod Specification
+# For use with Podman pods for better container orchestration
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: swipick-backend-pod
+  labels:
+    app: swipick-backend
+    environment: production
+spec:
+  # Security context for rootless operation
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+    
+  # Pod-level volumes
+  volumes:
+    - name: app-logs
+      emptyDir:
+        sizeLimit: 1Gi
+    - name: tmp-volume
+      emptyDir:
+        sizeLimit: 64Mi
+        
+  containers:
+    # BFF Service Container
+    - name: swipick-bff
+      image: swipick-bff:latest
+      ports:
+        - containerPort: 9000
+          name: http
+          protocol: TCP
+      
+      # Environment variables
+      env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "9000"
+          
+      # Resource limits
+      resources:
+        limits:
+          memory: "512Mi"
+          cpu: "500m"
+        requests:
+          memory: "256Mi"
+          cpu: "250m"
+          
+      # Health checks
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: 9000
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        timeoutSeconds: 10
+        failureThreshold: 3
+        
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: 9000
+        initialDelaySeconds: 10
+        periodSeconds: 5
+        timeoutSeconds: 5
+        failureThreshold: 3
+        
+      # Security context
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
+            
+      # Volume mounts
+      volumeMounts:
+        - name: tmp-volume
+          mountPath: /tmp
+        - name: app-logs
+          mountPath: /app/logs
+          
+  # Restart policy
+  restartPolicy: Always
+  
+  # DNS configuration
+  dnsPolicy: ClusterFirst

@@ -3,166 +3,32 @@
 > bff@0.0.1 test
 > jest
 
-[1G[0K[1m[2mDetermining test suites to run...[22m[22m[999D[K
-
-[1mTest Suites: [22m0 of 3 total
-[1mTests:       [22m0 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        0 s[K[1A[K[1A[K[1A[K[1A[K[1A
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.service.spec.ts[22m
+[1G[0K[999D[Kjest-haste-map: Watchman crawl failed. Retrying once with node crawler.
+  Usually this happens when watchman isn't running. Create an empty `.watchmanconfig` file in your project's root folder or initialize a git or hg repository in your project.
+  Error: Watchman error: The watchman connection was closed. Make sure watchman is running for this project. See https://facebook.github.io/watchman/docs/troubleshooting.
+[1m[2mDetermining test suites to run...[22m[22m[999D[K
+[K[1A
 [0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/[22m[1mapp.controller.spec.ts[22m
-
-[1mTest Suites: [22m0 of 3 total
-[1mTests:       [22m0 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        0 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.service.spec.ts[22m
+[K[1A[K[1A
 [0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/[22m[1mapp.controller.spec.ts[22m
+[K[1A[K[1A[0m[7m[1m[32m PASS [39m[22m[27m[0m [2msrc/[22m[1mapp.controller.spec.ts[22m
 
-[1mTest Suites: [22m0 of 3 total
-[1mTests:       [22m0 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        1 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[0m[7m[1m[32m PASS [39m[22m[27m[0m [2msrc/[22m[1mapp.controller.spec.ts[22m
-
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.service.spec.ts[22m
 [0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/[22m[1mapp.controller.spec.ts[22m
+[K[1A[K[1A  AppController
 
-[1mTest Suites: [22m0 of 3 total
-[1mTests:       [22m0 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        1 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.service.spec.ts[22m
 [0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/[22m[1mapp.controller.spec.ts[22m
+[K[1A[K[1A    root
 
-[1mTest Suites: [22m0 of 3 total
-[1mTests:       [22m0 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        1 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[0m[7m[1m[32m PASS [39m[22m[27m[0m [2msrc/auth/[22m[1mauth.service.spec.ts[22m
-
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.service.spec.ts[22m
 [0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/[22m[1mapp.controller.spec.ts[22m
+[K[1A[K[1A      [32m✓[39m [2mshould return "Hello World!" (4 ms)[22m
 
-[1mTest Suites: [22m0 of 3 total
-[1mTests:       [22m0 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        1 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[K[1Ats-jest[ts-compiler] (WARN) Got a `.js` file to compile while `allowJs` option is not set to `true` (file: /Users/ashm4/Projects/swipick-backend/packages/common/src/dto/auth.dto.js). To fix this:
-  - if you want TypeScript to process JS files, set `allowJs` to `true` in your TypeScript config (usually tsconfig.json)
-  - if you do not want TypeScript to process your `.js` files, in your Jest config change the `transform` key which value is `ts-jest` so that it does not match `.js` files anymore
-
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.service.spec.ts[22m
 [0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/[22m[1mapp.controller.spec.ts[22m
+[K[1A[K[1A
 
-[1mTest Suites: [22m0 of 3 total
-[1mTests:       [22m0 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        1 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[K[1Ats-jest[ts-compiler] (WARN) Got a `.js` file to compile while `allowJs` option is not set to `true` (file: /Users/ashm4/Projects/swipick-backend/packages/common/src/dto/user.dto.js). To fix this:
-  - if you want TypeScript to process JS files, set `allowJs` to `true` in your TypeScript config (usually tsconfig.json)
-  - if you do not want TypeScript to process your `.js` files, in your Jest config change the `transform` key which value is `ts-jest` so that it does not match `.js` files anymore
-
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.service.spec.ts[22m
 [0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/[22m[1mapp.controller.spec.ts[22m
-
-[1mTest Suites: [22m0 of 3 total
-[1mTests:       [22m0 total
+[K[1A[K[1A[999D[K[1mTest Suites: [22m[1m[32m1 passed[39m[22m, 1 total
+[1mTests:       [22m[1m[32m1 passed[39m[22m, 1 total
 [1mSnapshots:   [22m0 total
-[1mTime:[22m        1 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[K[1Ats-jest[ts-compiler] (WARN) Got a `.js` file to compile while `allowJs` option is not set to `true` (file: /Users/ashm4/Projects/swipick-backend/packages/common/src/dto/match.dto.js). To fix this:
-  - if you want TypeScript to process JS files, set `allowJs` to `true` in your TypeScript config (usually tsconfig.json)
-  - if you do not want TypeScript to process your `.js` files, in your Jest config change the `transform` key which value is `ts-jest` so that it does not match `.js` files anymore
-
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.service.spec.ts[22m
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/[22m[1mapp.controller.spec.ts[22m
-
-[1mTest Suites: [22m0 of 3 total
-[1mTests:       [22m0 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        1 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-
-[1mTest Suites: [22m[1m[32m2 passed[39m[22m, 2 of 3 total
-[1mTests:       [22m[1m[32m6 passed[39m[22m, 6 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        1 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1Ats-jest[ts-compiler] (WARN) Got a `.js` file to compile while `allowJs` option is not set to `true` (file: /Users/ashm4/Projects/swipick-backend/packages/common/src/dto/prediction.dto.js). To fix this:
-  - if you want TypeScript to process JS files, set `allowJs` to `true` in your TypeScript config (usually tsconfig.json)
-  - if you do not want TypeScript to process your `.js` files, in your Jest config change the `transform` key which value is `ts-jest` so that it does not match `.js` files anymore
-
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-
-[1mTest Suites: [22m[1m[32m2 passed[39m[22m, 2 of 3 total
-[1mTests:       [22m[1m[32m6 passed[39m[22m, 6 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        1 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1Ats-jest[ts-compiler] (WARN) Got a `.js` file to compile while `allowJs` option is not set to `true` (file: /Users/ashm4/Projects/swipick-backend/packages/common/src/interfaces/auth.interface.js). To fix this:
-  - if you want TypeScript to process JS files, set `allowJs` to `true` in your TypeScript config (usually tsconfig.json)
-  - if you do not want TypeScript to process your `.js` files, in your Jest config change the `transform` key which value is `ts-jest` so that it does not match `.js` files anymore
-
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-
-[1mTest Suites: [22m[1m[32m2 passed[39m[22m, 2 of 3 total
-[1mTests:       [22m[1m[32m6 passed[39m[22m, 6 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        1 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1Ats-jest[ts-compiler] (WARN) Got a `.js` file to compile while `allowJs` option is not set to `true` (file: /Users/ashm4/Projects/swipick-backend/packages/common/src/interfaces/user.interface.js). To fix this:
-  - if you want TypeScript to process JS files, set `allowJs` to `true` in your TypeScript config (usually tsconfig.json)
-  - if you do not want TypeScript to process your `.js` files, in your Jest config change the `transform` key which value is `ts-jest` so that it does not match `.js` files anymore
-
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-
-[1mTest Suites: [22m[1m[32m2 passed[39m[22m, 2 of 3 total
-[1mTests:       [22m[1m[32m6 passed[39m[22m, 6 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        1 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1Ats-jest[ts-compiler] (WARN) Got a `.js` file to compile while `allowJs` option is not set to `true` (file: /Users/ashm4/Projects/swipick-backend/packages/common/src/interfaces/match.interface.js). To fix this:
-  - if you want TypeScript to process JS files, set `allowJs` to `true` in your TypeScript config (usually tsconfig.json)
-  - if you do not want TypeScript to process your `.js` files, in your Jest config change the `transform` key which value is `ts-jest` so that it does not match `.js` files anymore
-
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-
-[1mTest Suites: [22m[1m[32m2 passed[39m[22m, 2 of 3 total
-[1mTests:       [22m[1m[32m6 passed[39m[22m, 6 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        1 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1Ats-jest[ts-compiler] (WARN) Got a `.js` file to compile while `allowJs` option is not set to `true` (file: /Users/ashm4/Projects/swipick-backend/packages/common/src/interfaces/prediction.interface.js). To fix this:
-  - if you want TypeScript to process JS files, set `allowJs` to `true` in your TypeScript config (usually tsconfig.json)
-  - if you do not want TypeScript to process your `.js` files, in your Jest config change the `transform` key which value is `ts-jest` so that it does not match `.js` files anymore
-
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-
-[1mTest Suites: [22m[1m[32m2 passed[39m[22m, 2 of 3 total
-[1mTests:       [22m[1m[32m6 passed[39m[22m, 6 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        1 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1Ats-jest[ts-compiler] (WARN) Got a `.js` file to compile while `allowJs` option is not set to `true` (file: /Users/ashm4/Projects/swipick-backend/packages/common/src/utils/validation.utils.js). To fix this:
-  - if you want TypeScript to process JS files, set `allowJs` to `true` in your TypeScript config (usually tsconfig.json)
-  - if you do not want TypeScript to process your `.js` files, in your Jest config change the `transform` key which value is `ts-jest` so that it does not match `.js` files anymore
-
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-
-[1mTest Suites: [22m[1m[32m2 passed[39m[22m, 2 of 3 total
-[1mTests:       [22m[1m[32m6 passed[39m[22m, 6 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        1 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1Ats-jest[ts-compiler] (WARN) Got a `.js` file to compile while `allowJs` option is not set to `true` (file: /Users/ashm4/Projects/swipick-backend/packages/common/src/utils/date.utils.js). To fix this:
-  - if you want TypeScript to process JS files, set `allowJs` to `true` in your TypeScript config (usually tsconfig.json)
-  - if you do not want TypeScript to process your `.js` files, in your Jest config change the `transform` key which value is `ts-jest` so that it does not match `.js` files anymore
-
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-
-[1mTest Suites: [22m[1m[32m2 passed[39m[22m, 2 of 3 total
-[1mTests:       [22m[1m[32m6 passed[39m[22m, 6 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        1 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[0m[7m[1m[32m PASS [39m[22m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-
-[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2msrc/auth/[22m[1mauth.controller.spec.ts[22m
-
-[1mTest Suites: [22m[1m[32m2 passed[39m[22m, 2 of 3 total
-[1mTests:       [22m[1m[32m6 passed[39m[22m, 6 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        1 s[K[1A[K[1A[K[1A[K[1A[K[1A[K[1A[999D[K
-[1mTest Suites: [22m[1m[32m3 passed[39m[22m, 3 total
-[1mTests:       [22m[1m[32m14 passed[39m[22m, 14 total
-[1mSnapshots:   [22m0 total
-[1mTime:[22m        1.38 s
+[1mTime:[22m        0.877 s, estimated 1 s
 [2mRan all test suites[22m[2m.[22m
 [1G[0K⠙[1G[0K

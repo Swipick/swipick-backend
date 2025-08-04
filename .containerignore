@@ -1,0 +1,74 @@
+# Containerignore for Podman builds
+# Excludes unnecessary files to reduce build context and improve build speed
+
+# Git and version control
+.git
+.gitignore
+.gitattributes
+*.git*
+
+# Node.js
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn
+.pnp.*
+
+# Build outputs and caches
+dist/
+build/
+coverage/
+.nyc_output
+*.tsbuildinfo
+.turbo
+
+# Environment and configuration
+.env*
+!.env.example
+.DS_Store
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+
+# Logs
+*.log
+logs/
+
+# Testing
+coverage/
+.coverage/
+*.lcov
+jest-cache/
+
+# Documentation and markdown (except README for base image info)
+*.md
+!README.md
+docs/
+
+# Container files (avoid recursive copying)
+Dockerfile*
+Containerfile*
+.dockerignore
+.containerignore
+docker-compose*.yml
+podman-compose*.yml
+
+# Development and debug files
+.devcontainer/
+.github/
+ticketsDebug/
+
+# Temporary files
+tmp/
+temp/
+.tmp/
