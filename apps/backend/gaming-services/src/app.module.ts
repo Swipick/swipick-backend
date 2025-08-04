@@ -22,6 +22,7 @@ import { HealthModule } from './modules/health/health.module';
     // Core modules
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: '../../../.env', // Path to root .env file
       load: [DatabaseConfig, ApiFootballConfig, WebSocketConfig],
     }),
 
