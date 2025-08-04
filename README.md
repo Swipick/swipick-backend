@@ -15,13 +15,13 @@ Swipick Backend is a scalable, cloud-native backend service built with **NestJS*
 
 ### **Services Overview**
 
-| Service | Status | Port | Description |
-|---------|--------|------|-------------|
-| **BFF (Backend-for-Frontend)** | ✅ **Active** | 9000 | API Gateway and request orchestration |
-| **Gaming Services** | ✅ **Active** | 3000 | Match data, predictions, API-FOOTBALL integration |
-| **User Services** | 🚧 **Next** | 4000 | User profiles, authentication, preferences |
-| **Notification Services** | 📋 **Planned** | 5000 | Push notifications via Firebase FCM |
-| **Game Engine** | 📋 **Planned** | 6000 | Scoring algorithms and leaderboards |
+| Service                        | Status         | Port | Description                                       |
+| ------------------------------ | -------------- | ---- | ------------------------------------------------- |
+| **BFF (Backend-for-Frontend)** | ✅ **Active**  | 9000 | API Gateway and request orchestration             |
+| **Gaming Services**            | ✅ **Active**  | 3000 | Match data, predictions, API-FOOTBALL integration |
+| **User Services**              | 🚧 **Next**    | 4000 | User profiles, authentication, preferences        |
+| **Notification Services**      | 📋 **Planned** | 5000 | Push notifications via Firebase FCM               |
+| **Game Engine**                | 📋 **Planned** | 6000 | Scoring algorithms and leaderboards               |
 
 ### **Infrastructure Stack**
 
@@ -64,6 +64,7 @@ Swipick Backend is a scalable, cloud-native backend service built with **NestJS*
 ## 🚀 **Quick Start**
 
 ### **Prerequisites**
+
 - Node.js 18+ (recommended: 24.x)
 - npm 10+
 - Podman (for containerized deployment)
@@ -94,7 +95,7 @@ cp .env.example .env
 # Start BFF service only (API Gateway)
 npm run start:dev
 
-# Start BFF service explicitly  
+# Start BFF service explicitly
 npm run start:dev:bff
 
 # Start gaming services (API-FOOTBALL integration)
@@ -230,11 +231,11 @@ npm run migration:generate -- --name=MigrationName
 
 ### **Health Endpoints**
 
-| Service | Health Check URL | Status |
-|---------|------------------|--------|
-| BFF | http://localhost:9000/health | ✅ Active |
-| Gaming Services | http://localhost:3000/health | ✅ Active |
-| User Services | http://localhost:4000/health | 🚧 Coming Next |
+| Service         | Health Check URL             | Status         |
+| --------------- | ---------------------------- | -------------- |
+| BFF             | http://localhost:9000/health | ✅ Active      |
+| Gaming Services | http://localhost:3000/health | ✅ Active      |
+| User Services   | http://localhost:4000/health | 🚧 Coming Next |
 
 ### **API Documentation**
 
@@ -250,7 +251,7 @@ swipick-backend/
 ├── apps/
 │   └── backend/
 │       ├── bff/                    # ✅ Backend-for-Frontend service
-│       ├── gaming-services/        # ✅ Gaming & API-FOOTBALL integration  
+│       ├── gaming-services/        # ✅ Gaming & API-FOOTBALL integration
 │       ├── user-service/          # 🚧 User management (next)
 │       ├── game-engine/           # 📋 Scoring & leaderboards (planned)
 │       └── notification-service/  # 📋 Push notifications (planned)
@@ -258,7 +259,7 @@ swipick-backend/
 │   └── common/                    # Shared DTOs, types, utilities
 ├── ticketsDebug/                  # Development documentation
 ├── compose.yml                    # Production containers
-├── compose.dev.yml               # Development containers  
+├── compose.dev.yml               # Development containers
 ├── podman.sh                     # Container management script
 ├── start-development.sh          # Quick dev start
 ├── start-production.sh           # Quick prod start
@@ -272,12 +273,14 @@ swipick-backend/
 ### **Adding a New Service**
 
 1. **Create Service Directory:**
+
    ```bash
    mkdir -p apps/backend/new-service
    cd apps/backend/new-service
    ```
 
 2. **Initialize NestJS Service:**
+
    ```bash
    npx nest new . --package-manager npm
    ```
@@ -296,6 +299,7 @@ swipick-backend/
 ### **Next Service: User Services**
 
 The next planned service is **User Services** which will handle:
+
 - User profile management
 - Firebase authentication integration
 - User preferences and settings
@@ -311,7 +315,7 @@ The next planned service is **User Services** which will handle:
 # List running containers
 podman ps
 
-# View container logs  
+# View container logs
 podman logs swipick-bff-dev
 podman logs swipick-gaming-services-dev
 
@@ -433,6 +437,7 @@ Private project - All rights reserved.
 ## 📞 **Support**
 
 For technical issues or questions:
+
 - Check `ticketsDebug/` folder for troubleshooting guides
 - Review container logs: `podman logs <container-name>`
 - Test database connections: `node test-db-connections.js`
