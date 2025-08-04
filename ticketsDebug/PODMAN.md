@@ -5,6 +5,7 @@ This guide covers the complete Podman containerization setup for the Swipick Bac
 ## 📋 Prerequisites
 
 ### Required Software
+
 - **Podman** (v4.0+) - Install from [podman.io](https://podman.io/getting-started/installation)
 - **podman-compose** (optional) - Install with `pip install podman-compose`
 - **Node.js** (v20+) - For local development
@@ -31,11 +32,13 @@ podman machine start
 ## 🏗️ Container Architecture
 
 ### Multi-Stage Build Strategy
+
 1. **Dependencies Stage**: Install and cache npm dependencies
 2. **Builder Stage**: Compile TypeScript and build applications
 3. **Production Stage**: Minimal runtime with only production assets
 
 ### Security Features
+
 - ✅ **Rootless containers** (runs as user 1001:1001)
 - ✅ **Read-only root filesystem**
 - ✅ **No privilege escalation**
@@ -45,6 +48,7 @@ podman machine start
 ## 🚀 Quick Start
 
 ### 1. Build and Run (Simple)
+
 ```bash
 # Build the container
 npm run podman:build
@@ -60,6 +64,7 @@ npm run podman:logs
 ```
 
 ### 2. Using the Management Script
+
 ```bash
 # Make script executable (if not already)
 chmod +x podman.sh
@@ -79,6 +84,7 @@ chmod +x podman.sh
 ```
 
 ### 3. Using Podman Compose
+
 ```bash
 # Start all services
 npm run podman:compose:up
@@ -105,6 +111,7 @@ swipick-backend/
 ## 🔧 Development Workflow
 
 ### Local Development (Recommended)
+
 ```bash
 # For active development, use Node.js directly
 npm run start:dev
@@ -117,6 +124,7 @@ npm run start:dev
 ```
 
 ### Containerized Development
+
 ```bash
 # For testing containerized environment
 ./podman.sh dev
@@ -130,6 +138,7 @@ npm run start:dev
 ## 🏭 Production Deployment
 
 ### Single Container Deployment
+
 ```bash
 # Build production image
 ./podman.sh build
@@ -146,6 +155,7 @@ podman run -d \
 ```
 
 ### Pod Deployment (Kubernetes-style)
+
 ```bash
 # Generate pod from YAML
 podman play kube swipick-pod.yaml
@@ -155,6 +165,7 @@ podman play kube --down swipick-pod.yaml
 ```
 
 ### Compose Deployment
+
 ```bash
 # Start all services with compose
 podman-compose -f podman-compose.yml up -d
@@ -169,10 +180,12 @@ podman-compose -f podman-compose.yml down
 ## 🔍 Monitoring and Health Checks
 
 ### Health Endpoints
+
 - **Health Check**: `GET /health` - Returns service status
 - **Root Endpoint**: `GET /` - Returns "Hello World!" for basic connectivity
 
 ### Container Health Monitoring
+
 ```bash
 # Check container health
 podman inspect swipick-bff-container --format='{{.State.Health.Status}}'
@@ -185,6 +198,7 @@ podman stats swipick-bff-container
 ```
 
 ### Log Management
+
 ```bash
 # View logs
 podman logs swipick-bff-container
@@ -199,30 +213,34 @@ podman logs swipick-bff-container > app-logs.txt
 ## 🔧 Configuration
 
 ### Environment Variables
+
 ```bash
 # Production Environment
 NODE_ENV=production
 PORT=9000
 
-# Development Environment  
+# Development Environment
 NODE_ENV=development
 PORT=9000
 ```
 
 ### Resource Limits
+
 The containers are configured with conservative resource limits:
+
 - **Memory**: 512MB limit, 256MB request
 - **CPU**: 0.5 cores limit, 0.25 cores request
 - **Temporary Storage**: 64MB for /tmp
 
 ### Security Configuration
+
 ```yaml
 Security Features:
-- Run as non-root user (1001:1001)
-- Read-only root filesystem
-- No privilege escalation
-- Dropped all capabilities
-- SELinux compatible labels
+  - Run as non-root user (1001:1001)
+  - Read-only root filesystem
+  - No privilege escalation
+  - Dropped all capabilities
+  - SELinux compatible labels
 ```
 
 ## 🐛 Troubleshooting
@@ -230,12 +248,14 @@ Security Features:
 ### Common Issues
 
 #### 1. Permission Denied Errors
+
 ```bash
 # Fix: Ensure proper ownership and SELinux labels
 podman run --volume ./data:/app/data:Z swipick-bff:latest
 ```
 
 #### 2. Port Already in Use
+
 ```bash
 # Find process using port
 lsof -i :9000
@@ -245,6 +265,7 @@ podman run -p 9001:9000 swipick-bff:latest
 ```
 
 #### 3. Container Won't Start
+
 ```bash
 # Check logs for errors
 podman logs swipick-bff-container
@@ -254,6 +275,7 @@ podman run -it --entrypoint /bin/sh swipick-bff:latest
 ```
 
 #### 4. Health Check Failures
+
 ```bash
 # Test health endpoint manually
 curl -f http://localhost:9000/health
@@ -263,6 +285,7 @@ podman exec swipick-bff-container curl -f http://localhost:9000/health
 ```
 
 ### Debug Commands
+
 ```bash
 # Interactive shell in running container
 podman exec -it swipick-bff-container /bin/sh
@@ -280,11 +303,12 @@ podman stats swipick-bff-container
 ## 🚀 CI/CD Integration
 
 ### GitHub Actions Example
+
 ```yaml
 - name: Build with Podman
   run: |
     podman build -t swipick-bff:${{ github.sha }} .
-    
+
 - name: Test container
   run: |
     podman run --rm -d --name test-container swipick-bff:${{ github.sha }}
@@ -294,6 +318,7 @@ podman stats swipick-bff-container
 ```
 
 ### Registry Push
+
 ```bash
 # Tag for registry
 podman tag swipick-bff:latest registry.example.com/swipick/bff:latest
@@ -305,12 +330,14 @@ podman push registry.example.com/swipick/bff:latest
 ## 📊 Performance Optimization
 
 ### Build Optimization
+
 - Multi-stage builds reduce final image size
 - Layer caching speeds up rebuilds
 - `.containerignore` reduces build context
 - Dependencies cached in separate stage
 
 ### Runtime Optimization
+
 - Alpine Linux base for minimal footprint
 - Read-only filesystem for security
 - Proper signal handling with dumb-init
@@ -337,18 +364,18 @@ If migrating from Docker:
 
 ## 📝 Script Commands Reference
 
-| Command | Description |
-|---------|-------------|
-| `./podman.sh build` | Build the production container image |
-| `./podman.sh run` | Run the container in detached mode |
-| `./podman.sh stop` | Stop the running container |
-| `./podman.sh clean` | Remove container and image |
-| `./podman.sh logs` | Show container logs (follow mode) |
-| `./podman.sh status` | Show container status and health |
-| `./podman.sh dev` | Run in development mode with volumes |
-| `./podman.sh compose-up` | Start services with Podman Compose |
-| `./podman.sh compose-down` | Stop services with Podman Compose |
+| Command                    | Description                          |
+| -------------------------- | ------------------------------------ |
+| `./podman.sh build`        | Build the production container image |
+| `./podman.sh run`          | Run the container in detached mode   |
+| `./podman.sh stop`         | Stop the running container           |
+| `./podman.sh clean`        | Remove container and image           |
+| `./podman.sh logs`         | Show container logs (follow mode)    |
+| `./podman.sh status`       | Show container status and health     |
+| `./podman.sh dev`          | Run in development mode with volumes |
+| `./podman.sh compose-up`   | Start services with Podman Compose   |
+| `./podman.sh compose-down` | Stop services with Podman Compose    |
 
 ---
 
-*For questions or issues, please refer to the project documentation or create an issue in the repository.*
+_For questions or issues, please refer to the project documentation or create an issue in the repository._

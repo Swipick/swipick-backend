@@ -1,0 +1,29 @@
+# Development Containerfile
+FROM node:20-alpine
+
+# Install development tools
+RUN apk add --no-cache curl git
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY tsconfig*.json ./
+COPY nest-cli.json ./
+
+# Install all dependencies (including dev)
+RUN npm install
+
+# Copy source code
+COPY src/ ./src/
+
+# Expose ports
+EXPOSE 3000 3001 9229
+
+# Development health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:3000/api/health || exit 1
+
+# Start in development mode with debugging
+CMD ["npm", "run", "start:debug"]

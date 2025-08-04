@@ -377,11 +377,11 @@ This post-mortem details the debugging process and resolution of the persistent 
 - **Attempted `lib` option fix:** Added `"dom"` to the `lib` array in `tsconfig.base.json`, hoping to resolve decorator-related issues. This proved ineffective.
 - **Switched build command:** Changed the `build` script in `apps/backend/bff/package.json` from `nest build` to `tsc -p tsconfig.json` to use the TypeScript compiler directly, bypassing potential `nest build` interference. \* **Example Change (apps/backend/bff/package.json):**
   `json
-      "scripts": {
-        "build": "tsc -p tsconfig.json", // Changed from "rm -rf dist && nest build"
-        // ... other scripts
-      }
-      `
+  "scripts": {
+    "build": "tsc -p tsconfig.json", // Changed from "rm -rf dist && nest build"
+    // ... other scripts
+  }
+  `
   **Outcome:** The `extends` path correction was crucial, but the decorator errors persisted, indicating a deeper issue with how TypeScript was being invoked or configured in the monorepo.
 
 ### 3. Simplifying the Build Process: The Self-Contained Approach
@@ -440,9 +440,9 @@ This post-mortem details the debugging process and resolution of the persistent 
 - **Identified and killed lingering processes:** Used `lsof -i :3000` and `ps aux | grep nest` to find and terminate any processes holding onto port 3000.
 - **Changed default port:** Modified `apps/backend/bff/src/main.ts` to use port 9000 as the default, to avoid immediate conflicts with any other services that might default to 3000. \* **Example Change (apps/backend/bff/src/main.ts):**
   `typescript
-      const port = process.env.PORT || 9000; // Changed from 3000
-      await app.listen(port);
-      `
+  const port = process.env.PORT || 9000; // Changed from 3000
+  await app.listen(port);
+  `
   **Outcome:** The application successfully started when run directly with `node dist/main.js` on port 9000, confirming the build and core application functionality.
 
 ### 5. Addressing Firebase Integration: Temporary Removal

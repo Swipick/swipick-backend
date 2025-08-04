@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 # Podman Compose configuration for Swipick Backend
 # Run with: podman-compose up -d
@@ -30,10 +30,10 @@ services:
       resources:
         limits:
           memory: 512M
-          cpus: '0.5'
+          cpus: "0.5"
         reservations:
           memory: 256M
-          cpus: '0.25'
+          cpus: "0.25"
     # Security context for rootless containers
     security_opt:
       - no-new-privileges:true
@@ -54,7 +54,7 @@ services:
   #     - "9001:9001"
   #   networks:
   #     - swipick-network
-  
+
   # swipick-user-service:
   #   build:
   #     context: .

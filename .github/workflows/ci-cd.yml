@@ -78,7 +78,25 @@ jobs:
       - name: Build all packages
         run: npm run build
 
-      - name: Build Docker images
+      - name: Build Podman containers
+        run: |
+          # Install Podman for containerization
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+          # Build production containers
+          podman build -t swipick-bff:latest -f Containerfile .
+
+          # Future: Build gaming services container when implemented
+          # podman build -t swipick-gaming:latest -f apps/backend/gaming-services/Containerfile .
+
+          # Test container functionality
+          podman run --rm -d --name test-bff -p 9000:9000 swipick-bff:latest
+          sleep 10
+          curl -f http://localhost:9000/health || exit 1
+          podman stop test-bff
+
+      - name: Build Docker images (legacy compatibility)
         run: npm run docker:build
 
       - name: Run smoke tests on built applications
@@ -145,15 +163,48 @@ jobs:
       - name: Deploy to staging
         run: |
           echo "🚀 Deploying to staging environment..."
-          # Add your staging deployment commands here
-          # Example: kubectl apply -f k8s/staging/
-          # Example: docker-compose -f docker-compose.staging.yml up -d
+
+          # Install Podman for deployment
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+          # Build and deploy with Podman Compose
+          podman build -t swipick-bff:staging -f Containerfile .
+
+          # Deploy to staging with health checks
+          podman run -d --name swipick-bff-staging \
+            -p 9000:9000 \
+            -e NODE_ENV=staging \
+            -e PORT=9000 \
+            --health-cmd "curl -f http://localhost:9000/health || exit 1" \
+            --health-interval 30s \
+            --health-timeout 10s \
+            --health-retries 3 \
+            swipick-bff:staging
+
+          # Wait for container to be healthy
+          echo "⏳ Waiting for container to be healthy..."
+          timeout 60 bash -c 'until podman inspect swipick-bff-staging --format="{{.State.Health.Status}}" | grep -q healthy; do sleep 2; done'
 
       - name: Run staging health checks
         run: |
-          echo "🏥 Running health checks..."
-          # Add health check commands here
-          # curl -f http://staging.swipick.com/health || exit 1
+          echo "🏥 Running comprehensive health checks..."
+
+          # Basic health check
+          curl -f http://localhost:9000/health || exit 1
+
+          # API endpoint checks
+          curl -f http://localhost:9000/ -H "Accept: application/json" || exit 1
+
+          # Container health status
+          health_status=$(podman inspect swipick-bff-staging --format="{{.State.Health.Status}}")
+          if [ "$health_status" != "healthy" ]; then
+            echo "❌ Container is not healthy: $health_status"
+            podman logs swipick-bff-staging
+            exit 1
+          fi
+
+          echo "✅ All health checks passed!"
 
       - name: Notify deployment
         uses: 8398a7/action-slack@v3
@@ -183,15 +234,59 @@ jobs:
       - name: Deploy to production
         run: |
           echo "🚀 Deploying to production environment..."
-          # Add your production deployment commands here
-          # Example: kubectl apply -f k8s/production/
-          # Example: docker-compose -f docker-compose.production.yml up -d
+
+          # Install Podman for deployment
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+          # Build production container with proper tagging
+          podman build -t swipick-bff:v${{ github.run_number }} -f Containerfile .
+          podman tag swipick-bff:v${{ github.run_number }} swipick-bff:latest
+
+          # Deploy to production with enhanced configuration
+          podman run -d --name swipick-bff-prod \
+            -p 9000:9000 \
+            -e NODE_ENV=production \
+            -e PORT=9000 \
+            --security-opt no-new-privileges:true \
+            --read-only \
+            --tmpfs /tmp:noexec,nosuid,size=64m \
+            --health-cmd "curl -f http://localhost:9000/health || exit 1" \
+            --health-interval 30s \
+            --health-timeout 10s \
+            --health-retries 3 \
+            --health-start-period 40s \
+            swipick-bff:latest
+
+          # Wait for production deployment to be healthy
+          echo "⏳ Waiting for production deployment..."
+          timeout 90 bash -c 'until podman inspect swipick-bff-prod --format="{{.State.Health.Status}}" | grep -q healthy; do sleep 3; done'
 
       - name: Run production health checks
         run: |
-          echo "🏥 Running health checks..."
-          # Add health check commands here
-          # curl -f https://api.swipick.com/health || exit 1
+          echo "🏥 Running production health checks..."
+
+          # Comprehensive production health validation
+          curl -f http://localhost:9000/health || exit 1
+          curl -f http://localhost:9000/ -H "Accept: application/json" || exit 1
+
+          # Verify container health and security
+          health_status=$(podman inspect swipick-bff-prod --format="{{.State.Health.Status}}")
+          if [ "$health_status" != "healthy" ]; then
+            echo "❌ Production container is not healthy: $health_status"
+            podman logs swipick-bff-prod
+            exit 1
+          fi
+
+          # Check security configurations
+          user_id=$(podman inspect swipick-bff-prod --format="{{.Config.User}}")
+          if [ "$user_id" != "1001:1001" ]; then
+            echo "❌ Container not running as expected user: $user_id"
+            exit 1
+          fi
+
+          echo "✅ All production health checks passed!"
+          echo "🎉 Production deployment successful!"
 
       - name: Notify deployment
         uses: 8398a7/action-slack@v3

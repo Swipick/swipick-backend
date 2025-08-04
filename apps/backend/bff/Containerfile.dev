@@ -1,0 +1,43 @@
+# Development Containerfile for BFF
+FROM node:20-alpine
+
+LABEL maintainer="Swipick Development Team"
+LABEL description="BFF Service - Development Environment"
+LABEL version="dev"
+
+# Install development dependencies
+RUN apk add --no-cache dumb-init curl git
+
+# Create non-root user
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -S appuser -u 1001 -G appgroup
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY --chown=1001:1001 package*.json ./
+COPY --chown=1001:1001 tsconfig*.json ./
+
+# Install all dependencies (including dev dependencies)
+RUN npm ci && npm cache clean --force
+
+# Copy source code
+COPY --chown=1001:1001 src/ ./src/
+
+# Set file permissions
+RUN chown -R 1001:1001 /app
+
+# Switch to non-root user
+USER 1001:1001
+
+# Expose port
+EXPOSE 9000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:9000/health || exit 1
+
+# Start in development mode with hot reload
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["npm", "run", "start:dev"]

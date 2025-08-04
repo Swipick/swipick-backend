@@ -3,6 +3,7 @@
 ## ✅ **COMPLETED**: Full Podman Containerization Setup
 
 ### 🧹 **Authentication Cleanup**
+
 - ✅ Removed all auth-related code and dependencies
 - ✅ Removed Firebase integration (to be re-added later)
 - ✅ Cleaned up E2E tests to remove auth endpoints
@@ -12,6 +13,7 @@
 ### 🐋 **Podman Infrastructure Added**
 
 #### **Core Container Files**
+
 - ✅ `Containerfile` - Production multi-stage build
 - ✅ `Containerfile.dev` - Development build with hot reload
 - ✅ `.containerignore` - Optimized build context exclusions
@@ -19,11 +21,13 @@
 - ✅ `swipick-pod.yaml` - Kubernetes-style pod specification
 
 #### **Management & Automation**
+
 - ✅ `podman.sh` - Comprehensive management script
 - ✅ Updated `package.json` with Podman commands
 - ✅ `PODMAN.md` - Complete documentation and guide
 
 ### 🔒 **Security & Best Practices**
+
 - ✅ **Rootless containers** (user 1001:1001)
 - ✅ **Read-only root filesystem**
 - ✅ **No privilege escalation**
@@ -37,11 +41,11 @@
 ```bash
 # Quick start
 npm run podman:build        # Build container
-npm run podman:run          # Run container  
+npm run podman:run          # Run container
 npm run podman:status       # Check health
 npm run podman:logs         # View logs
 
-# Management script  
+# Management script
 ./podman.sh build          # Build production image
 ./podman.sh run            # Run detached container
 ./podman.sh dev            # Development mode
@@ -55,16 +59,19 @@ npm run podman:compose:down # Stop all services
 ### 🏗️ **Architecture Benefits**
 
 #### **Multi-Stage Build**
+
 1. **Dependencies**: Cached npm install layer
-2. **Builder**: TypeScript compilation  
+2. **Builder**: TypeScript compilation
 3. **Production**: Minimal runtime (Alpine + Node.js only)
 
 #### **Development Workflow**
+
 - 🏃‍♂️ **Local Dev**: `npm run start:dev` (recommended)
 - 🐋 **Container Dev**: `./podman.sh dev` (with volume mounts)
 - 🏭 **Production**: `./podman.sh run` (optimized runtime)
 
 #### **Podman Advantages Over Docker**
+
 - 🔒 **Rootless by default** (better security)
 - 🚫 **No daemon required** (lighter resource usage)
 - 🔧 **systemd integration** (better service management)
@@ -72,6 +79,7 @@ npm run podman:compose:down # Stop all services
 - 🎯 **Pod support** (Kubernetes-like orchestration)
 
 ### 📊 **Current Status**
+
 - ✅ **Build**: All TypeScript compiles successfully
 - ✅ **Tests**: Unit and E2E tests passing
 - ✅ **Container**: Ready for production deployment
@@ -79,6 +87,7 @@ npm run podman:compose:down # Stop all services
 - ✅ **Security**: Hardened container configuration
 
 ### 🔄 **Next Steps for Firebase Integration**
+
 When ready to add Firebase back:
 
 1. **Create Firebase project** in console
@@ -91,6 +100,7 @@ When ready to add Firebase back:
 ### 📝 **Files Created/Modified**
 
 #### **New Files**
+
 - `Containerfile` - Production container build
 - `Containerfile.dev` - Development container build
 - `.containerignore` - Build context optimization
@@ -100,6 +110,7 @@ When ready to add Firebase back:
 - `PODMAN.md` - Complete documentation
 
 #### **Modified Files**
+
 - `package.json` - Added Podman scripts
 - `app.module.ts` - Removed AuthModule
 - `packages/common/src/index.ts` - Removed auth exports
@@ -107,6 +118,7 @@ When ready to add Firebase back:
 - `ticketsDebug/DBG-20250801-002-*.md` - Updated status
 
 #### **Removed Files**
+
 - `apps/backend/bff/src/auth/` - Entire auth directory
 - `packages/common/src/dto/auth.dto.ts`
 - `packages/common/src/interfaces/auth.interface.ts`
@@ -116,8 +128,9 @@ When ready to add Firebase back:
 ## 🎯 **Ready for Production**
 
 The Swipick Backend is now:
+
 - ✅ **Container-ready** with Podman optimization
-- ✅ **Security-hardened** with rootless operation  
+- ✅ **Security-hardened** with rootless operation
 - ✅ **Scalable** with compose orchestration
 - ✅ **Monitorable** with health checks
 - ✅ **Development-friendly** with hot reload support
