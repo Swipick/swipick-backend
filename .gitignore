@@ -1,2 +1,4 @@
 node_modules
 ticketsDebug
+test-db-connections.js
+*.log

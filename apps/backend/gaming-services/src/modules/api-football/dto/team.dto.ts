@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, IsBoolean } from "class-validator";
+import { IsNumber, IsOptional, IsString, IsBoolean } from 'class-validator';
 
 export class GetTeamsDto {
   @IsOptional()

@@ -1,4 +1,4 @@
-import { registerAs } from "@nestjs/config";
+import { registerAs } from '@nestjs/config';
 
 export interface WebSocketConfig {
   port: number;
@@ -10,13 +10,13 @@ export interface WebSocketConfig {
 }
 
 export const WebSocketConfig = registerAs(
-  "websocket",
+  'websocket',
   (): WebSocketConfig => ({
     port: parseInt(process.env.WEBSOCKET_PORT, 10) || 3001,
     cors: {
-      origin: process.env.NODE_ENV === "production" ? false : "*",
+      origin: process.env.NODE_ENV === 'production' ? false : '*',
       credentials: true,
     },
-    transports: ["websocket", "polling"],
-  })
+    transports: ['websocket', 'polling'],
+  }),
 );

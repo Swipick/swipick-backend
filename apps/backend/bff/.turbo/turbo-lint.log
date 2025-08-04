@@ -3,4 +3,4 @@
 > bff@0.0.1 lint
 > eslint "{src,apps,libs,test}/**/*.ts" --fix
 
-[1G[0K[1G[0K⠙[1G[0K
+[1G[0K

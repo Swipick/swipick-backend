@@ -1,22 +1,22 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { HttpService } from "@nestjs/axios";
-import { ConfigService } from "@nestjs/config";
-import { firstValueFrom } from "rxjs";
-import { AxiosResponse } from "axios";
+import { Injectable, Logger } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
+import { firstValueFrom } from 'rxjs';
+import { AxiosResponse } from 'axios';
 
 // Interfaces
-import { Fixture, LiveMatch } from "./interfaces/fixture.interface";
-import { Team, TeamStatistics } from "./interfaces/team.interface";
-import { Player } from "./interfaces/player.interface";
+import { Fixture, LiveMatch } from './interfaces/fixture.interface';
+import { Team, TeamStatistics } from './interfaces/team.interface';
+// import { Player } from './interfaces/player.interface'; // Unused for now
 
 // DTOs
-import { GetFixturesDto } from "./dto/fixture.dto";
-import { GetTeamsDto } from "./dto/team.dto";
+import { GetFixturesDto } from './dto/fixture.dto';
+import { GetTeamsDto } from './dto/team.dto';
 
 export enum CircuitState {
-  CLOSED = "closed",
-  OPEN = "open",
-  HALF_OPEN = "half_open",
+  CLOSED = 'closed',
+  OPEN = 'open',
+  HALF_OPEN = 'half_open',
 }
 
 @Injectable()
@@ -41,42 +41,42 @@ export class ApiFootballClient {
 
   constructor(
     private readonly httpService: HttpService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
   ) {
-    const config = this.configService.get("apiFootball");
+    const config = this.configService.get('apiFootball');
     this.baseUrl = config.baseUrl;
     this.apiKey = config.apiKey;
     this.backupApiKey = config.backupApiKey;
 
     if (!this.apiKey) {
-      throw new Error("API_FOOTBALL_KEY is required");
+      throw new Error('API_FOOTBALL_KEY is required');
     }
   }
 
   async getFixtures(params: GetFixturesDto): Promise<Fixture[]> {
-    const endpoint = "/fixtures";
+    const endpoint = '/fixtures';
     const response = await this.makeRequest<{ response: Fixture[] }>(
       endpoint,
-      params
+      params,
     );
     return response.response;
   }
 
   async getLiveFixtures(): Promise<LiveMatch[]> {
-    const endpoint = "/fixtures";
-    const params = { live: "all" };
+    const endpoint = '/fixtures';
+    const params = { live: 'all' };
     const response = await this.makeRequest<{ response: LiveMatch[] }>(
       endpoint,
-      params
+      params,
     );
     return response.response;
   }
 
   async getTeams(params: GetTeamsDto): Promise<Team[]> {
-    const endpoint = "/teams";
+    const endpoint = '/teams';
     const response = await this.makeRequest<{ response: Team[] }>(
       endpoint,
-      params
+      params,
     );
     return response.response;
   }
@@ -84,29 +84,29 @@ export class ApiFootballClient {
   async getTeamStatistics(
     teamId: number,
     leagueId: number,
-    season: number
+    season: number,
   ): Promise<TeamStatistics> {
-    const endpoint = "/teams/statistics";
+    const endpoint = '/teams/statistics';
     const params = { team: teamId, league: leagueId, season };
     const response = await this.makeRequest<{ response: TeamStatistics }>(
       endpoint,
-      params
+      params,
     );
     return response.response;
   }
 
   async getHeadToHead(team1Id: number, team2Id: number): Promise<Fixture[]> {
-    const endpoint = "/fixtures";
+    const endpoint = '/fixtures';
     const params = { h2h: `${team1Id}-${team2Id}` };
     const response = await this.makeRequest<{ response: Fixture[] }>(
       endpoint,
-      params
+      params,
     );
     return response.response;
   }
 
   async getApiStatus(): Promise<any> {
-    const endpoint = "/status";
+    const endpoint = '/status';
     const response = await this.makeRequest<any>(endpoint);
     return response;
   }
@@ -124,12 +124,12 @@ export class ApiFootballClient {
         const response: AxiosResponse<T> = await firstValueFrom(
           this.httpService.get(url, {
             headers: {
-              "x-apisports-key": apiKey,
-              "x-rapidapi-host": "v3.football.api-sports.io",
+              'x-apisports-key': apiKey,
+              'x-rapidapi-host': 'v3.football.api-sports.io',
             },
             params,
             timeout: 10000,
-          })
+          }),
         );
 
         this.recordRequest();
@@ -139,14 +139,14 @@ export class ApiFootballClient {
   }
 
   private async executeWithCircuitBreaker<T>(
-    operation: () => Promise<T>
+    operation: () => Promise<T>,
   ): Promise<T> {
     if (this.circuitState === CircuitState.OPEN) {
       if (this.shouldAttemptReset()) {
         this.circuitState = CircuitState.HALF_OPEN;
-        this.logger.log("Circuit breaker state changed to HALF_OPEN");
+        this.logger.log('Circuit breaker state changed to HALF_OPEN');
       } else {
-        throw new Error("Circuit breaker is OPEN - API requests blocked");
+        throw new Error('Circuit breaker is OPEN - API requests blocked');
       }
     }
 
@@ -162,7 +162,7 @@ export class ApiFootballClient {
 
   private async retryWithBackoff<T>(
     operation: () => Promise<T>,
-    maxRetries = 3
+    maxRetries = 3,
   ): Promise<T> {
     let lastError: any;
 
@@ -179,7 +179,7 @@ export class ApiFootballClient {
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // Max 10s delay
         this.logger.warn(
           `Request failed, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`,
-          error.message
+          error.message,
         );
 
         await this.sleep(delay);
@@ -193,7 +193,7 @@ export class ApiFootballClient {
     this.failureCount = 0;
     if (this.circuitState === CircuitState.HALF_OPEN) {
       this.circuitState = CircuitState.CLOSED;
-      this.logger.log("Circuit breaker state changed to CLOSED");
+      this.logger.log('Circuit breaker state changed to CLOSED');
     }
   }
 
@@ -207,7 +207,7 @@ export class ApiFootballClient {
     ) {
       this.circuitState = CircuitState.OPEN;
       this.logger.error(
-        `Circuit breaker opened after ${this.failureCount} failures`
+        `Circuit breaker opened after ${this.failureCount} failures`,
       );
     }
   }
@@ -226,15 +226,15 @@ export class ApiFootballClient {
   private checkRateLimit(): void {
     this.resetCountersIfNeeded();
 
-    const config = this.configService.get("apiFootball");
+    const config = this.configService.get('apiFootball');
     const limits = config.rateLimits;
 
     if (this.dailyRequestCount >= limits.requestsPerDay) {
-      throw new Error("Daily API quota exceeded");
+      throw new Error('Daily API quota exceeded');
     }
 
     if (this.minuteRequestCount >= limits.requestsPerMinute) {
-      throw new Error("Minute API quota exceeded");
+      throw new Error('Minute API quota exceeded');
     }
   }
 
@@ -243,7 +243,7 @@ export class ApiFootballClient {
     this.minuteRequestCount++;
 
     this.logger.debug(
-      `API request recorded. Daily: ${this.dailyRequestCount}, Minute: ${this.minuteRequestCount}`
+      `API request recorded. Daily: ${this.dailyRequestCount}, Minute: ${this.minuteRequestCount}`,
     );
   }
 
@@ -254,7 +254,7 @@ export class ApiFootballClient {
     if (now.getDate() !== this.lastDailyReset.getDate()) {
       this.dailyRequestCount = 0;
       this.lastDailyReset = now;
-      this.logger.log("Daily API quota counter reset");
+      this.logger.log('Daily API quota counter reset');
     }
 
     // Reset minute counter every minute
@@ -274,7 +274,7 @@ export class ApiFootballClient {
       await this.getApiStatus();
       return true;
     } catch (error) {
-      this.logger.error("API key validation failed", error);
+      this.logger.error('API key validation failed', error);
       return false;
     }
   }

@@ -1,14 +1,14 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { ApiFootballClient } from "./api-football.client";
-import { CacheService } from "../cache/cache.service";
+import { Injectable, Logger } from '@nestjs/common';
+import { ApiFootballClient } from './api-football.client';
+import { CacheService } from '../cache/cache.service';
 
 // Interfaces
-import { Fixture, LiveMatch } from "./interfaces/fixture.interface";
-import { Team, TeamStatistics } from "./interfaces/team.interface";
+import { Fixture, LiveMatch } from './interfaces/fixture.interface';
+import { Team, TeamStatistics } from './interfaces/team.interface';
 
 // DTOs
-import { GetFixturesDto } from "./dto/fixture.dto";
-import { GetTeamsDto } from "./dto/team.dto";
+// import { GetFixturesDto } from './dto/fixture.dto'; // Unused for now
+import { GetTeamsDto } from './dto/team.dto';
 
 @Injectable()
 export class ApiFootballService {
@@ -16,7 +16,7 @@ export class ApiFootballService {
 
   constructor(
     private readonly apiFootballClient: ApiFootballClient,
-    private readonly cacheService: CacheService
+    private readonly cacheService: CacheService,
   ) {}
 
   async getDailyFixtures(date: string): Promise<Fixture[]> {
@@ -40,7 +40,7 @@ export class ApiFootballService {
   }
 
   async getLiveMatches(): Promise<LiveMatch[]> {
-    const cacheKey = "fixtures:live";
+    const cacheKey = 'fixtures:live';
 
     // Try cache first (short TTL)
     const cached = await this.cacheService.get<LiveMatch[]>(cacheKey);
@@ -80,7 +80,7 @@ export class ApiFootballService {
   async getTeamStatistics(
     teamId: number,
     leagueId: number,
-    season: number
+    season: number,
   ): Promise<TeamStatistics> {
     const cacheKey = `team-stats:${teamId}:${leagueId}:${season}`;
 
@@ -94,7 +94,7 @@ export class ApiFootballService {
     const stats = await this.apiFootballClient.getTeamStatistics(
       teamId,
       leagueId,
-      season
+      season,
     );
 
     // Cache for 24 hours
@@ -116,14 +116,14 @@ export class ApiFootballService {
     // Fetch from API
     const fixtures = await this.apiFootballClient.getHeadToHead(
       team1Id,
-      team2Id
+      team2Id,
     );
 
     // Cache for 7 days
     await this.cacheService.set(cacheKey, fixtures, 7 * 24 * 60 * 60);
 
     this.logger.log(
-      `Fetched ${fixtures.length} head-to-head fixtures for teams ${team1Id} vs ${team2Id}`
+      `Fetched ${fixtures.length} head-to-head fixtures for teams ${team1Id} vs ${team2Id}`,
     );
     return fixtures;
   }
@@ -132,7 +132,7 @@ export class ApiFootballService {
     try {
       return await this.apiFootballClient.validateApiKey();
     } catch (error) {
-      this.logger.error("API connection validation failed", error);
+      this.logger.error('API connection validation failed', error);
       return false;
     }
   }
@@ -146,7 +146,7 @@ export class ApiFootballService {
       this.logger.log(`Cleared cache for pattern: ${pattern}`);
     } else {
       await this.cacheService.clear();
-      this.logger.log("Cleared all cache");
+      this.logger.log('Cleared all cache');
     }
   }
 }

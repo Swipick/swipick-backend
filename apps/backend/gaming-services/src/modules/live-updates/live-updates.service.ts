@@ -1,6 +1,6 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { FixturesService } from "../fixtures/fixtures.service";
-import { LiveMatch } from "../api-football/interfaces/fixture.interface";
+import { Injectable, Logger } from '@nestjs/common';
+import { FixturesService } from '../fixtures/fixtures.service';
+import { LiveMatch } from '../api-football/interfaces/fixture.interface';
 
 @Injectable()
 export class LiveUpdatesService {
@@ -21,7 +21,7 @@ export class LiveUpdatesService {
 
       return liveMatches;
     } catch (error) {
-      this.logger.error("Failed to process live matches", error);
+      this.logger.error('Failed to process live matches', error);
       throw error;
     }
   }
@@ -35,7 +35,7 @@ export class LiveUpdatesService {
       // 4. Prepare data for WebSocket broadcast
 
       this.logger.debug(
-        `Processing live match ${match.id}: ${match.teams.home.name} vs ${match.teams.away.name}`
+        `Processing live match ${match.id}: ${match.teams.home.name} vs ${match.teams.away.name}`,
       );
 
       // For MVP, we'll just log the processing
@@ -58,7 +58,7 @@ export class LiveUpdatesService {
         match.events?.map((event) => ({
           minute: event.time.elapsed,
           type: this.mapEventType(event.type),
-          team: match.teams.home.id === event.team.id ? "home" : "away",
+          team: match.teams.home.id === event.team.id ? 'home' : 'away',
           player: event.player.name,
           detail: event.detail,
         })) || [],
@@ -66,14 +66,14 @@ export class LiveUpdatesService {
     };
   }
 
-  private mapEventType(type: string): "goal" | "card" | "substitution" | "var" {
+  private mapEventType(type: string): 'goal' | 'card' | 'substitution' | 'var' {
     const lowerType = type.toLowerCase();
 
-    if (lowerType.includes("goal")) return "goal";
-    if (lowerType.includes("card")) return "card";
-    if (lowerType.includes("subst")) return "substitution";
-    if (lowerType.includes("var")) return "var";
+    if (lowerType.includes('goal')) return 'goal';
+    if (lowerType.includes('card')) return 'card';
+    if (lowerType.includes('subst')) return 'substitution';
+    if (lowerType.includes('var')) return 'var';
 
-    return "goal"; // default fallback
+    return 'goal'; // default fallback
   }
 }

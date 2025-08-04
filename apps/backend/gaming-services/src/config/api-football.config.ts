@@ -1,10 +1,10 @@
-import { registerAs } from "@nestjs/config";
+import { registerAs } from '@nestjs/config';
 
 export interface ApiFootballConfig {
   baseUrl: string;
   apiKey: string;
   backupApiKey?: string;
-  tier: "free" | "basic" | "pro";
+  tier: 'free' | 'basic' | 'pro';
   rateLimits: {
     requestsPerDay: number;
     requestsPerMinute: number;
@@ -13,12 +13,12 @@ export interface ApiFootballConfig {
 }
 
 export const ApiFootballConfig = registerAs(
-  "apiFootball",
+  'apiFootball',
   (): ApiFootballConfig => {
-    const tier = (process.env.API_FOOTBALL_TIER || "free") as
-      | "free"
-      | "basic"
-      | "pro";
+    const tier = (process.env.API_FOOTBALL_TIER || 'free') as
+      | 'free'
+      | 'basic'
+      | 'pro';
 
     const rateLimits = {
       free: {
@@ -41,11 +41,11 @@ export const ApiFootballConfig = registerAs(
     return {
       baseUrl:
         process.env.API_FOOTBALL_BASE_URL ||
-        "https://v3.football.api-sports.io",
+        'https://v3.football.api-sports.io',
       apiKey: process.env.API_FOOTBALL_KEY,
       backupApiKey: process.env.API_FOOTBALL_BACKUP_KEY,
       tier,
       rateLimits: rateLimits[tier],
     };
-  }
+  },
 );

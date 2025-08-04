@@ -1,4 +1,4 @@
-import { IsDateString, IsNumber, IsOptional, IsString } from "class-validator";
+import { IsDateString, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class GetFixturesDto {
   @IsOptional()

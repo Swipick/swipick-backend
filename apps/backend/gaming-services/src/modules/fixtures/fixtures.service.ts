@@ -1,9 +1,9 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { ApiFootballService } from "../api-football/api-football.service";
+import { Injectable, Logger } from '@nestjs/common';
+import { ApiFootballService } from '../api-football/api-football.service';
 import {
   Fixture,
   LiveMatch,
-} from "../api-football/interfaces/fixture.interface";
+} from '../api-football/interfaces/fixture.interface';
 
 @Injectable()
 export class FixturesService {
@@ -28,7 +28,7 @@ export class FixturesService {
       this.logger.debug(`Retrieved ${liveMatches.length} live matches`);
       return liveMatches;
     } catch (error) {
-      this.logger.error("Failed to get live matches", error);
+      this.logger.error('Failed to get live matches', error);
       throw error;
     }
   }
@@ -39,7 +39,7 @@ export class FixturesService {
       // In a full implementation, this would check the database first
       // then fallback to API if needed
       const fixtures = await this.apiFootballService.getDailyFixtures(
-        new Date().toISOString().split("T")[0]
+        new Date().toISOString().split('T')[0],
       );
 
       return fixtures.find((f) => f.id === fixtureId) || null;
@@ -51,23 +51,23 @@ export class FixturesService {
 
   async getFixturesForGameweek(
     gameweek: number,
-    date?: Date
+    date?: Date,
   ): Promise<Fixture[]> {
     try {
       const targetDate = date || new Date();
-      const dateString = targetDate.toISOString().split("T")[0];
+      const dateString = targetDate.toISOString().split('T')[0];
 
       const fixtures =
         await this.apiFootballService.getDailyFixtures(dateString);
 
       // Filter by gameweek if available in fixture data
       return fixtures.filter((fixture) =>
-        fixture.league.round.includes(gameweek.toString())
+        fixture.league.round.includes(gameweek.toString()),
       );
     } catch (error) {
       this.logger.error(
         `Failed to get fixtures for gameweek ${gameweek}`,
-        error
+        error,
       );
       throw error;
     }

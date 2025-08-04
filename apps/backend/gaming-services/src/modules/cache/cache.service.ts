@@ -1,5 +1,5 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 export interface CacheOptions {
   ttl?: number;
@@ -42,7 +42,7 @@ export class CacheService {
 
   async clear(): Promise<void> {
     this.cache.clear();
-    this.logger.debug("Cache cleared");
+    this.logger.debug('Cache cleared');
   }
 
   async keys(pattern?: string): Promise<string[]> {
@@ -53,7 +53,7 @@ export class CacheService {
     }
 
     // Simple pattern matching (supports * wildcard)
-    const regex = new RegExp(pattern.replace(/\*/g, ".*"));
+    const regex = new RegExp(pattern.replace(/\*/g, '.*'));
     return keys.filter((key) => regex.test(key));
   }
 }
