@@ -29,6 +29,12 @@ export class FixturesController {
     return this.fixturesService.getLiveMatches();
   }
 
+  @Get('upcoming/serie-a')
+  async getUpcomingSerieAFixtures(@Query('days') days?: number) {
+    const daysToFetch = days || 7; // Default to 7 days
+    return this.fixturesService.getUpcomingSerieAFixtures(daysToFetch);
+  }
+
   @Get(':id')
   async getFixture(@Param('id') id: number) {
     return this.fixturesService.getFixtureById(id);

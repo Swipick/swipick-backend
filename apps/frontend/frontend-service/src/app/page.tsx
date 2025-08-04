@@ -81,6 +81,16 @@ export default function Home() {
           <div className="text-2xl font-bold">🔗 Inter-Service Communication</div>
         </div>
 
+        {/* Navigation */}
+        <div className="w-full flex justify-center">
+          <a
+            href="/gioca"
+            className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center gap-2"
+          >
+            ⚽ Gioca - Serie A Predictions
+          </a>
+        </div>
+
         {/* Phase 2 Status */}
         <div className="w-full bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 rounded-lg border">
           <h2 className="text-xl font-semibold mb-4 text-blue-800 dark:text-blue-200">

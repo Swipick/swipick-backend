@@ -1,4 +1,5 @@
 import { AppService } from './app.service';
+import { Request } from 'express';
 export declare class AppController {
     private readonly appService;
     private readonly logger;
@@ -23,6 +24,7 @@ export declare class AppController {
     }>;
     getFixtures(): Promise<any>;
     getLiveFixtures(): Promise<any>;
+    getUpcomingSerieAFixtures(req: Request): Promise<any>;
     getFixtureById(id: string): Promise<any>;
     syncFixtures(body: any): Promise<any>;
     getTeams(): Promise<any>;

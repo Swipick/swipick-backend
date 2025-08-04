@@ -12,7 +12,10 @@ async function bootstrap() {
     }));
     app.enableCors({
         origin: process.env.NODE_ENV === 'production'
-            ? ['https://your-frontend-domain.com']
+            ? [
+                'https://swipick-production.up.railway.app',
+                'https://your-frontend-domain.com',
+            ]
             : true,
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

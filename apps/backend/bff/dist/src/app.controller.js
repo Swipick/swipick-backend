@@ -55,6 +55,12 @@ let AppController = AppController_1 = class AppController {
         this.logger.log('Forwarding live fixtures request to Gaming Services');
         return this.appService.forwardToGamingServices('/api/fixtures/live');
     }
+    async getUpcomingSerieAFixtures(req) {
+        this.logger.log('Forwarding Serie A fixtures request to Gaming Services');
+        const queryString = req.url.split('?')[1] || '';
+        const endpoint = `/api/fixtures/upcoming/serie-a${queryString ? `?${queryString}` : ''}`;
+        return this.appService.forwardToGamingServices(endpoint);
+    }
     async getFixtureById(id) {
         this.logger.log(`Forwarding fixture ${id} request to Gaming Services`);
         return this.appService.forwardToGamingServices(`/api/fixtures/${id}`);
@@ -115,6 +121,13 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], AppController.prototype, "getLiveFixtures", null);
+__decorate([
+    (0, common_1.Get)('api/fixtures/upcoming/serie-a'),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AppController.prototype, "getUpcomingSerieAFixtures", null);
 __decorate([
     (0, common_1.Get)('api/fixtures/:id'),
     __param(0, (0, common_1.Param)('id')),

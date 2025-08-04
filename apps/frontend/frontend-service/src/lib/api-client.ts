@@ -95,11 +95,16 @@ class ApiClient {
     return this.request(`/fixtures/${id}`);
   }
 
-  async syncFixtures(data?: Record<string, unknown>) {
+  async syncFixtures(data?: { date: string }) {
     return this.request('/fixtures/sync', {
       method: 'POST',
       body: JSON.stringify(data || {}),
     });
+  }
+
+  // Serie A specific endpoint
+  async getUpcomingSerieAFixtures(days: number = 7) {
+    return this.request(`/fixtures/upcoming/serie-a?days=${days}`);
   }
 
   // Teams API

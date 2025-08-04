@@ -5,6 +5,7 @@ import {
   Put,
   Delete,
   Param,
+  Query,
   Body,
   Req,
   Logger,
@@ -64,6 +65,14 @@ export class AppController {
   async getLiveFixtures() {
     this.logger.log('Forwarding live fixtures request to Gaming Services');
     return this.appService.forwardToGamingServices('/api/fixtures/live');
+  }
+
+  @Get('api/fixtures/upcoming/serie-a')
+  async getUpcomingSerieAFixtures(@Req() req: Request) {
+    this.logger.log('Forwarding Serie A fixtures request to Gaming Services');
+    const queryString = req.url.split('?')[1] || '';
+    const endpoint = `/api/fixtures/upcoming/serie-a${queryString ? `?${queryString}` : ''}`;
+    return this.appService.forwardToGamingServices(endpoint);
   }
 
   @Get('api/fixtures/:id')
