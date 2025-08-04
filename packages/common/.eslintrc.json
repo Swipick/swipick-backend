@@ -1,11 +1,15 @@
 {
-  "extends": ["eslint:recommended"],
+  "extends": [
+    "eslint:recommended"
+  ],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
     "ecmaVersion": 2020,
     "sourceType": "module"
   },
-  "plugins": ["@typescript-eslint"],
+  "plugins": [
+    "@typescript-eslint"
+  ],
   "rules": {
     "@typescript-eslint/interface-name-prefix": "off",
     "@typescript-eslint/explicit-function-return-type": "off",
@@ -14,5 +18,11 @@
     "no-unused-vars": "off",
     "@typescript-eslint/no-unused-vars": "error"
   },
-  "ignorePatterns": ["*.js", "*.js.map", "dist/", "node_modules/"]
+  "ignorePatterns": [
+    "**/*.js",
+    "**/*.js.map",
+    "dist/**/*",
+    "node_modules/**/*",
+    "*.d.ts"
+  ]
 }

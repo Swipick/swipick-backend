@@ -1,0 +1,7 @@
+dist/
+node_modules/
+coverage/
+*.js
+*.js.map
+*.d.ts
+.turbo/
