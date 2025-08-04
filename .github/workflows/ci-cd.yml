@@ -86,15 +86,19 @@ jobs:
 
           # Build production containers
           podman build -t swipick-bff:latest -f Containerfile .
+          podman build -t swipick-frontend:latest -f apps/frontend/frontend-service/Containerfile apps/frontend/frontend-service
 
           # Future: Build gaming services container when implemented
           # podman build -t swipick-gaming:latest -f apps/backend/gaming-services/Containerfile .
 
           # Test container functionality
           podman run --rm -d --name test-bff -p 9000:9000 swipick-bff:latest
-          sleep 10
+          podman run --rm -d --name test-frontend -p 3000:3000 swipick-frontend:latest
+          sleep 15
           curl -f http://localhost:9000/health || exit 1
+          curl -f http://localhost:3000/api/health || exit 1
           podman stop test-bff
+          podman stop test-frontend
 
       - name: Build Docker images (legacy compatibility)
         run: npm run docker:build

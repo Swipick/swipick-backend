@@ -1,0 +1,90 @@
+# Swipick Frontend - Next.js PWA Containerfile
+# Multi-stage build for optimal production deployment
+
+# =============================================================================
+# Stage 1: Dependencies - Install dependencies
+# =============================================================================
+FROM node:20-alpine AS dependencies
+
+LABEL maintainer="Swipick Development Team"
+LABEL description="Swipick Frontend PWA - Dependencies Stage"
+
+# Install dependencies for building node modules
+RUN apk add --no-cache libc6-compat
+
+# Create app directory and set ownership
+WORKDIR /app
+RUN chown -R 1001:1001 /app
+
+# Copy package files
+COPY --chown=1001:1001 package*.json ./
+
+# Switch to non-root user
+USER 1001:1001
+
+# Install dependencies
+RUN npm ci --only=production && npm cache clean --force
+
+# =============================================================================
+# Stage 2: Builder - Build the application
+# =============================================================================
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+RUN chown -R 1001:1001 /app
+
+# Copy package files and install all dependencies
+COPY --chown=1001:1001 package*.json ./
+USER 1001:1001
+RUN npm ci
+
+# Copy source code
+COPY --chown=1001:1001 . .
+
+# Build the Next.js application
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+RUN npm run build
+
+# =============================================================================
+# Stage 3: Production - Serve the application
+# =============================================================================
+FROM node:20-alpine AS production
+
+LABEL maintainer="Swipick Development Team"
+LABEL description="Swipick Frontend PWA - Production Stage"
+
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
+
+# Create app directory and non-root user
+WORKDIR /app
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nextjs -u 1001
+RUN chown -R nextjs:nodejs /app
+
+# Copy built application from builder stage
+COPY --from=dependencies --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+
+# Switch to non-root user
+USER nextjs
+
+# Expose port
+EXPOSE 3000
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+
+# Start the application with dumb-init
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["npm", "start"]
