@@ -1,4 +1,4 @@
-import { Fixture, MatchEvent } from "./fixture.interface";
+import { Fixture, MatchEvent } from './fixture.interface';
 
 export interface LiveMatchUpdate extends Fixture {
   events: MatchEvent[];

@@ -1,10 +1,10 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { ApiFootballService } from "../api-football/api-football.service";
+import { Injectable, Logger } from '@nestjs/common';
+import { ApiFootballService } from '../api-football/api-football.service';
 import {
   Team,
   TeamStatistics,
-} from "../api-football/interfaces/team.interface";
-import { GetTeamsDto } from "../api-football/dto/team.dto";
+} from '../api-football/interfaces/team.interface';
+import { GetTeamsDto } from '../api-football/dto/team.dto';
 
 @Injectable()
 export class TeamsService {
@@ -18,7 +18,7 @@ export class TeamsService {
       this.logger.debug(`Retrieved ${teams.length} teams`);
       return teams;
     } catch (error) {
-      this.logger.error("Failed to get teams", error);
+      this.logger.error('Failed to get teams', error);
       throw error;
     }
   }
@@ -36,20 +36,20 @@ export class TeamsService {
   async getTeamStatistics(
     teamId: number,
     leagueId: number,
-    season: number
+    season: number,
   ): Promise<TeamStatistics> {
     try {
       const stats = await this.apiFootballService.getTeamStatistics(
         teamId,
         leagueId,
-        season
+        season,
       );
       this.logger.debug(`Retrieved statistics for team ${teamId}`);
       return stats;
     } catch (error) {
       this.logger.error(
         `Failed to get team statistics for team ${teamId}`,
-        error
+        error,
       );
       throw error;
     }
@@ -59,7 +59,7 @@ export class TeamsService {
     try {
       const fixtures = await this.apiFootballService.getHeadToHead(
         team1Id,
-        team2Id
+        team2Id,
       );
 
       // Process head-to-head data
@@ -99,10 +99,10 @@ export class TeamsService {
               result: `${lastMatch.goals.home}-${lastMatch.goals.away}`,
               winner:
                 lastMatch.teams.home.winner === true
-                  ? "home"
+                  ? 'home'
                   : lastMatch.teams.away.winner === true
-                    ? "away"
-                    : "draw",
+                    ? 'away'
+                    : 'draw',
             }
           : null,
         fixtures,
@@ -110,7 +110,7 @@ export class TeamsService {
     } catch (error) {
       this.logger.error(
         `Failed to get head-to-head for teams ${team1Id} vs ${team2Id}`,
-        error
+        error,
       );
       throw error;
     }

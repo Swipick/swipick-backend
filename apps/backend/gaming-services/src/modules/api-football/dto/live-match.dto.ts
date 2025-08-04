@@ -1,5 +1,5 @@
-import { IsNumber, IsArray, IsObject } from "class-validator";
-import { FixtureResponseDto } from "./fixture.dto";
+import { IsNumber, IsArray, IsObject } from 'class-validator';
+import { FixtureResponseDto } from './fixture.dto';
 
 export class LiveMatchUpdateDto extends FixtureResponseDto {
   @IsArray()
