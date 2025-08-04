@@ -20,9 +20,17 @@
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
     "test:cov": "turbo run test:cov",
+    "test:e2e": "turbo run test:e2e",
+    "test:smoke": "turbo run test:smoke",
     "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
     "format": "turbo run format",
-    "clean": "turbo run clean"
+    "format:check": "turbo run format:check",
+    "type-check": "turbo run type-check",
+    "clean": "turbo run clean",
+    "docker:build": "turbo run docker:build",
+    "docker:run": "turbo run docker:run",
+    "health-check": "turbo run health-check"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",

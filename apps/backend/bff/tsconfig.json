@@ -24,6 +24,6 @@
       "@swipick/common/*": ["../../packages/common/src/*"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "test/**/*"],
   "exclude": ["node_modules", "dist"]
 }

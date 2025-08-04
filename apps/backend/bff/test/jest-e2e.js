@@ -1,0 +1,13 @@
+module.exports = {
+  moduleFileExtensions: ['js', 'json', 'ts'],
+  rootDir: '.',
+  testEnvironment: 'node',
+  testRegex: '.e2e-spec.ts$',
+  transform: {
+    '^.+\\.(t|j)s$': 'ts-jest',
+  },
+  moduleNameMapper: {
+    '^@swipick/common$': '<rootDir>/../../../packages/common/src',
+  },
+  setupFiles: ['<rootDir>/jest.setup.ts'],
+};

@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { IAuthUser, IAuthService } from '@swipick/common';
@@ -25,7 +25,8 @@ export class AuthService implements IAuthService {
   //   });
   // }
 
-  async verifyToken(token: string): Promise<IAuthUser> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async verifyToken(_token: string): Promise<IAuthUser> {
     // try {
     //   const decodedToken = await admin.auth().verifyIdToken(token);
 
