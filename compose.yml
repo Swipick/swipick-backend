@@ -1,7 +1,7 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  # BFF Service - Backend for Frontend
+  # BFF Service - Backend for Frontend (Cloud DB)
   bff:
     build:
       context: ./apps/backend/bff
@@ -12,6 +12,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=9000
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
       - GAMING_SERVICES_URL=http://gaming-services:3000
     depends_on:
       - gaming-services
@@ -25,7 +27,7 @@ services:
       retries: 3
       start_period: 40s
 
-  # Gaming Services - API-FOOTBALL Integration
+  # Gaming Services - API-FOOTBALL Integration (Cloud DB)
   gaming-services:
     build:
       context: ./apps/backend/gaming-services
@@ -38,13 +40,10 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - WEBSOCKET_PORT=3001
-      - API_FOOTBALL_URL=https://api-football-v1.p.rapidapi.com/v3
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
       - API_FOOTBALL_KEY=${API_FOOTBALL_KEY}
-      - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/swipick_gaming
-    depends_on:
-      - postgres
-      - redis
+      - API_FOOTBALL_URL=${API_FOOTBALL_URL}
     networks:
       - swipick-network
     restart: unless-stopped
@@ -54,52 +53,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: swipick-postgres
-    environment:
-      - POSTGRES_DB=swipick_gaming
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
-    ports:
-      - "5432:5432"
-    networks:
-      - swipick-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: swipick-redis
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-    networks:
-      - swipick-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-volumes:
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
 
 networks:
   swipick-network:

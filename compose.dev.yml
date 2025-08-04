@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # BFF Service - Development with Hot Reload
@@ -38,53 +38,18 @@ services:
       - WEBSOCKET_PORT=3001
       - API_FOOTBALL_URL=https://api-football-v1.p.rapidapi.com/v3
       - API_FOOTBALL_KEY=${API_FOOTBALL_KEY}
-      - REDIS_URL=redis://redis-dev:6379
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres-dev:5432/swipick_gaming_dev
+      - REDIS_URL=${REDIS_URL}
+      - DATABASE_URL=${DATABASE_URL}
     volumes:
       - ./apps/backend/gaming-services/src:/app/src:ro
       - ./apps/backend/gaming-services/package.json:/app/package.json:ro
       - ./apps/backend/gaming-services/tsconfig.json:/app/tsconfig.json:ro
-    depends_on:
-      - postgres-dev
-      - redis-dev
-    networks:
-      - swipick-dev-network
-    restart: unless-stopped
-
-  # PostgreSQL Database - Development
-  postgres-dev:
-    image: postgres:15-alpine
-    container_name: swipick-postgres-dev
-    environment:
-      - POSTGRES_DB=swipick_gaming_dev
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    volumes:
-      - postgres_dev_data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"  # Different port to avoid conflicts
-    networks:
-      - swipick-dev-network
-    restart: unless-stopped
-
-  # Redis Cache - Development
-  redis-dev:
-    image: redis:7-alpine
-    container_name: swipick-redis-dev
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_dev_data:/data
-    ports:
-      - "6380:6379"  # Different port to avoid conflicts
     networks:
       - swipick-dev-network
     restart: unless-stopped
 
 volumes:
-  postgres_dev_data:
-    driver: local
-  redis_dev_data:
-    driver: local
+  # No volumes needed - using cloud databases
 
 networks:
   swipick-dev-network:

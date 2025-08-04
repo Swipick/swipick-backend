@@ -27,23 +27,27 @@ The Swipick backend now uses **Podman** for containerization with a **BFF (Backe
 ## Services
 
 ### BFF Service (Backend-for-Frontend)
+
 - **Purpose**: Aggregates data from multiple services for frontend consumption
 - **Port**: 9000
 - **Container**: `swipick-bff`
 - **No Authentication**: Firebase handles all auth on frontend
 
 ### Gaming Services
+
 - **Purpose**: API-FOOTBALL integration and real-time match data
 - **Ports**: 3000 (HTTP), 3001 (WebSocket)
 - **Container**: `swipick-gaming-services`
 - **Features**: Real-time updates, caching, API integration
 
 ### PostgreSQL Database
+
 - **Purpose**: Persistent data storage
 - **Port**: 5432 (production), 5433 (development)
 - **Container**: `swipick-postgres`
 
 ### Redis Cache
+
 - **Purpose**: Caching and session management
 - **Port**: 6379 (production), 6380 (development)
 - **Container**: `swipick-redis`
@@ -51,20 +55,24 @@ The Swipick backend now uses **Podman** for containerization with a **BFF (Backe
 ## Container Files
 
 ### Production Containers
+
 - `apps/backend/bff/Containerfile` - BFF production container
 - `apps/backend/gaming-services/Containerfile` - Gaming services production container
 
-### Development Containers  
+### Development Containers
+
 - `apps/backend/bff/Containerfile.dev` - BFF development with hot reload
 - `apps/backend/gaming-services/Containerfile.dev` - Gaming services development with hot reload
 
 ### Compose Files
+
 - `compose.yml` - Production orchestration
 - `compose.dev.yml` - Development orchestration with hot reload
 
 ## Quick Start
 
 ### 1. Environment Setup
+
 ```bash
 # Copy environment template
 cp .env.example .env
@@ -74,6 +82,7 @@ nano .env
 ```
 
 ### 2. Production Deployment
+
 ```bash
 # Start all services
 ./start-production.sh
@@ -83,6 +92,7 @@ podman-compose -f compose.yml up -d
 ```
 
 ### 3. Development Environment
+
 ```bash
 # Start with hot reload
 ./start-development.sh
@@ -94,12 +104,14 @@ podman-compose -f compose.dev.yml up -d
 ## Environment Variables
 
 ### Required Variables
+
 ```bash
 POSTGRES_PASSWORD=your_secure_postgres_password_here
 API_FOOTBALL_KEY=your_api_football_key_here
 ```
 
 ### Optional Variables
+
 ```bash
 REDIS_PASSWORD=your_secure_redis_password_here
 NODE_ENV=production
@@ -109,6 +121,7 @@ LOG_LEVEL=info
 ## Service URLs
 
 ### Production
+
 - BFF: http://localhost:9000
 - Gaming Services: http://localhost:3000
 - WebSocket: ws://localhost:3001
@@ -116,6 +129,7 @@ LOG_LEVEL=info
 - Redis: localhost:6379
 
 ### Development
+
 - BFF: http://localhost:9000 (hot reload)
 - Gaming Services: http://localhost:3000 (hot reload)
 - WebSocket: ws://localhost:3001
@@ -130,6 +144,7 @@ LOG_LEVEL=info
 ## Common Commands
 
 ### View Logs
+
 ```bash
 # All services
 podman-compose -f compose.yml logs -f
@@ -139,6 +154,7 @@ podman-compose -f compose.yml logs -f bff
 ```
 
 ### Stop Services
+
 ```bash
 # Stop (containers remain)
 podman-compose -f compose.yml stop
@@ -151,6 +167,7 @@ podman-compose -f compose.yml down -v
 ```
 
 ### Rebuild Containers
+
 ```bash
 # Rebuild all
 podman-compose -f compose.yml build
@@ -166,6 +183,7 @@ The BFF service **does not handle authentication**. All authentication is handle
 ## API-FOOTBALL Integration
 
 The Gaming Services container handles all API-FOOTBALL integration:
+
 - Fixture data fetching
 - Team information
 - Live match updates
@@ -178,6 +196,7 @@ Database migrations are handled automatically when containers start. The init sc
 ## Troubleshooting
 
 ### Container Build Issues
+
 ```bash
 # Clear build cache
 podman system prune -f
@@ -187,6 +206,7 @@ podman-compose -f compose.yml build --no-cache
 ```
 
 ### Service Connection Issues
+
 ```bash
 # Check network connectivity
 podman network ls
@@ -194,12 +214,14 @@ podman network inspect swipick-network
 ```
 
 ### Database Issues
+
 ```bash
 # Connect to database
 podman exec -it swipick-postgres psql -U postgres -d swipick_gaming
 ```
 
 ### Redis Issues
+
 ```bash
 # Connect to Redis
 podman exec -it swipick-redis redis-cli

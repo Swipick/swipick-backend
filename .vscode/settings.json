@@ -1,0 +1,7 @@
+{
+  "jest.jestCommandLine": "npx jest --config jest.config.js",
+  "jest.rootPath": "apps/backend/bff",
+  "jest.runMode": {
+    "type": "on-demand"
+  }
+}
