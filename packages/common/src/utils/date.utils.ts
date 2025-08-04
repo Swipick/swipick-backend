@@ -26,7 +26,7 @@ export const minutesUntilKickoff = (kickoffTime: Date): number => {
 
 export const canMakePrediction = (
   kickoffTime: Date,
-  bufferMinutes: number = 15
+  bufferMinutes: number = 15,
 ): boolean => {
   return minutesUntilKickoff(kickoffTime) > bufferMinutes;
 };

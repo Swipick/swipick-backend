@@ -16,10 +16,10 @@ export interface IPredictionService {
   create(predictionData: Partial<IPrediction>): Promise<IPrediction>;
   update(
     id: string,
-    predictionData: Partial<IPrediction>
+    predictionData: Partial<IPrediction>,
   ): Promise<IPrediction>;
   calculatePoints(
     prediction: IPrediction,
-    actualResult: { homeScore: number; awayScore: number }
+    actualResult: { homeScore: number; awayScore: number },
   ): number;
 }

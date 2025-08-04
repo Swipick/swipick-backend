@@ -1,0 +1,17 @@
+
+
+> @swipick/common@1.0.0 format:check
+> prettier --check "src/**/*.ts"
+
+[1G[0KChecking formatting...
+src/dto/auth.dto.ts[2K[1Gsrc/dto/match.dto.ts[2K[1Gsrc/dto/prediction.dto.ts[2K[1Gsrc/dto/user.dto.ts[2K[1Gsrc/index.ts[2K[1Gsrc/interfaces/auth.interface.ts[2K[1Gsrc/interfaces/match.interface.ts[2K[1Gsrc/interfaces/prediction.interface.ts[2K[1G[[33mwarn[39m] src/interfaces/prediction.interface.ts
+src/interfaces/user.interface.ts[2K[1Gsrc/utils/date.utils.ts[2K[1G[[33mwarn[39m] src/utils/date.utils.ts
+src/utils/validation.utils.ts[2K[1G[[33mwarn[39m] Code style issues found in 2 files. Run Prettier with --write to fix.
+[1G[0K⠙[1G[0K[1mnpm[22m [31merror[39m Lifecycle script `format:check` failed with error:
+[1G[0K⠙[1G[0K[1mnpm[22m [31merror[39m [94mcode[39m [33m1[39m
+[1G[0K⠙[1G[0K[1mnpm[22m [31merror[39m [94mpath[39m /Users/ashm4/Projects/swipick-backend/packages/common
+[1G[0K⠙[1G[0K[1mnpm[22m [31merror[39m [94mworkspace[39m @swipick/common@1.0.0
+[1G[0K⠙[1G[0K[1mnpm[22m [31merror[39m [94mlocation[39m /Users/ashm4/Projects/swipick-backend/packages/common
+[1G[0K⠙[1G[0K[1mnpm[22m [31merror[39m command failed
+[1G[0K⠙[1G[0K[1mnpm[22m [31merror[39m [94mcommand[39m sh -c prettier --check "src/**/*.ts"
+[1G[0K⠙[1G[0K

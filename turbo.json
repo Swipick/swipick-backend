@@ -28,6 +28,30 @@
     "format": {
       "outputs": []
     },
+    "format:check": {
+      "outputs": []
+    },
+    "type-check": {
+      "dependsOn": ["^build"]
+    },
+    "test:e2e": {
+      "dependsOn": ["build"],
+      "outputs": []
+    },
+    "test:smoke": {
+      "dependsOn": ["build"],
+      "outputs": []
+    },
+    "docker:build": {
+      "dependsOn": ["build"],
+      "outputs": []
+    },
+    "docker:run": {
+      "outputs": []
+    },
+    "health-check": {
+      "outputs": []
+    },
     "clean": {
       "cache": false
     }
