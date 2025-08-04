@@ -19,7 +19,6 @@ RUN chown -R 1001:1001 /app
 # Copy package files for dependency installation
 COPY --chown=1001:1001 package*.json ./
 COPY --chown=1001:1001 turbo.json ./
-COPY --chown=1001:1001 tsconfig.base.json* ./
 
 # Copy workspace package files
 COPY --chown=1001:1001 apps/backend/bff/package*.json ./apps/backend/bff/
