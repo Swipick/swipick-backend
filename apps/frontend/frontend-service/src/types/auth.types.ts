@@ -31,6 +31,9 @@ export interface AuthContextType {
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   
+  // Google authentication methods
+  signInWithGoogle: () => Promise<void>;
+  
   // Email link authentication methods
   sendSignInLinkToEmail: (email: string) => Promise<void>;
   signInWithEmailLink: (email: string, emailLink: string) => Promise<void>;

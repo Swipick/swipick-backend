@@ -10,8 +10,12 @@ exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const axios_1 = require("@nestjs/axios");
+const typeorm_1 = require("@nestjs/typeorm");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
+const firebase_config_1 = require("./config/firebase.config");
+const database_config_1 = require("./config/database.config");
+const users_module_1 = require("./modules/users/users.module");
 const path = require("path");
 let AppModule = class AppModule {
 };
@@ -27,9 +31,14 @@ exports.AppModule = AppModule = __decorate([
                 timeout: 5000,
                 maxRedirects: 5,
             }),
+            typeorm_1.TypeOrmModule.forRootAsync({
+                imports: [config_1.ConfigModule],
+                useClass: database_config_1.DatabaseConfigService,
+            }),
+            users_module_1.UsersModule,
         ],
         controllers: [app_controller_1.AppController],
-        providers: [app_service_1.AppService],
+        providers: [app_service_1.AppService, firebase_config_1.FirebaseConfigService, database_config_1.DatabaseConfigService],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

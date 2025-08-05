@@ -178,7 +178,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   /**
-   * Logout current user
+   * Logout user
    */
   const logout = async (): Promise<void> => {
     try {
@@ -187,8 +187,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       await authService.logout();
       setFirebaseUser(null);
+      
+      // Clear email link state
       setIsEmailLinkSent(false);
-      setEmailForSignInState(null);
+      clearEmailForSignIn();
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Errore durante il logout');
       throw error;
@@ -198,6 +200,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   /**
+   * Sign in with Google
+   */
+  const signInWithGoogle = async (): Promise<void> => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const { signInWithGoogle: googleSignIn, getAuthErrorMessage } = await import('../../services/googleAuth');
+      const result = await googleSignIn();
+      
+      if (result.success && result.user) {
+        setFirebaseUser({
+          uid: result.user.uid,
+          email: result.user.email,
+          emailVerified: result.user.emailVerified,
+          accessToken: await result.user.getIdToken(),
+          displayName: result.user.displayName,
+          photoURL: result.user.photoURL,
+        });
+      } else if (result.error) {
+        const friendlyMessage = getAuthErrorMessage(result.code || '');
+        throw new Error(friendlyMessage);
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Errore durante l\'accesso con Google');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };  /**
    * Send email verification
    */
   const sendEmailVerification = async (): Promise<void> => {
@@ -275,6 +307,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     register,
     logout,
+    signInWithGoogle,
     
     // Email link methods
     sendSignInLinkToEmail,
