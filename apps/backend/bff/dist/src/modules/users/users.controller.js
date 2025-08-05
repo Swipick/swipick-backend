@@ -67,6 +67,22 @@ let UsersController = UsersController_1 = class UsersController {
             data: user,
         };
     }
+    async sendPasswordReset(body) {
+        this.logger.log(`Password reset request for email: ${body.email}`);
+        await this.usersService.sendPasswordReset(body.email);
+        return {
+            success: true,
+            message: "Email di reset password inviata se l'indirizzo esiste",
+        };
+    }
+    async syncPasswordReset(body) {
+        this.logger.log(`Syncing password reset for Firebase UID: ${body.firebaseUid}`);
+        await this.usersService.syncPasswordReset(body.firebaseUid, body.email);
+        return {
+            success: true,
+            message: 'Password reset sincronizzato con successo',
+        };
+    }
     async health() {
         return {
             status: 'ok',
@@ -120,6 +136,24 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "getUserProfileByFirebaseUid", null);
+__decorate([
+    (0, common_1.Post)('send-password-reset'),
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    (0, common_1.UsePipes)(new common_1.ValidationPipe({ transform: true, whitelist: true })),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "sendPasswordReset", null);
+__decorate([
+    (0, common_1.Post)('sync-password-reset'),
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    (0, common_1.UsePipes)(new common_1.ValidationPipe({ transform: true, whitelist: true })),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "syncPasswordReset", null);
 __decorate([
     (0, common_1.Get)('health'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),

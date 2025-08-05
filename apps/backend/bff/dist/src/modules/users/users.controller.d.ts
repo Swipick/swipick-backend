@@ -27,6 +27,19 @@ export declare class UsersController {
         success: boolean;
         data: UserResponseDto;
     }>;
+    sendPasswordReset(body: {
+        email: string;
+    }): Promise<{
+        success: boolean;
+        message: string;
+    }>;
+    syncPasswordReset(body: {
+        firebaseUid: string;
+        email: string;
+    }): Promise<{
+        success: boolean;
+        message: string;
+    }>;
     health(): Promise<{
         status: string;
         timestamp: string;

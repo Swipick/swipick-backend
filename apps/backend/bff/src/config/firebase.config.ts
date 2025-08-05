@@ -189,4 +189,10 @@ export class FirebaseConfigService {
       throw new Error("Errore durante l'eliminazione dell'utente");
     }
   }
+
+  /**
+   * Note: Password reset emails must be sent from client-side Firebase Auth
+   * This is a Firebase security requirement - password reset links can only be generated client-side
+   * Use sendPasswordResetEmail() from firebase/auth on the frontend
+   */
 }

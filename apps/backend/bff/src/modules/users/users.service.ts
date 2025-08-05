@@ -280,6 +280,87 @@ export class UsersService {
     });
   }
 
+  /**
+   * Send password reset email via Firebase (client-side only)
+   * This method validates the user exists and provides appropriate response
+   */
+  async sendPasswordReset(email: string): Promise<void> {
+    try {
+      // Check if user exists in database
+      const user = await this.userRepository.findOne({ where: { email } });
+
+      if (!user) {
+        // Don't reveal if email exists for security
+        this.logger.warn(
+          `Password reset attempted for non-existent email: ${email}`,
+        );
+        return; // Still return success to not reveal email existence
+      }
+
+      if (user.authProvider === AuthProvider.GOOGLE) {
+        throw new BadRequestException(
+          'Gli utenti Google non possono reimpostare la password. Usa "Accedi con Google".',
+        );
+      }
+
+      // Note: Actual password reset email is sent from client-side Firebase Auth
+      // This endpoint just validates the user exists and has email auth
+      this.logger.log(`Password reset validation passed for user: ${user.id}`);
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      this.logger.error('Failed to validate password reset request', error);
+      throw new BadRequestException(
+        'Errore durante la validazione del reset password',
+      );
+    }
+  }
+
+  /**
+   * Sync password reset with database after Firebase reset
+   * This ensures our database stays in sync with Firebase
+   */
+  async syncPasswordReset(firebaseUid: string, email: string): Promise<void> {
+    try {
+      const user = await this.userRepository.findOne({
+        where: { firebaseUid },
+      });
+
+      if (!user) {
+        throw new NotFoundException('Utente non trovato');
+      }
+
+      if (user.authProvider === AuthProvider.GOOGLE) {
+        throw new BadRequestException(
+          'Gli utenti Google non possono cambiare password',
+        );
+      }
+
+      // Update the user's updated timestamp to reflect the password change
+      user.updatedAt = new Date();
+
+      // Clear any stored password hash since Firebase manages the password
+      // Our database doesn't store the actual password for Firebase users
+      user.passwordHash = null;
+
+      await this.userRepository.save(user);
+
+      this.logger.log(`Password reset synced for user: ${user.id}`);
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      this.logger.error('Failed to sync password reset', error);
+      throw new BadRequestException(
+        'Errore durante la sincronizzazione del reset password',
+      );
+    }
+  }
+
   private handleRegistrationError(error: any): never {
     if (error.code === '23505') {
       // PostgreSQL unique constraint violation

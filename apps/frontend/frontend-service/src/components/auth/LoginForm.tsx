@@ -14,8 +14,9 @@ import Button from '../../../components/ui/Button';
 const LoginForm: React.FC = () => {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [showEmailPrompt, setShowEmailPrompt] = useState(false);
+  const [emailShake, setEmailShake] = useState(false);
   
   const {
     formData,
@@ -52,67 +53,57 @@ const LoginForm: React.FC = () => {
   const handleForgotPassword = async () => {
     if (!formData.email) {
       clearError();
-      // Focus on email field if empty
+      setShowEmailPrompt(true);
+      setEmailShake(true);
+      
+      // Focus on email field
       const emailInput = document.getElementById('email') as HTMLInputElement;
       if (emailInput) {
         emailInput.focus();
       }
+      
+      // Remove shake animation after it completes
+      setTimeout(() => setEmailShake(false), 500);
       return;
     }
     
     try {
       await sendPasswordReset(formData.email);
-      setShowForgotPassword(true);
+      // Redirect to reset-password page with email parameter
+      router.push(`/reset-password?email=${encodeURIComponent(formData.email)}&step=sent`);
     } catch (error) {
-      // Error is handled by the context
+      // Error is handled by the context - show inline error instead of redirect
+      console.error('Password reset failed:', error);
     }
   };
 
-  if (showForgotPassword || isPasswordResetSent) {
-    return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <div className="mb-4">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 7.89a2 2 0 002.83 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-            </div>
-          </div>
-          <h2 className="text-2xl font-bold text-[#554099] mb-4">Email Inviata</h2>
-          <p className="text-gray-600 mb-6">
-            Abbiamo inviato le istruzioni per reimpostare la password a{' '}
-            <span className="font-medium text-gray-900">{formData.email}</span>
-          </p>
-          <p className="text-sm text-gray-500 mb-8">
-            Controlla anche la cartella spam se non vedi l&apos;email.
-          </p>
-        </div>
+  // Reset email prompt when user starts typing
+  const handleEmailChange = (value: string) => {
+    updateField('email', value);
+    // Remove the auto-restore - let the UI stay in email-only mode
+  };
 
-        <div className="space-y-4">
-          <Button
-            onClick={() => setShowForgotPassword(false)}
-            variant="secondary"
-            fullWidth
-          >
-            Torna al Login
-          </Button>
-          
-          <Button
-            onClick={() => handleForgotPassword()}
-            variant="secondary"
-            fullWidth
-            disabled={isLoading}
-          >
-            Invia Nuovamente
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  // Function to return to normal login form
+  const handleBackToLogin = () => {
+    setShowEmailPrompt(false);
+    clearError();
+  };
 
   return (
-    <div className="space-y-6">
+    <>
+      {/* Shake animation styles */}
+      <style jsx>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+          20%, 40%, 60%, 80% { transform: translateX(4px); }
+        }
+        .animate-shake {
+          animation: shake 0.5s ease-in-out;
+        }
+      `}</style>
+      
+      <div className="space-y-6">
       {/* General Error Message */}
       {errors.general && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -137,98 +128,121 @@ const LoginForm: React.FC = () => {
             type="email"
             autoComplete="email"
             value={formData.email}
-            onChange={(e) => updateField('email', e.target.value)}
+            onChange={(e) => handleEmailChange(e.target.value)}
             className={`
-              w-full h-10 px-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#554099] focus:border-transparent transition-colors bg-gray-50 text-gray-900
-              ${errors.email 
+              w-full h-10 px-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#554099] focus:border-transparent transition-all bg-gray-50 text-gray-900
+              ${errors.email || showEmailPrompt
                 ? 'border-red-300 bg-red-50' 
                 : 'border-gray-200 hover:border-gray-300 focus:border-[#554099] focus:bg-white'
               }
+              ${emailShake ? 'animate-shake' : ''}
             `}
             placeholder="Email"
             disabled={isLoading}
           />
-          {errors.email && (
+          {(errors.email || showEmailPrompt) && (
             <p className="text-sm text-red-600 flex items-center mt-1">
               <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
-              {errors.email}
+              {errors.email || 'Inserisci il tuo indirizzo email per reimpostare la password'}
             </p>
           )}
         </div>
 
-        {/* Password Field */}
-        <div>
-          <div className="relative">
-            <input
-              id="password"
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="current-password"
-              value={formData.password}
-              onChange={(e) => updateField('password', e.target.value)}
-              className={`
-                w-full h-10 px-4 py-3 pr-12 border rounded-lg focus:ring-2 focus:ring-[#554099] focus:border-transparent transition-colors bg-gray-50 text-gray-900
-                ${errors.password 
-                  ? 'border-red-300 bg-red-50' 
-                  : 'border-gray-200 hover:border-gray-300 focus:border-[#554099] focus:bg-white'
-                }
-              `}
-              placeholder="Password"
-              disabled={isLoading}
-            />
+        {/* Back to Login Button - Shown only in email prompt mode */}
+        {showEmailPrompt && (
+          <div className="text-center">
             <button
               type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
-              disabled={isLoading}
+              onClick={handleBackToLogin}
+              className="text-[#554099] hover:text-[#443077] text-sm underline transition-colors"
             >
-              {showPassword ? (
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                </svg>
-              ) : (
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              )}
+              Torna al login normale
             </button>
           </div>
-          {errors.password && (
-            <p className="text-sm text-red-600 flex items-center mt-1">
-              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-              {errors.password}
-            </p>
-          )}
-        </div>
+        )}
 
-        {/* 50px spacing before Login Button */}
-        <div style={{ height: '30px' }}></div>
-
-        {/* Login Button */}
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="w-full bg-[#554099] hover:bg-[#443077] text-white font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isLoading ? (
-            <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-              Accesso in corso...
+        {/* Password Field - Hidden when showing email prompt */}
+        {!showEmailPrompt && (
+          <div>
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={formData.password}
+                onChange={(e) => updateField('password', e.target.value)}
+                className={`
+                  w-full h-10 px-4 py-3 pr-12 border rounded-lg focus:ring-2 focus:ring-[#554099] focus:border-transparent transition-colors bg-gray-50 text-gray-900
+                  ${errors.password 
+                    ? 'border-red-300 bg-red-50' 
+                    : 'border-gray-200 hover:border-gray-300 focus:border-[#554099] focus:bg-white'
+                  }
+                `}
+                placeholder="Password"
+                disabled={isLoading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                disabled={isLoading}
+              >
+                {showPassword ? (
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                  </svg>
+                ) : (
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                )}
+              </button>
             </div>
-          ) : (
-            'Accedi'
-          )}
-        </button>
+            {errors.password && (
+              <p className="text-sm text-red-600 flex items-center mt-1">
+                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                {errors.password}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Login Button and Spacing - Hidden when showing email prompt */}
+        {!showEmailPrompt && (
+          <>
+            {/* 50px spacing before Login Button */}
+            <div style={{ height: '30px' }}></div>
+
+            {/* Login Button */}
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-[#554099] hover:bg-[#443077] text-white font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Accesso in corso...
+                </div>
+              ) : (
+                'Accedi'
+              )}
+            </button>
+          </>
+        )}
       </form>
 
-      {/* Divider */}
-      <div className="flex items-center justify-center">
-        <span className="text-gray-500 text-sm">oppure</span>
-      </div>
+      {/* Divider - Hidden when showing email prompt */}
+      {!showEmailPrompt && (
+        <div className="flex items-center justify-center">
+          <span className="text-gray-500 text-sm">oppure</span>
+        </div>
+      )}
 
       {/* Google Sign In Button */}
       <button
@@ -267,10 +281,11 @@ const LoginForm: React.FC = () => {
           className="w-full h-10 bg-gray-100 hover:bg-gray-200 text-black text-sm py-3 px-4 rounded-lg flex items-center justify-center transition-colors"
           disabled={isLoading}
         >
-          Recupera password
+          Reimposta password
         </button>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

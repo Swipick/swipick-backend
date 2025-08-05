@@ -27,5 +27,7 @@ export declare class UsersService {
     private checkEmailUniqueness;
     private checkNicknameUniqueness;
     private transformToResponse;
+    sendPasswordReset(email: string): Promise<void>;
+    syncPasswordReset(firebaseUid: string, email: string): Promise<void>;
     private handleRegistrationError;
 }

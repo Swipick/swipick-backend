@@ -188,6 +188,51 @@ let UsersService = UsersService_1 = class UsersService {
             excludeExtraneousValues: true,
         });
     }
+    async sendPasswordReset(email) {
+        try {
+            const user = await this.userRepository.findOne({ where: { email } });
+            if (!user) {
+                this.logger.warn(`Password reset attempted for non-existent email: ${email}`);
+                return;
+            }
+            if (user.authProvider === user_entity_1.AuthProvider.GOOGLE) {
+                throw new common_1.BadRequestException('Gli utenti Google non possono reimpostare la password. Usa "Accedi con Google".');
+            }
+            this.logger.log(`Password reset validation passed for user: ${user.id}`);
+        }
+        catch (error) {
+            if (error instanceof common_1.BadRequestException) {
+                throw error;
+            }
+            this.logger.error('Failed to validate password reset request', error);
+            throw new common_1.BadRequestException('Errore durante la validazione del reset password');
+        }
+    }
+    async syncPasswordReset(firebaseUid, email) {
+        try {
+            const user = await this.userRepository.findOne({
+                where: { firebaseUid },
+            });
+            if (!user) {
+                throw new common_1.NotFoundException('Utente non trovato');
+            }
+            if (user.authProvider === user_entity_1.AuthProvider.GOOGLE) {
+                throw new common_1.BadRequestException('Gli utenti Google non possono cambiare password');
+            }
+            user.updatedAt = new Date();
+            user.passwordHash = null;
+            await this.userRepository.save(user);
+            this.logger.log(`Password reset synced for user: ${user.id}`);
+        }
+        catch (error) {
+            if (error instanceof common_1.NotFoundException ||
+                error instanceof common_1.BadRequestException) {
+                throw error;
+            }
+            this.logger.error('Failed to sync password reset', error);
+            throw new common_1.BadRequestException('Errore durante la sincronizzazione del reset password');
+        }
+    }
     handleRegistrationError(error) {
         if (error.code === '23505') {
             if (error.constraint?.includes('email')) {

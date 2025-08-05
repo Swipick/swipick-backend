@@ -148,6 +148,52 @@ export class UsersController {
   }
 
   /**
+   * Send password reset email
+   * POST /api/users/send-password-reset
+   */
+  @Post('send-password-reset')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async sendPasswordReset(@Body() body: { email: string }): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    this.logger.log(`Password reset request for email: ${body.email}`);
+
+    await this.usersService.sendPasswordReset(body.email);
+
+    return {
+      success: true,
+      message: "Email di reset password inviata se l'indirizzo esiste",
+    };
+  }
+
+  /**
+   * Sync password reset with database after Firebase reset
+   * POST /api/users/sync-password-reset
+   */
+  @Post('sync-password-reset')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async syncPasswordReset(
+    @Body() body: { firebaseUid: string; email: string },
+  ): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    this.logger.log(
+      `Syncing password reset for Firebase UID: ${body.firebaseUid}`,
+    );
+
+    await this.usersService.syncPasswordReset(body.firebaseUid, body.email);
+
+    return {
+      success: true,
+      message: 'Password reset sincronizzato con successo',
+    };
+  }
+
+  /**
    * Health check endpoint for users module
    * GET /api/users/health
    */
