@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { confirmPasswordReset, verifyPasswordResetCode } from 'firebase/auth';
 import { auth } from '../../src/services/firebase';
@@ -10,10 +10,28 @@ import GradientBackground from '../../components/ui/GradientBackground';
 import { getFirebaseErrorMessage } from '../../src/utils/firebase-errors';
 
 /**
+ * Loading component for Suspense fallback
+ */
+function ResetPasswordLoading() {
+  return (
+    <GradientBackground>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 w-full max-w-md">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Caricamento...</p>
+          </div>
+        </div>
+      </div>
+    </GradientBackground>
+  );
+}
+
+/**
  * Password Reset Page Component
  * Handles the password reset flow when user clicks Firebase reset email link
  */
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [password, setPassword] = useState('');
@@ -293,5 +311,16 @@ export default function ResetPasswordPage() {
         </div>
       </div>
     </GradientBackground>
+  );
+}
+
+/**
+ * Main export component wrapped with Suspense
+ */
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<ResetPasswordLoading />}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }
