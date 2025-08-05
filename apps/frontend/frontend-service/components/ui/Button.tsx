@@ -19,7 +19,7 @@ export default function Button({
   disabled = false,
   type = 'button',
 }: ButtonProps) {
-  const baseClasses = 'px-6 py-3 rounded-xl font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none';
+  const baseClasses = 'h-10 px-6 rounded-xl font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center';
   
   const variantClasses = {
     primary: 'bg-[#554099] hover:bg-[#3d2d73] text-white shadow-lg hover:shadow-xl',

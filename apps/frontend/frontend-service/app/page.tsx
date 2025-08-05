@@ -7,7 +7,7 @@ export default function LandingPage() {
   const router = useRouter();
 
   const handleEnter = () => {
-    router.push('/login');
+    router.push('/welcome');
   };
 
   return (
