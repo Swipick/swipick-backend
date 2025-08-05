@@ -10,8 +10,10 @@ import {
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { LiveUpdatesService } from './live-updates.service';
+import { ConfigService } from '@nestjs/config';
 
-@WebSocketGateway(3001, {
+@WebSocketGateway({
+  port: parseInt(process.env.WEBSOCKET_PORT) || 3002,
   cors: { origin: '*' },
   transports: ['websocket', 'polling'],
 })

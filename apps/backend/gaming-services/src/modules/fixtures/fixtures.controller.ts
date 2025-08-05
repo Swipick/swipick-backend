@@ -1,9 +1,15 @@
 import { Controller, Get, Query, Param, Post, Body } from '@nestjs/common';
 import { FixturesService } from './fixtures.service';
+import { ApiRateLimitService } from '../api-rate-limit/api-rate-limit.service';
+import { DatabasePersistenceService } from '../database-persistence/database-persistence.service';
 
 @Controller('fixtures')
 export class FixturesController {
-  constructor(private readonly fixturesService: FixturesService) {}
+  constructor(
+    private readonly fixturesService: FixturesService,
+    private readonly rateLimitService: ApiRateLimitService,
+    private readonly dbPersistenceService: DatabasePersistenceService,
+  ) {}
 
   @Get()
   async getFixtures(
@@ -47,6 +53,27 @@ export class FixturesController {
       success: true,
       syncedCount: fixtures.length,
       date: body.date,
+    };
+  }
+
+  @Get('quota/status')
+  async getQuotaStatus() {
+    const quotaStatus = await this.rateLimitService.getDailyQuotaStatus();
+    const usageStats = await this.dbPersistenceService.getApiUsageStats(7);
+
+    return {
+      quota: quotaStatus,
+      usage: usageStats,
+      canMakeCall: await this.rateLimitService.canMakeApiCall(),
+    };
+  }
+
+  @Post('quota/clear-cache')
+  async clearCache() {
+    await this.rateLimitService.clearAllCache();
+    return {
+      success: true,
+      message: 'All cache cleared successfully',
     };
   }
 }
