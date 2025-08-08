@@ -38,7 +38,10 @@ export class UsersService {
     private dataSource: DataSource,
     private firebaseConfig: FirebaseConfigService,
     private emailService: EmailService,
-  ) {}
+  ) {
+    this.logger.log('🔧 UsersService initialized');
+    this.logger.log(`📧 EmailService available: ${!!this.emailService}`);
+  }
 
   /**
 
@@ -83,11 +86,18 @@ export class UsersService {
       await queryRunner.commitTransaction();
 
       // Send custom verification email via Resend
+      this.logger.log('🚀 Starting email verification process...');
       try {
+        this.logger.log('📧 Generating Firebase verification link...');
         const verificationLink =
           await this.firebaseConfig.generateEmailVerificationLink(
             createUserDto.email,
           );
+
+        this.logger.log(
+          `🔗 Firebase verification link generated: ${verificationLink}`,
+        );
+        this.logger.log('📤 Calling EmailService.sendVerificationEmail...');
 
         await this.emailService.sendVerificationEmail(
           createUserDto.email,
@@ -96,12 +106,16 @@ export class UsersService {
         );
 
         this.logger.log(
-          `Verification email sent successfully to ${createUserDto.email}`,
+          `✅ Verification email sent successfully to ${createUserDto.email}`,
         );
       } catch (emailError) {
-        this.logger.warn(
-          `Failed to send verification email to ${createUserDto.email}`,
+        this.logger.error(
+          `❌ Failed to send verification email to ${createUserDto.email}`,
           emailError,
+        );
+        this.logger.error(
+          '📊 Email error details:',
+          JSON.stringify(emailError, null, 2),
         );
         // Don't fail the registration if email fails - user is created successfully
       }
@@ -384,6 +398,25 @@ export class UsersService {
       throw new BadRequestException(
         'Errore durante la sincronizzazione del reset password',
       );
+    }
+  }
+
+  /**
+   * Test email sending functionality
+   */
+  async testEmailSending(email: string, name: string): Promise<void> {
+    this.logger.log(`🧪 Testing email sending to: ${email}`);
+
+    try {
+      // Generate a test verification link
+      const testLink = 'https://swipick-production.up.railway.app/verify-test';
+
+      await this.emailService.sendVerificationEmail(email, name, testLink);
+
+      this.logger.log(`✅ Test email sent successfully to: ${email}`);
+    } catch (error) {
+      this.logger.error(`❌ Test email failed for: ${email}`, error);
+      throw error;
     }
   }
 

@@ -17,15 +17,23 @@ export class EmailService {
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('RESEND_API_KEY');
 
+    this.logger.log(`🔧 Initializing EmailService...`);
+    this.logger.log(`🔑 API Key exists: ${!!apiKey}`);
+    this.logger.log(`🔑 API Key length: ${apiKey ? apiKey.length : 0}`);
+
     if (!apiKey) {
-      this.logger.warn(
-        'RESEND_API_KEY not found. Email service will not function.',
+      this.logger.error(
+        '❌ RESEND_API_KEY not found. Email service will not function.',
       );
       return;
     }
 
-    this.resend = new Resend(apiKey);
-    this.logger.log('Email service initialized with Resend');
+    try {
+      this.resend = new Resend(apiKey);
+      this.logger.log('✅ Email service initialized with Resend successfully');
+    } catch (error) {
+      this.logger.error('❌ Failed to initialize Resend:', error);
+    }
   }
 
   /**
@@ -36,20 +44,29 @@ export class EmailService {
     name: string,
     verificationLink: string,
   ): Promise<void> {
+    this.logger.log(`📧 Attempting to send verification email to: ${email}`);
+
     try {
       if (!this.resend) {
-        throw new Error('Resend not initialized - missing API key');
+        const error = new Error('Resend not initialized - missing API key');
+        this.logger.error('❌ Resend service not available:', error);
+        throw error;
       }
 
       const fromEmail = this.configService.get<string>(
         'RESEND_FROM_EMAIL',
-        'noreply@swipick.com',
+        'Swipick <onboarding@resend.dev>',
       );
+
+      this.logger.log(`📤 From email: ${fromEmail}`);
+      this.logger.log(`🔗 Verification link: ${verificationLink}`);
 
       const emailTemplate = this.generateVerificationEmailTemplate(
         name,
         verificationLink,
       );
+
+      this.logger.log(`📝 Email template generated for: ${name}`);
 
       const result = await this.resend.emails.send({
         from: fromEmail,
@@ -60,10 +77,15 @@ export class EmailService {
       });
 
       this.logger.log(
-        `Verification email sent successfully to ${email}. ID: ${result.data?.id}`,
+        `✅ Verification email sent successfully to ${email}. ID: ${result.data?.id}`,
       );
+      this.logger.log(`📊 Resend response:`, JSON.stringify(result, null, 2));
     } catch (error) {
-      this.logger.error(`Failed to send verification email to ${email}`, error);
+      this.logger.error(
+        `❌ Failed to send verification email to ${email}`,
+        error,
+      );
+      this.logger.error(`❌ Error details:`, JSON.stringify(error, null, 2));
       throw new Error("Errore durante l'invio dell'email di verifica");
     }
   }

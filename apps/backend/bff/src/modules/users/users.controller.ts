@@ -193,6 +193,33 @@ export class UsersController {
   }
 
   /**
+   * Test email sending (development only)
+   * POST /api/users/test-email
+   */
+  @Post('test-email')
+  @HttpCode(HttpStatus.OK)
+  async testEmail(@Body() body: { email: string; name: string }): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    this.logger.log(`Testing email sending to: ${body.email}`);
+
+    try {
+      await this.usersService.testEmailSending(body.email, body.name);
+      return {
+        success: true,
+        message: 'Test email sent successfully',
+      };
+    } catch (error) {
+      this.logger.error('Test email failed:', error);
+      return {
+        success: false,
+        message: `Test email failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
    * Health check endpoint for users module
    * GET /api/users/health
    */

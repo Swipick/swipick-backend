@@ -39,7 +39,7 @@ export class FirebaseConfigService {
 
       // Check if Firebase app already exists
       if (admin.apps.length > 0) {
-        this.firebaseApp = admin.app();
+        this.firebaseApp = admin.apps[0]; // Get the first (default) app
         this.logger.log(
           'Firebase Admin SDK already initialized, using existing app',
         );

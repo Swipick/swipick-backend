@@ -14,15 +14,32 @@ async function bootstrap() {
     }),
   );
 
-  // CORS configuration - More permissive for debugging
+  // CORS configuration - Production ready
+  const allowedOrigins = [
+    'https://swipick-production.up.railway.app',
+    'https://frontend-service-production.up.railway.app',
+    'http://localhost:3000',
+    'http://localhost:3001',
+  ];
+
+  console.log(`🌐 NODE_ENV: ${process.env.NODE_ENV}`);
+  console.log(`🔧 Allowed CORS origins:`, allowedOrigins);
+
   app.enableCors({
-    origin:
-      process.env.NODE_ENV === 'production'
-        ? [
-            'https://swipick-production.up.railway.app',
-            'https://frontend-service-production.up.railway.app',
-          ]
-        : true,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, Postman, etc.)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.log(`❌ CORS blocked origin: ${origin}`);
+      return callback(
+        new Error(`CORS policy violation: ${origin} not allowed`),
+        false,
+      );
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: [
