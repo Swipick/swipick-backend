@@ -80,25 +80,6 @@ export class UsersService {
       const savedUser = await queryRunner.manager.save(User, user);
       await queryRunner.commitTransaction();
 
-      // Generate email verification link
-      try {
-        const verificationLink =
-          await this.firebaseConfig.generateEmailVerificationLink(
-            createUserDto.email,
-          );
-        this.logger.log(
-          `Email verification link for ${createUserDto.email}: ${verificationLink}`,
-        );
-        this.logger.log(
-          '🔗 TODO: Send this verification link via email service',
-        );
-      } catch (emailError) {
-        this.logger.warn(
-          'Failed to generate email verification link',
-          emailError,
-        );
-      }
-
       this.logger.log(`Traditional user created successfully: ${savedUser.id}`);
       return this.transformToResponse(savedUser);
     } catch (error) {

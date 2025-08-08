@@ -61,7 +61,7 @@ export const RegistrationProvider: React.FC<RegistrationProviderProps> = ({ chil
   const [isEmailLinkSent, setIsEmailLinkSent] = useState(false);
 
   // Get Firebase auth context
-  const { register, sendEmailVerification } = useAuthContext();
+  const { register, sendEmailVerification, login } = useAuthContext();
 
   const updateField = (field: keyof RegistrationData, value: string | boolean) => {
     setRegistrationData(prev => ({
@@ -193,7 +193,7 @@ export const RegistrationProvider: React.FC<RegistrationProviderProps> = ({ chil
         return;
       }
 
-      // NEW APPROACH: Let backend handle Firebase user creation
+      // Step 1: Create user via backend (Firebase + Database)
       try {
         await apiClient.registerUser({
           email: registrationData.email,
@@ -204,14 +204,33 @@ export const RegistrationProvider: React.FC<RegistrationProviderProps> = ({ chil
         
         console.log('✅ User successfully created in Firebase and Database');
         
-        // Set email link sent state (user will get verification email from backend)
-        setIsEmailLinkSent(true);
-        
       } catch (backendError) {
         console.error('❌ Registration failed:', backendError);
         setErrors(prev => ({
           ...prev,
           email: backendError instanceof Error ? backendError.message : 'Errore durante la registrazione',
+        }));
+        return;
+      }
+
+      // Step 2: Sign in the user and send email verification using client-side Firebase SDK
+      try {
+        // Sign in to authenticate the user for verification email
+        await login(registrationData.email, registrationData.password);
+        
+        // Now send the verification email
+        await sendEmailVerification();
+        console.log('✅ Email verification sent successfully');
+        
+        // Only set email link sent state after actual email is sent
+        setIsEmailLinkSent(true);
+        
+      } catch (emailError) {
+        console.error('❌ Failed to send verification email:', emailError);
+        // User is created but email failed - show appropriate message
+        setErrors(prev => ({
+          ...prev,
+          email: 'Account creato ma email di verifica non inviata. Accedi per riprovare.',
         }));
         return;
       }
