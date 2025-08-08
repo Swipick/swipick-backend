@@ -193,7 +193,7 @@ export const RegistrationProvider: React.FC<RegistrationProviderProps> = ({ chil
         return;
       }
 
-      // Step 1: Create user via backend (Firebase + Database)
+      // Backend handles Firebase user creation + database storage
       try {
         await apiClient.registerUser({
           email: registrationData.email,
@@ -204,33 +204,18 @@ export const RegistrationProvider: React.FC<RegistrationProviderProps> = ({ chil
         
         console.log('✅ User successfully created in Firebase and Database');
         
-      } catch (backendError) {
-        console.error('❌ Registration failed:', backendError);
-        setErrors(prev => ({
-          ...prev,
-          email: backendError instanceof Error ? backendError.message : 'Errore durante la registrazione',
-        }));
-        return;
-      }
-
-      // Step 2: Sign in the user and send email verification using client-side Firebase SDK
-      try {
-        // Sign in to authenticate the user for verification email
+        // Now login to trigger email verification
         await login(registrationData.email, registrationData.password);
-        
-        // Now send the verification email
         await sendEmailVerification();
-        console.log('✅ Email verification sent successfully');
         
-        // Only set email link sent state after actual email is sent
+        console.log('✅ Verification email sent successfully');
         setIsEmailLinkSent(true);
         
-      } catch (emailError) {
-        console.error('❌ Failed to send verification email:', emailError);
-        // User is created but email failed - show appropriate message
+      } catch (error) {
+        console.error('❌ Registration failed:', error);
         setErrors(prev => ({
           ...prev,
-          email: 'Account creato ma email di verifica non inviata. Accedi per riprovare.',
+          email: error instanceof Error ? error.message : 'Errore durante la registrazione',
         }));
         return;
       }
@@ -242,9 +227,6 @@ export const RegistrationProvider: React.FC<RegistrationProviderProps> = ({ chil
         agreeToTerms: registrationData.agreeToTerms,
       });
 
-      // Note: We don't reset the form here because we want to keep the data
-      // until the user completes the email verification process
-      
     } catch (error) {
       console.error('Registration error:', error);
       setErrors(prev => ({
