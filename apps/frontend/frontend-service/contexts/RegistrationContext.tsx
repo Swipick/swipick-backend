@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { useAuthContext } from '../src/contexts/AuthContext';
+import { apiClient } from '../lib/api-client';
 
 interface RegistrationData {
   nome: string;
@@ -193,10 +194,27 @@ export const RegistrationProvider: React.FC<RegistrationProviderProps> = ({ chil
       }
 
       // Create Firebase account with email and password
-      await register(registrationData.email, registrationData.password);
+      const firebaseUser = await register(registrationData.email, registrationData.password);
       
       // Send email verification after account creation
       await sendEmailVerification();
+      
+      // NEW: Sync user with backend database
+      try {
+        await apiClient.registerUser({
+          firebaseUid: firebaseUser.uid,
+          email: registrationData.email,
+          name: registrationData.nome,
+          nickname: registrationData.sopranome,
+          password: registrationData.password,
+        });
+        
+        console.log('✅ User successfully synced to database:', firebaseUser.uid);
+      } catch (backendError) {
+        console.error('❌ Backend sync failed:', backendError);
+        // Don't fail the registration if backend sync fails
+        // User is still created in Firebase and can verify email
+      }
       
       // Set email link sent state (for verification email)
       setIsEmailLinkSent(true);
@@ -206,6 +224,7 @@ export const RegistrationProvider: React.FC<RegistrationProviderProps> = ({ chil
         sopranome: registrationData.sopranome,
         email: registrationData.email,
         agreeToTerms: registrationData.agreeToTerms,
+        firebaseUid: firebaseUser.uid,
       });
 
       // Note: We don't reset the form here because we want to keep the data

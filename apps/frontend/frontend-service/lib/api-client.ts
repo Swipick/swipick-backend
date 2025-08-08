@@ -123,6 +123,42 @@ class ApiClient {
   async getTeamVsTeam(id1: string, id2: string) {
     return this.request(`/teams/${id1}/vs/${id2}`);
   }
+
+  // User Management API
+  async registerUser(userData: {
+    firebaseUid: string;
+    email: string;
+    name: string;
+    nickname: string;
+    password: string;
+  }) {
+    return this.request('/users/register', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  }
+
+  async syncGoogleUser(firebaseIdToken: string) {
+    return this.request('/users/sync-google', {
+      method: 'POST',
+      body: JSON.stringify({ firebaseIdToken }),
+    });
+  }
+
+  async completeProfile(userId: string, profileData: { nickname: string }) {
+    return this.request(`/users/complete-profile/${userId}`, {
+      method: 'POST',
+      body: JSON.stringify(profileData),
+    });
+  }
+
+  async getUserProfile(userId: string) {
+    return this.request(`/users/profile/${userId}`);
+  }
+
+  async getUserByFirebaseUid(firebaseUid: string) {
+    return this.request(`/users/profile/firebase/${firebaseUid}`);
+  }
 }
 
 // Export singleton instance

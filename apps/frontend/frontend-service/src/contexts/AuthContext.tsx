@@ -118,13 +118,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   /**
    * Register with email and password
    */
-  const register = async (email: string, password: string): Promise<void> => {
+  const register = async (email: string, password: string): Promise<FirebaseUser> => {
     try {
       setLoading(true);
       setError(null);
       
       const user = await authService.registerWithEmail(email, password);
       setFirebaseUser(user);
+      return user;
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Errore durante la registrazione');
       throw error;
@@ -202,7 +203,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   /**
    * Sign in with Google
    */
-  const signInWithGoogle = async (): Promise<void> => {
+  const signInWithGoogle = async (): Promise<FirebaseUser> => {
     try {
       setLoading(true);
       setError(null);
@@ -211,17 +212,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const result = await googleSignIn();
       
       if (result.success && result.user) {
-        setFirebaseUser({
+        const firebaseUser = {
           uid: result.user.uid,
           email: result.user.email,
           emailVerified: result.user.emailVerified,
           accessToken: await result.user.getIdToken(),
           displayName: result.user.displayName,
           photoURL: result.user.photoURL,
-        });
+        };
+        setFirebaseUser(firebaseUser);
+        return firebaseUser;
       } else if (result.error) {
         const friendlyMessage = getAuthErrorMessage(result.code || '');
         throw new Error(friendlyMessage);
+      } else {
+        throw new Error('Google sign-in failed');
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Errore durante l\'accesso con Google');

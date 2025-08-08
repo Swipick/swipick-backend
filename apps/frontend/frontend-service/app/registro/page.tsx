@@ -5,11 +5,17 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { RegistrationProvider, useRegistration } from '@/contexts/RegistrationContext';
 import { useAuthContext } from '@/src/contexts/AuthContext';
+import { apiClient } from '@/lib/api-client';
 import FormInput from '@/components/ui/FormInput';
 import PasswordInput from '@/components/ui/PasswordInput';
 import Button from '@/components/ui/Button';
 import GradientBackground from '@/components/ui/GradientBackground';
 import EmailVerification from '@/src/components/auth/EmailVerification';
+
+interface BackendUserResponse {
+  id: string;
+  needsProfileCompletion: boolean;
+}
 
 const RegistrationForm: React.FC = () => {
   const router = useRouter();
@@ -31,9 +37,28 @@ const RegistrationForm: React.FC = () => {
   const handleGoogleSignIn = async () => {
     try {
       setGoogleLoading(true);
-      await signInWithGoogle();
-      // On success, user will be redirected to the game page
-      router.push('/gioca');
+      
+      // Sign in with Google and get Firebase user
+      const firebaseUser = await signInWithGoogle();
+      
+      // NEW: Sync with backend database
+      try {
+        const idToken = firebaseUser.accessToken;
+        const result = await apiClient.syncGoogleUser(idToken);
+        
+        console.log('✅ Google user synced to database:', result);
+        
+        // Check if user needs to complete profile
+        if (result.data && (result.data as BackendUserResponse).needsProfileCompletion) {
+          router.push(`/complete-profile/${(result.data as BackendUserResponse).id}`);
+        } else {
+          router.push('/gioca');
+        }
+      } catch (backendError) {
+        console.error('❌ Backend sync failed, proceeding anyway:', backendError);
+        // Still redirect to game even if backend sync fails
+        router.push('/gioca');
+      }
     } catch (error) {
       console.error('Google sign-in failed:', error);
       // Error is handled by AuthContext
