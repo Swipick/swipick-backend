@@ -14,18 +14,24 @@ async function bootstrap() {
     }),
   );
 
-  // CORS configuration
+  // CORS configuration - More permissive for debugging
   app.enableCors({
     origin:
       process.env.NODE_ENV === 'production'
         ? [
             'https://swipick-production.up.railway.app',
-            'https://your-frontend-domain.com',
+            'https://frontend-service-production.up.railway.app',
           ]
         : true,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+    ],
     preflightContinue: false,
     optionsSuccessStatus: 204,
   });
