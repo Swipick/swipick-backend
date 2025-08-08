@@ -88,13 +88,13 @@ export class UsersService {
           await this.firebaseConfig.generateEmailVerificationLink(
             createUserDto.email,
           );
-        
+
         await this.emailService.sendVerificationEmail(
           createUserDto.email,
           createUserDto.name,
           verificationLink,
         );
-        
+
         this.logger.log(
           `Verification email sent successfully to ${createUserDto.email}`,
         );

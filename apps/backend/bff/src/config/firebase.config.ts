@@ -37,6 +37,15 @@ export class FirebaseConfigService {
         return;
       }
 
+      // Check if Firebase app already exists
+      if (admin.apps.length > 0) {
+        this.firebaseApp = admin.app();
+        this.logger.log(
+          'Firebase Admin SDK already initialized, using existing app',
+        );
+        return;
+      }
+
       // Now we know privateKeyRaw is not null/undefined
       const config: FirebaseConfig = {
         projectId,

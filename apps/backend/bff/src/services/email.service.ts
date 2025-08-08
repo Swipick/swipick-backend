@@ -16,7 +16,7 @@ export class EmailService {
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('RESEND_API_KEY');
-    
+
     if (!apiKey) {
       this.logger.warn(
         'RESEND_API_KEY not found. Email service will not function.',
