@@ -60,8 +60,8 @@ export const RegistrationProvider: React.FC<RegistrationProviderProps> = ({ chil
   const [isLoading, setIsLoading] = useState(false);
   const [isEmailLinkSent, setIsEmailLinkSent] = useState(false);
 
-  // Get Firebase auth context
-  const { register, sendEmailVerification, login } = useAuthContext();
+  // Backend handles all email verification automatically
+  // No Firebase client context needed
 
   const updateField = (field: keyof RegistrationData, value: string | boolean) => {
     setRegistrationData(prev => ({
@@ -193,7 +193,7 @@ export const RegistrationProvider: React.FC<RegistrationProviderProps> = ({ chil
         return;
       }
 
-      // Backend handles Firebase user creation + database storage
+      // Backend handles Firebase user creation + database storage + email sending
       try {
         await apiClient.registerUser({
           email: registrationData.email,
@@ -203,12 +203,9 @@ export const RegistrationProvider: React.FC<RegistrationProviderProps> = ({ chil
         });
         
         console.log('✅ User successfully created in Firebase and Database');
+        console.log('📧 Verification email sent via Resend');
         
-        // Now login to trigger email verification
-        await login(registrationData.email, registrationData.password);
-        await sendEmailVerification();
-        
-        console.log('✅ Verification email sent successfully');
+        // Backend automatically sends verification email - no client-side logic needed
         setIsEmailLinkSent(true);
         
       } catch (error) {

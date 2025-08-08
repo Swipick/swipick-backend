@@ -10,6 +10,7 @@ import { Repository, DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User, AuthProvider } from '../../entities/user.entity';
 import { FirebaseConfigService } from '../../config/firebase.config';
+import { EmailService } from '../../services/email.service';
 import {
   CreateUserDto,
   GoogleSyncUserDto,
@@ -36,6 +37,7 @@ export class UsersService {
     private userRepository: Repository<User>,
     private dataSource: DataSource,
     private firebaseConfig: FirebaseConfigService,
+    private emailService: EmailService,
   ) {}
 
   /**
@@ -79,6 +81,30 @@ export class UsersService {
 
       const savedUser = await queryRunner.manager.save(User, user);
       await queryRunner.commitTransaction();
+
+      // Send custom verification email via Resend
+      try {
+        const verificationLink =
+          await this.firebaseConfig.generateEmailVerificationLink(
+            createUserDto.email,
+          );
+        
+        await this.emailService.sendVerificationEmail(
+          createUserDto.email,
+          createUserDto.name,
+          verificationLink,
+        );
+        
+        this.logger.log(
+          `Verification email sent successfully to ${createUserDto.email}`,
+        );
+      } catch (emailError) {
+        this.logger.warn(
+          `Failed to send verification email to ${createUserDto.email}`,
+          emailError,
+        );
+        // Don't fail the registration if email fails - user is created successfully
+      }
 
       this.logger.log(`Traditional user created successfully: ${savedUser.id}`);
       return this.transformToResponse(savedUser);
