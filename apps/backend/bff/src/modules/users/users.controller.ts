@@ -2,7 +2,6 @@ import {
   Controller,
   Post,
   Get,
-  Put,
   Body,
   Param,
   HttpCode,
@@ -185,7 +184,7 @@ export class UsersController {
       `Syncing password reset for Firebase UID: ${body.firebaseUid}`,
     );
 
-    await this.usersService.syncPasswordReset(body.firebaseUid, body.email);
+    await this.usersService.syncPasswordReset(body.firebaseUid);
 
     return {
       success: true,

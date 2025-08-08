@@ -191,6 +191,34 @@ export class FirebaseConfigService {
   }
 
   /**
+   * Generate email verification link for a user
+   * Note: This generates a link but doesn't send the email automatically
+   */
+  async generateEmailVerificationLink(email: string): Promise<string> {
+    try {
+      const auth = this.getAuth();
+      if (!auth) {
+        throw new Error('Firebase Admin SDK non inizializzato');
+      }
+
+      const actionCodeSettings = {
+        url: `${this.configService.get<string>('FRONTEND_URL', 'https://frontend-service-production.up.railway.app')}/login?verified=true`,
+        handleCodeInApp: false,
+      };
+
+      const link = await auth.generateEmailVerificationLink(
+        email,
+        actionCodeSettings,
+      );
+      this.logger.log(`Email verification link generated for: ${email}`);
+      return link;
+    } catch (error) {
+      this.logger.error('Failed to generate email verification link', error);
+      throw new Error('Errore durante la generazione del link di verifica');
+    }
+  }
+
+  /**
    * Note: Password reset emails must be sent from client-side Firebase Auth
    * This is a Firebase security requirement - password reset links can only be generated client-side
    * Use sendPasswordResetEmail() from firebase/auth on the frontend

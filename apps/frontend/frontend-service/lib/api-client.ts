@@ -25,48 +25,37 @@ class ApiClient {
     });
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<ApiResponse<T>> {
-    const url = endpoint.startsWith('/api') 
-      ? `${this.baseUrl}${endpoint}`
-      : endpoint.startsWith('http') 
-        ? endpoint
-        : `${this.apiUrl}${endpoint}`;
-
-    const config: RequestInit = {
+  private async request(endpoint: string, options: RequestInit = {}) {
+    const url = `${this.apiUrl}${endpoint}`;
+    console.log(`🔗 API Request: ${options.method || 'GET'} ${url}`);
+    
+    const response = await fetch(url, {
+      ...options,
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
-      ...options,
-    };
+    });
 
-    try {
-      console.log('🌐 API Request:', { method: config.method || 'GET', url });
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
       
-      const response = await fetch(url, config);
-      const data = await response.json().catch(() => null);
-
-      console.log('📡 API Response:', { 
-        status: response.status, 
-        statusText: response.statusText,
-        url 
-      });
-
-      return {
-        data,
-        status: response.status,
-        error: !response.ok ? data?.message || response.statusText : undefined,
-      };
-    } catch (error) {
-      console.error('❌ API Error:', error);
-      return {
-        status: 500,
-        error: error instanceof Error ? error.message : 'Network error',
-      };
+      try {
+        const errorData = await response.json();
+        // Extract meaningful error message from backend response
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
+        }
+      } catch {
+        // If we can't parse the error response, use the default message
+      }
+      
+      throw new Error(errorMessage);
     }
+
+    return response.json();
   }
 
   // Health Checks
@@ -126,7 +115,6 @@ class ApiClient {
 
   // User Management API
   async registerUser(userData: {
-    firebaseUid: string;
     email: string;
     name: string;
     nickname: string;

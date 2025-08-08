@@ -61,7 +61,10 @@ RUN apk add --no-cache dumb-init
 WORKDIR /app
 RUN addgroup -g 1001 -S nodejs
 RUN adduser -S nextjs -u 1001
-RUN chown -R nextjs:nodejs /app
+
+# Create cache directory with proper permissions
+RUN mkdir -p /app/.next/cache && \
+    chown -R nextjs:nodejs /app
 
 # Copy built application from builder stage
 COPY --from=dependencies --chown=nextjs:nodejs /app/node_modules ./node_modules

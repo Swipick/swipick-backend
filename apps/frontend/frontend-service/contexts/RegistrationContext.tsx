@@ -193,38 +193,34 @@ export const RegistrationProvider: React.FC<RegistrationProviderProps> = ({ chil
         return;
       }
 
-      // Create Firebase account with email and password
-      const firebaseUser = await register(registrationData.email, registrationData.password);
-      
-      // Send email verification after account creation
-      await sendEmailVerification();
-      
-      // NEW: Sync user with backend database
+      // NEW APPROACH: Let backend handle Firebase user creation
       try {
         await apiClient.registerUser({
-          firebaseUid: firebaseUser.uid,
           email: registrationData.email,
           name: registrationData.nome,
           nickname: registrationData.sopranome,
           password: registrationData.password,
         });
         
-        console.log('✅ User successfully synced to database:', firebaseUser.uid);
+        console.log('✅ User successfully created in Firebase and Database');
+        
+        // Set email link sent state (user will get verification email from backend)
+        setIsEmailLinkSent(true);
+        
       } catch (backendError) {
-        console.error('❌ Backend sync failed:', backendError);
-        // Don't fail the registration if backend sync fails
-        // User is still created in Firebase and can verify email
+        console.error('❌ Registration failed:', backendError);
+        setErrors(prev => ({
+          ...prev,
+          email: backendError instanceof Error ? backendError.message : 'Errore durante la registrazione',
+        }));
+        return;
       }
-      
-      // Set email link sent state (for verification email)
-      setIsEmailLinkSent(true);
       
       console.log('Registration completed and verification email sent:', {
         nome: registrationData.nome,
         sopranome: registrationData.sopranome,
         email: registrationData.email,
         agreeToTerms: registrationData.agreeToTerms,
-        firebaseUid: firebaseUser.uid,
       });
 
       // Note: We don't reset the form here because we want to keep the data
