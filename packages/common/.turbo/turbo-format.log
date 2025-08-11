@@ -1,0 +1,17 @@
+
+
+> @swipick/common@1.0.0 format
+> prettier --write "src/**/*.ts"
+
+[1G[0Ksrc/dto/auth.dto.ts[2K[1G[90msrc/dto/auth.dto.ts[39m 28ms (unchanged)
+src/dto/match.dto.ts[2K[1G[90msrc/dto/match.dto.ts[39m 2ms (unchanged)
+src/dto/prediction.dto.ts[2K[1G[90msrc/dto/prediction.dto.ts[39m 1ms (unchanged)
+src/dto/user.dto.ts[2K[1G[90msrc/dto/user.dto.ts[39m 1ms (unchanged)
+src/index.ts[2K[1G[90msrc/index.ts[39m 2ms (unchanged)
+src/interfaces/auth.interface.ts[2K[1G[90msrc/interfaces/auth.interface.ts[39m 3ms (unchanged)
+src/interfaces/match.interface.ts[2K[1G[90msrc/interfaces/match.interface.ts[39m 2ms (unchanged)
+src/interfaces/prediction.interface.ts[2K[1Gsrc/interfaces/prediction.interface.ts 2ms
+src/interfaces/user.interface.ts[2K[1G[90msrc/interfaces/user.interface.ts[39m 1ms (unchanged)
+src/utils/date.utils.ts[2K[1Gsrc/utils/date.utils.ts 8ms
+src/utils/validation.utils.ts[2K[1G[90msrc/utils/validation.utils.ts[39m 2ms (unchanged)
+[1G[0K⠙[1G[0K

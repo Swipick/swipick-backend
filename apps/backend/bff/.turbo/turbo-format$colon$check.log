@@ -1,0 +1,7 @@
+
+
+> bff@0.0.1 format:check
+> prettier --check "src/**/*.ts" "test/**/*.ts"
+
+[1G[0KChecking formatting...
+src/app.controller.spec.ts[2K[1Gsrc/app.controller.ts[2K[1Gsrc/app.module.ts[2K[1Gsrc/app.service.ts[2K[1Gsrc/auth/auth.controller.spec.ts[2K[1Gsrc/auth/auth.controller.ts[2K[1Gsrc/auth/auth.module.ts[2K[1Gsrc/auth/auth.service.spec.ts

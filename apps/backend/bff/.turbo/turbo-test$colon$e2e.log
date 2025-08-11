@@ -1,0 +1,44 @@
+
+
+> bff@0.0.1 test:e2e
+> jest --config ./test/jest-e2e.json
+
+[1G[0K[999D[Kjest-haste-map: Watchman crawl failed. Retrying once with node crawler.
+  Usually this happens when watchman isn't running. Create an empty `.watchmanconfig` file in your project's root folder or initialize a git or hg repository in your project.
+  Error: Watchman error: The watchman connection was closed. Make sure watchman is running for this project. See https://facebook.github.io/watchman/docs/troubleshooting.
+[1m[2mDetermining test suites to run...[22m[22m[999D[K
+[K[1A
+[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2mtest/[22m[1mapp.e2e-spec.ts[22m
+[K[1A[K[1A
+[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2mtest/[22m[1mapp.e2e-spec.ts[22m
+[K[1A[K[1A
+[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2mtest/[22m[1mapp.e2e-spec.ts[22m
+[K[1A[K[1A
+[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2mtest/[22m[1mapp.e2e-spec.ts[22m
+[K[1A[K[1A[0m[7m[1m[32m PASS [39m[22m[27m[0m [2mtest/[22m[1mapp.e2e-spec.ts[22m
+
+[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2mtest/[22m[1mapp.e2e-spec.ts[22m
+[K[1A[K[1A  BFF Application (e2e)
+
+[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2mtest/[22m[1mapp.e2e-spec.ts[22m
+[K[1A[K[1A    Health Check
+
+[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2mtest/[22m[1mapp.e2e-spec.ts[22m
+[K[1A[K[1A      [32m✓[39m [2m/ (GET) should return Hello World! (67 ms)[22m
+
+[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2mtest/[22m[1mapp.e2e-spec.ts[22m
+[K[1A[K[1A    API Error Handling
+
+[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2mtest/[22m[1mapp.e2e-spec.ts[22m
+[K[1A[K[1A      [32m✓[39m [2mshould return 404 for non-existent endpoints (3 ms)[22m
+
+[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2mtest/[22m[1mapp.e2e-spec.ts[22m
+[K[1A[K[1A
+
+[0m[7m[33m[1m RUNS [22m[39m[27m[0m [2mtest/[22m[1mapp.e2e-spec.ts[22m
+[K[1A[K[1A[999D[K[1mTest Suites: [22m[1m[32m1 passed[39m[22m, 1 total
+[1mTests:       [22m[1m[32m2 passed[39m[22m, 2 total
+[1mSnapshots:   [22m0 total
+[1mTime:[22m        1.02 s
+[2mRan all test suites[22m[2m.[22m
+[1G[0K⠙[1G[0K

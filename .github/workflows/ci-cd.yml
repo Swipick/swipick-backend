@@ -1,0 +1,318 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop, infrastructureDevelopment]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # Job 1: Code Quality & Testing
+  test:
+    name: Test & Quality Checks
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript type checking
+        run: npm run type-check
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Run formatting check
+        run: npm run format:check
+
+      - name: Run unit tests
+        run: npm run test
+
+      - name: Run integration tests
+        run: npm run test:e2e
+
+      - name: Run security audit
+        run: npm audit --audit-level=moderate
+
+      - name: Upload test coverage
+        uses: codecov/codecov-action@v3
+        if: matrix.node-version == '20.x'
+        with:
+          file: ./coverage/lcov.info
+          fail_ci_if_error: false
+
+  # Job 2: Build & Package
+  build:
+    name: Build Applications
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build all packages
+        run: npm run build
+
+      - name: Build Podman containers
+        run: |
+          # Install Podman for containerization
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+          # Build production containers
+          podman build -t swipick-bff:latest -f Containerfile .
+          podman build -t swipick-frontend:latest -f apps/frontend/frontend-service/Containerfile apps/frontend/frontend-service
+
+          # Future: Build gaming services container when implemented
+          # podman build -t swipick-gaming:latest -f apps/backend/gaming-services/Containerfile .
+
+          # Test container functionality
+          podman run --rm -d --name test-bff -p 9000:9000 swipick-bff:latest
+          podman run --rm -d --name test-frontend -p 3000:3000 swipick-frontend:latest
+          sleep 15
+          curl -f http://localhost:9000/health || exit 1
+          curl -f http://localhost:3000/api/health || exit 1
+          podman stop test-bff
+          podman stop test-frontend
+
+      - name: Build Docker images (legacy compatibility)
+        run: npm run docker:build
+
+      - name: Run smoke tests on built applications
+        run: npm run test:smoke
+
+      - name: Archive build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            apps/backend/*/dist/
+            packages/*/dist/
+          retention-days: 7
+
+  # Job 3: Security & Dependency Checks
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=medium
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+
+      - name: Check for outdated dependencies
+        run: npm outdated || true
+
+  # Job 4: Deploy to Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build, security]
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/infrastructureDevelopment'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Deploy to staging
+        run: |
+          echo "🚀 Deploying to staging environment..."
+
+          # Install Podman for deployment
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+          # Build and deploy with Podman Compose
+          podman build -t swipick-bff:staging -f Containerfile .
+
+          # Deploy to staging with health checks
+          podman run -d --name swipick-bff-staging \
+            -p 9000:9000 \
+            -e NODE_ENV=staging \
+            -e PORT=9000 \
+            --health-cmd "curl -f http://localhost:9000/health || exit 1" \
+            --health-interval 30s \
+            --health-timeout 10s \
+            --health-retries 3 \
+            swipick-bff:staging
+
+          # Wait for container to be healthy
+          echo "⏳ Waiting for container to be healthy..."
+          timeout 60 bash -c 'until podman inspect swipick-bff-staging --format="{{.State.Health.Status}}" | grep -q healthy; do sleep 2; done'
+
+      - name: Run staging health checks
+        run: |
+          echo "🏥 Running comprehensive health checks..."
+
+          # Basic health check
+          curl -f http://localhost:9000/health || exit 1
+
+          # API endpoint checks
+          curl -f http://localhost:9000/ -H "Accept: application/json" || exit 1
+
+          # Container health status
+          health_status=$(podman inspect swipick-bff-staging --format="{{.State.Health.Status}}")
+          if [ "$health_status" != "healthy" ]; then
+            echo "❌ Container is not healthy: $health_status"
+            podman logs swipick-bff-staging
+            exit 1
+          fi
+
+          echo "✅ All health checks passed!"
+
+      - name: Notify deployment
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          channel: "#deployments"
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+
+  # Job 5: Deploy to Production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, security]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Deploy to production
+        run: |
+          echo "🚀 Deploying to production environment..."
+
+          # Install Podman for deployment
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+          # Build production container with proper tagging
+          podman build -t swipick-bff:v${{ github.run_number }} -f Containerfile .
+          podman tag swipick-bff:v${{ github.run_number }} swipick-bff:latest
+
+          # Deploy to production with enhanced configuration
+          podman run -d --name swipick-bff-prod \
+            -p 9000:9000 \
+            -e NODE_ENV=production \
+            -e PORT=9000 \
+            --security-opt no-new-privileges:true \
+            --read-only \
+            --tmpfs /tmp:noexec,nosuid,size=64m \
+            --health-cmd "curl -f http://localhost:9000/health || exit 1" \
+            --health-interval 30s \
+            --health-timeout 10s \
+            --health-retries 3 \
+            --health-start-period 40s \
+            swipick-bff:latest
+
+          # Wait for production deployment to be healthy
+          echo "⏳ Waiting for production deployment..."
+          timeout 90 bash -c 'until podman inspect swipick-bff-prod --format="{{.State.Health.Status}}" | grep -q healthy; do sleep 3; done'
+
+      - name: Run production health checks
+        run: |
+          echo "🏥 Running production health checks..."
+
+          # Comprehensive production health validation
+          curl -f http://localhost:9000/health || exit 1
+          curl -f http://localhost:9000/ -H "Accept: application/json" || exit 1
+
+          # Verify container health and security
+          health_status=$(podman inspect swipick-bff-prod --format="{{.State.Health.Status}}")
+          if [ "$health_status" != "healthy" ]; then
+            echo "❌ Production container is not healthy: $health_status"
+            podman logs swipick-bff-prod
+            exit 1
+          fi
+
+          # Check security configurations
+          user_id=$(podman inspect swipick-bff-prod --format="{{.Config.User}}")
+          if [ "$user_id" != "1001:1001" ]; then
+            echo "❌ Container not running as expected user: $user_id"
+            exit 1
+          fi
+
+          echo "✅ All production health checks passed!"
+          echo "🎉 Production deployment successful!"
+
+      - name: Notify deployment
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          channel: "#deployments"
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v1
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Release v${{ github.run_number }}
+          body: |
+            Automated release created by CI/CD pipeline
+
+            **Changes in this release:**
+            ${{ github.event.head_commit.message }}
+          draft: false
+          prerelease: false

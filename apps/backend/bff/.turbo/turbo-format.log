@@ -1,0 +1,18 @@
+
+
+> bff@0.0.1 format
+> prettier --write "src/**/*.ts" "test/**/*.ts"
+
+[1G[0Ksrc/app.controller.spec.ts[2K[1G[90msrc/app.controller.spec.ts[39m 23ms (unchanged)
+src/app.controller.ts[2K[1G[90msrc/app.controller.ts[39m 4ms (unchanged)
+src/app.module.ts[2K[1G[90msrc/app.module.ts[39m 3ms (unchanged)
+src/app.service.ts[2K[1G[90msrc/app.service.ts[39m 1ms (unchanged)
+src/auth/auth.controller.spec.ts[2K[1G[90msrc/auth/auth.controller.spec.ts[39m 9ms (unchanged)
+src/auth/auth.controller.ts[2K[1G[90msrc/auth/auth.controller.ts[39m 3ms (unchanged)
+src/auth/auth.module.ts[2K[1G[90msrc/auth/auth.module.ts[39m 1ms (unchanged)
+src/auth/auth.service.spec.ts[2K[1G[90msrc/auth/auth.service.spec.ts[39m 3ms (unchanged)
+src/auth/auth.service.ts[2K[1G[90msrc/auth/auth.service.ts[39m 3ms (unchanged)
+src/main.ts[2K[1G[90msrc/main.ts[39m 5ms (unchanged)
+test/app.e2e-spec.ts[2K[1G[90mtest/app.e2e-spec.ts[39m 5ms (unchanged)
+test/jest.setup.ts[2K[1G[90mtest/jest.setup.ts[39m 1ms (unchanged)
+[1G[0K⠙[1G[0K

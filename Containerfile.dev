@@ -1,0 +1,58 @@
+# Development Containerfile - Optimized for fast rebuilds
+# Use this for development with hot-reloading and debugging capabilities
+
+FROM node:20-alpine AS development
+
+LABEL maintainer="Swipick Development Team"
+LABEL description="Swipick Backend BFF Service - Development Build"
+
+# Install development tools
+RUN apk add --no-cache \
+    dumb-init \
+    curl \
+    bash \
+    git
+
+# Create development user
+RUN addgroup -g 1001 -S devgroup && \
+    adduser -S devuser -u 1001 -G devgroup
+
+# Create app directory
+WORKDIR /app
+RUN chown -R 1001:1001 /app
+
+# Copy package files
+COPY --chown=1001:1001 package*.json ./
+COPY --chown=1001:1001 turbo.json ./
+COPY --chown=1001:1001 apps/backend/bff/package*.json ./apps/backend/bff/
+COPY --chown=1001:1001 packages/common/package*.json ./packages/common/
+
+# Switch to development user
+USER 1001:1001
+
+# Install all dependencies (including dev dependencies)
+RUN npm ci && npm cache clean --force
+
+# Copy source code
+COPY --chown=1001:1001 packages/common/ ./packages/common/
+COPY --chown=1001:1001 apps/backend/bff/ ./apps/backend/bff/
+
+# Build common package
+WORKDIR /app/packages/common
+RUN npm run build
+
+# Set working directory to BFF app
+WORKDIR /app/apps/backend/bff
+
+# Expose port for development
+EXPOSE 9000
+
+# Health check for development
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:9000/health || exit 1
+
+# Use dumb-init for proper signal handling
+ENTRYPOINT ["dumb-init", "--"]
+
+# Start development server with hot reload
+CMD ["npm", "run", "start:dev"]

@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  # BFF Service - Development with Hot Reload
+  bff-dev:
+    build:
+      context: ./apps/backend/bff
+      dockerfile: Containerfile.dev
+    container_name: swipick-bff-dev
+    ports:
+      - "9000:9000"
+    environment:
+      - NODE_ENV=development
+      - PORT=9000
+      - GAMING_SERVICES_URL=http://gaming-services-dev:3000
+    volumes:
+      - ./apps/backend/bff/src:/app/src:ro
+      - ./apps/backend/bff/package.json:/app/package.json:ro
+      - ./apps/backend/bff/tsconfig.json:/app/tsconfig.json:ro
+    depends_on:
+      - gaming-services-dev
+    networks:
+      - swipick-dev-network
+    restart: unless-stopped
+
+  # Gaming Services - Development with Hot Reload
+  gaming-services-dev:
+    build:
+      context: ./apps/backend/gaming-services
+      dockerfile: Containerfile.dev
+    container_name: swipick-gaming-services-dev
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - WEBSOCKET_PORT=3001
+      - API_FOOTBALL_URL=https://api-football-v1.p.rapidapi.com/v3
+      - API_FOOTBALL_KEY=${API_FOOTBALL_KEY}
+      - REDIS_URL=${REDIS_URL}
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ./apps/backend/gaming-services/src:/app/src:ro
+      - ./apps/backend/gaming-services/package.json:/app/package.json:ro
+      - ./apps/backend/gaming-services/tsconfig.json:/app/tsconfig.json:ro
+    networks:
+      - swipick-dev-network
+    restart: unless-stopped
+
+volumes:
+  # No volumes needed - using cloud databases
+
+networks:
+  swipick-dev-network:
+    driver: bridge

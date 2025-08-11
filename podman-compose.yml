@@ -1,0 +1,83 @@
+version: "3.8"
+
+# Podman Compose configuration for Swipick Backend
+# Run with: podman-compose up -d
+
+services:
+  # BFF Service - Backend for Frontend
+  swipick-bff:
+    build:
+      context: .
+      dockerfile: Containerfile
+      target: production
+    container_name: swipick-bff
+    ports:
+      - "9000:9000"
+    environment:
+      - NODE_ENV=production
+      - PORT=9000
+    networks:
+      - swipick-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Resource limits for Podman
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+    # Security context for rootless containers
+    security_opt:
+      - no-new-privileges:true
+    # Read-only root filesystem for security
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=64m
+    # Volume for logs (if needed in future)
+    volumes:
+      - swipick-logs:/app/logs:Z
+
+  # Future services can be added here:
+  # swipick-match-service:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/backend/match/Containerfile
+  #   ports:
+  #     - "9001:9001"
+  #   networks:
+  #     - swipick-network
+
+  # swipick-user-service:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/backend/user/Containerfile
+  #   ports:
+  #     - "9002:9002"
+  #   networks:
+  #     - swipick-network
+
+networks:
+  swipick-network:
+    driver: bridge
+    # Enable IPv6 if needed
+    enable_ipv6: false
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  swipick-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./logs

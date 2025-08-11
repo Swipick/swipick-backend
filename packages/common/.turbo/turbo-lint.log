@@ -1,0 +1,6 @@
+
+
+> @swipick/common@1.0.0 lint
+> eslint "src/**/*.ts" --fix
+
+[1G[0K

@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  # BFF Service - Backend for Frontend (Cloud DB)
+  bff:
+    build:
+      context: ./apps/backend/bff
+      dockerfile: Containerfile
+    container_name: swipick-bff
+    ports:
+      - "9000:9000"
+    environment:
+      - NODE_ENV=production
+      - PORT=9000
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - GAMING_SERVICES_URL=http://gaming-services:3000
+    depends_on:
+      - gaming-services
+    networks:
+      - swipick-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Gaming Services - API-FOOTBALL Integration (Cloud DB)
+  gaming-services:
+    build:
+      context: ./apps/backend/gaming-services
+      dockerfile: Containerfile
+    container_name: swipick-gaming-services
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - WEBSOCKET_PORT=3001
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - API_FOOTBALL_KEY=${API_FOOTBALL_KEY}
+      - API_FOOTBALL_URL=${API_FOOTBALL_URL}
+    networks:
+      - swipick-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  swipick-network:
+    driver: bridge
