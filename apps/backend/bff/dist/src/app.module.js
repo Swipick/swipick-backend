@@ -35,10 +35,11 @@ exports.AppModule = AppModule = __decorate([
                 imports: [config_1.ConfigModule],
                 useClass: database_config_1.DatabaseConfigService,
             }),
+            firebase_config_1.FirebaseModule,
             users_module_1.UsersModule,
         ],
         controllers: [app_controller_1.AppController],
-        providers: [app_service_1.AppService, firebase_config_1.FirebaseConfigService, database_config_1.DatabaseConfigService],
+        providers: [app_service_1.AppService, database_config_1.DatabaseConfigService],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

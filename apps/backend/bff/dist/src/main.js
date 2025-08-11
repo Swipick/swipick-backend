@@ -10,16 +10,33 @@ async function bootstrap() {
         forbidNonWhitelisted: true,
         transform: true,
     }));
+    const allowedOrigins = [
+        'https://swipick-production.up.railway.app',
+        'https://frontend-service-production.up.railway.app',
+        'http://localhost:3000',
+        'http://localhost:3001',
+    ];
+    console.log(`🌐 NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`🔧 Allowed CORS origins:`, allowedOrigins);
     app.enableCors({
-        origin: process.env.NODE_ENV === 'production'
-            ? [
-                'https://swipick-production.up.railway.app',
-                'https://your-frontend-domain.com',
-            ]
-            : true,
+        origin: (origin, callback) => {
+            if (!origin)
+                return callback(null, true);
+            if (allowedOrigins.includes(origin)) {
+                return callback(null, true);
+            }
+            console.log(`❌ CORS blocked origin: ${origin}`);
+            return callback(new Error(`CORS policy violation: ${origin} not allowed`), false);
+        },
         credentials: true,
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization'],
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+        allowedHeaders: [
+            'Content-Type',
+            'Authorization',
+            'X-Requested-With',
+            'Accept',
+            'Origin',
+        ],
         preflightContinue: false,
         optionsSuccessStatus: 204,
     });

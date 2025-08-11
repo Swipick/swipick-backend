@@ -10,7 +10,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 var FirebaseConfigService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FirebaseConfigService = void 0;
+exports.FirebaseModule = exports.FirebaseConfigService = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const admin = require("firebase-admin");
@@ -29,6 +29,11 @@ let FirebaseConfigService = FirebaseConfigService_1 = class FirebaseConfigServic
             if (!projectId || !privateKeyRaw || !clientEmail) {
                 this.logger.warn('Firebase configuration missing. Running in development mode without Firebase Admin SDK.');
                 this.firebaseApp = null;
+                return;
+            }
+            if (admin.apps.length > 0) {
+                this.firebaseApp = admin.apps[0];
+                this.logger.log('Firebase Admin SDK already initialized, using existing app');
                 return;
             }
             const config = {
@@ -140,10 +145,39 @@ let FirebaseConfigService = FirebaseConfigService_1 = class FirebaseConfigServic
             throw new Error("Errore durante l'eliminazione dell'utente");
         }
     }
+    async generateEmailVerificationLink(email) {
+        try {
+            const auth = this.getAuth();
+            if (!auth) {
+                throw new Error('Firebase Admin SDK non inizializzato');
+            }
+            const actionCodeSettings = {
+                url: `${this.configService.get('FRONTEND_URL', 'https://frontend-service-production.up.railway.app')}/login?verified=true`,
+                handleCodeInApp: false,
+            };
+            const link = await auth.generateEmailVerificationLink(email, actionCodeSettings);
+            this.logger.log(`Email verification link generated for: ${email}`);
+            return link;
+        }
+        catch (error) {
+            this.logger.error('Failed to generate email verification link', error);
+            throw new Error('Errore durante la generazione del link di verifica');
+        }
+    }
 };
 exports.FirebaseConfigService = FirebaseConfigService;
 exports.FirebaseConfigService = FirebaseConfigService = FirebaseConfigService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [config_1.ConfigService])
 ], FirebaseConfigService);
+let FirebaseModule = class FirebaseModule {
+};
+exports.FirebaseModule = FirebaseModule;
+exports.FirebaseModule = FirebaseModule = __decorate([
+    (0, common_1.Global)(),
+    (0, common_1.Module)({
+        providers: [FirebaseConfigService],
+        exports: [FirebaseConfigService],
+    })
+], FirebaseModule);
 //# sourceMappingURL=firebase.config.js.map

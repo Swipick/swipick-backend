@@ -18,4 +18,7 @@ export declare class FirebaseConfigService {
     getUserByUid(uid: string): Promise<admin.auth.UserRecord>;
     updateUserDisplayName(uid: string, displayName: string): Promise<admin.auth.UserRecord>;
     deleteUser(uid: string): Promise<void>;
+    generateEmailVerificationLink(email: string): Promise<string>;
+}
+export declare class FirebaseModule {
 }

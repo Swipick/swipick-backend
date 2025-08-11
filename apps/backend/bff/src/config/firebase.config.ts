@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
 
@@ -12,6 +12,8 @@ export interface FirebaseConfig {
 export class FirebaseConfigService {
   private readonly logger = new Logger(FirebaseConfigService.name);
   private firebaseApp!: admin.app.App | null; // Use definite assignment assertion
+  private static isInitializing = false; // Static flag to prevent race conditions
+  private static isInitialized = false; // Static flag to track initialization status
 
   constructor(private configService: ConfigService) {
     this.firebaseApp = null; // Initialize explicitly
@@ -20,6 +22,26 @@ export class FirebaseConfigService {
 
   private initializeFirebase(): void {
     try {
+      // Check if already initialized or currently initializing
+      if (
+        FirebaseConfigService.isInitialized ||
+        FirebaseConfigService.isInitializing
+      ) {
+        if (admin.apps.length > 0) {
+          this.firebaseApp = admin.apps[0];
+          this.logger.log(
+            'Firebase Admin SDK already initialized, using existing app',
+          );
+        } else {
+          this.firebaseApp = null;
+          this.logger.log('Firebase initialization in progress, waiting...');
+        }
+        return;
+      }
+
+      // Set the initializing flag
+      FirebaseConfigService.isInitializing = true;
+
       const projectId = this.configService.get<string>('FIREBASE_PROJECT_ID');
       const privateKeyRaw = this.configService.get<string>(
         'FIREBASE_PRIVATE_KEY',
@@ -34,15 +56,18 @@ export class FirebaseConfigService {
           'Firebase configuration missing. Running in development mode without Firebase Admin SDK.',
         );
         this.firebaseApp = null;
+        FirebaseConfigService.isInitializing = false;
         return;
       }
 
-      // Check if Firebase app already exists
+      // Double-check if Firebase app already exists (race condition protection)
       if (admin.apps.length > 0) {
         this.firebaseApp = admin.apps[0]; // Get the first (default) app
         this.logger.log(
-          'Firebase Admin SDK already initialized, using existing app',
+          'Firebase Admin SDK already initialized during race condition, using existing app',
         );
+        FirebaseConfigService.isInitializing = false;
+        FirebaseConfigService.isInitialized = true;
         return;
       }
 
@@ -62,8 +87,13 @@ export class FirebaseConfigService {
         projectId: config.projectId,
       });
 
+      // Mark as successfully initialized
+      FirebaseConfigService.isInitialized = true;
+      FirebaseConfigService.isInitializing = false;
+
       this.logger.log('Firebase Admin SDK initialized successfully');
     } catch (error) {
+      FirebaseConfigService.isInitializing = false;
       this.logger.error('Failed to initialize Firebase Admin SDK', error);
       this.logger.warn(
         'Continuing without Firebase Admin SDK. Some features may not work.',
@@ -233,3 +263,10 @@ export class FirebaseConfigService {
    * Use sendPasswordResetEmail() from firebase/auth on the frontend
    */
 }
+
+@Global()
+@Module({
+  providers: [FirebaseConfigService],
+  exports: [FirebaseConfigService],
+})
+export class FirebaseModule {}

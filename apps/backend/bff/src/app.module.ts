@@ -4,7 +4,7 @@ import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { FirebaseConfigService } from './config/firebase.config';
+import { FirebaseModule } from './config/firebase.config';
 import { DatabaseConfigService } from './config/database.config';
 import { UsersModule } from './modules/users/users.module';
 import * as path from 'path';
@@ -23,9 +23,10 @@ import * as path from 'path';
       imports: [ConfigModule],
       useClass: DatabaseConfigService,
     }),
+    FirebaseModule, // Import the global Firebase module
     UsersModule,
   ],
   controllers: [AppController],
-  providers: [AppService, FirebaseConfigService, DatabaseConfigService],
+  providers: [AppService, DatabaseConfigService],
 })
 export class AppModule {}

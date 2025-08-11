@@ -40,6 +40,13 @@ export declare class UsersController {
         success: boolean;
         message: string;
     }>;
+    testEmail(body: {
+        email: string;
+        name: string;
+    }): Promise<{
+        success: boolean;
+        message: string;
+    }>;
     health(): Promise<{
         status: string;
         timestamp: string;

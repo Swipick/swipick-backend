@@ -20,15 +20,19 @@ const typeorm_2 = require("typeorm");
 const bcrypt = require("bcrypt");
 const user_entity_1 = require("../../entities/user.entity");
 const firebase_config_1 = require("../../config/firebase.config");
+const email_service_1 = require("../../services/email.service");
 const dto_1 = require("./dto");
 const class_transformer_1 = require("class-transformer");
 let UsersService = UsersService_1 = class UsersService {
-    constructor(userRepository, dataSource, firebaseConfig) {
+    constructor(userRepository, dataSource, firebaseConfig, emailService) {
         this.userRepository = userRepository;
         this.dataSource = dataSource;
         this.firebaseConfig = firebaseConfig;
+        this.emailService = emailService;
         this.logger = new common_1.Logger(UsersService_1.name);
         this.saltRounds = 12;
+        this.logger.log('🔧 UsersService initialized');
+        this.logger.log(`📧 EmailService available: ${!!this.emailService}`);
     }
     async createUser(createUserDto) {
         const queryRunner = this.dataSource.createQueryRunner();
@@ -51,6 +55,19 @@ let UsersService = UsersService_1 = class UsersService {
             });
             const savedUser = await queryRunner.manager.save(user_entity_1.User, user);
             await queryRunner.commitTransaction();
+            this.logger.log('🚀 Starting email verification process...');
+            try {
+                this.logger.log('📧 Generating Firebase verification link...');
+                const verificationLink = await this.firebaseConfig.generateEmailVerificationLink(createUserDto.email);
+                this.logger.log(`🔗 Firebase verification link generated: ${verificationLink}`);
+                this.logger.log('📤 Calling EmailService.sendVerificationEmail...');
+                await this.emailService.sendVerificationEmail(createUserDto.email, createUserDto.name, verificationLink);
+                this.logger.log(`✅ Verification email sent successfully to ${createUserDto.email}`);
+            }
+            catch (emailError) {
+                this.logger.error(`❌ Failed to send verification email to ${createUserDto.email}`, emailError);
+                this.logger.error('📊 Email error details:', JSON.stringify(emailError, null, 2));
+            }
             this.logger.log(`Traditional user created successfully: ${savedUser.id}`);
             return this.transformToResponse(savedUser);
         }
@@ -208,7 +225,7 @@ let UsersService = UsersService_1 = class UsersService {
             throw new common_1.BadRequestException('Errore durante la validazione del reset password');
         }
     }
-    async syncPasswordReset(firebaseUid, email) {
+    async syncPasswordReset(firebaseUid) {
         try {
             const user = await this.userRepository.findOne({
                 where: { firebaseUid },
@@ -233,6 +250,18 @@ let UsersService = UsersService_1 = class UsersService {
             throw new common_1.BadRequestException('Errore durante la sincronizzazione del reset password');
         }
     }
+    async testEmailSending(email, name) {
+        this.logger.log(`🧪 Testing email sending to: ${email}`);
+        try {
+            const testLink = 'https://swipick-production.up.railway.app/verify-test';
+            await this.emailService.sendVerificationEmail(email, name, testLink);
+            this.logger.log(`✅ Test email sent successfully to: ${email}`);
+        }
+        catch (error) {
+            this.logger.error(`❌ Test email failed for: ${email}`, error);
+            throw error;
+        }
+    }
     handleRegistrationError(error) {
         if (error.code === '23505') {
             if (error.constraint?.includes('email')) {
@@ -252,6 +281,7 @@ exports.UsersService = UsersService = UsersService_1 = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.DataSource,
-        firebase_config_1.FirebaseConfigService])
+        firebase_config_1.FirebaseConfigService,
+        email_service_1.EmailService])
 ], UsersService);
 //# sourceMappingURL=users.service.js.map

@@ -11,7 +11,7 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const typeorm_1 = require("@nestjs/typeorm");
 const user_entity_1 = require("../../entities/user.entity");
-const firebase_config_1 = require("../../config/firebase.config");
+const email_service_1 = require("../../services/email.service");
 const users_controller_1 = require("./users.controller");
 const users_service_1 = require("./users.service");
 let UsersModule = class UsersModule {
@@ -21,8 +21,8 @@ exports.UsersModule = UsersModule = __decorate([
     (0, common_1.Module)({
         imports: [config_1.ConfigModule, typeorm_1.TypeOrmModule.forFeature([user_entity_1.User])],
         controllers: [users_controller_1.UsersController],
-        providers: [users_service_1.UsersService, firebase_config_1.FirebaseConfigService],
-        exports: [users_service_1.UsersService, firebase_config_1.FirebaseConfigService],
+        providers: [users_service_1.UsersService, email_service_1.EmailService],
+        exports: [users_service_1.UsersService, email_service_1.EmailService],
     })
 ], UsersModule);
 //# sourceMappingURL=users.module.js.map

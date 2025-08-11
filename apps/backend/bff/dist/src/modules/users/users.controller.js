@@ -77,11 +77,28 @@ let UsersController = UsersController_1 = class UsersController {
     }
     async syncPasswordReset(body) {
         this.logger.log(`Syncing password reset for Firebase UID: ${body.firebaseUid}`);
-        await this.usersService.syncPasswordReset(body.firebaseUid, body.email);
+        await this.usersService.syncPasswordReset(body.firebaseUid);
         return {
             success: true,
             message: 'Password reset sincronizzato con successo',
         };
+    }
+    async testEmail(body) {
+        this.logger.log(`Testing email sending to: ${body.email}`);
+        try {
+            await this.usersService.testEmailSending(body.email, body.name);
+            return {
+                success: true,
+                message: 'Test email sent successfully',
+            };
+        }
+        catch (error) {
+            this.logger.error('Test email failed:', error);
+            return {
+                success: false,
+                message: `Test email failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            };
+        }
     }
     async health() {
         return {
@@ -154,6 +171,14 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "syncPasswordReset", null);
+__decorate([
+    (0, common_1.Post)('test-email'),
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "testEmail", null);
 __decorate([
     (0, common_1.Get)('health'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
