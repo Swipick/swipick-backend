@@ -21,6 +21,15 @@ export class FirebaseConfigService {
   }
 
   private initializeFirebase(): void {
+    this.logger.log(`🔍 DEBUG: Starting Firebase initialization process`);
+    this.logger.log(`🔍 DEBUG: admin.apps.length = ${admin.apps.length}`);
+    this.logger.log(
+      `🔍 DEBUG: isInitialized = ${FirebaseConfigService.isInitialized}`,
+    );
+    this.logger.log(
+      `🔍 DEBUG: isInitializing = ${FirebaseConfigService.isInitializing}`,
+    );
+
     try {
       // Check if already initialized or currently initializing
       if (
@@ -30,17 +39,20 @@ export class FirebaseConfigService {
         if (admin.apps.length > 0) {
           this.firebaseApp = admin.apps[0];
           this.logger.log(
-            'Firebase Admin SDK already initialized, using existing app',
+            '🔍 DEBUG: Firebase Admin SDK already initialized, using existing app',
           );
         } else {
           this.firebaseApp = null;
-          this.logger.log('Firebase initialization in progress, waiting...');
+          this.logger.log(
+            '🔍 DEBUG: Firebase initialization in progress, waiting...',
+          );
         }
         return;
       }
 
       // Set the initializing flag
       FirebaseConfigService.isInitializing = true;
+      this.logger.log('🔍 DEBUG: Set isInitializing = true');
 
       const projectId = this.configService.get<string>('FIREBASE_PROJECT_ID');
       const privateKeyRaw = this.configService.get<string>(
@@ -48,6 +60,10 @@ export class FirebaseConfigService {
       );
       const clientEmail = this.configService.get<string>(
         'FIREBASE_CLIENT_EMAIL',
+      );
+
+      this.logger.log(
+        `🔍 DEBUG: Firebase config - projectId: ${!!projectId}, privateKey: ${!!privateKeyRaw}, clientEmail: ${!!clientEmail}`,
       );
 
       // Validate required config early
