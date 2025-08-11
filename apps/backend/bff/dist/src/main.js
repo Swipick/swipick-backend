@@ -10,16 +10,19 @@ async function bootstrap() {
         forbidNonWhitelisted: true,
         transform: true,
     }));
-    const allowedOrigins = [
+    const defaultOrigins = [
         'https://swipick-production.up.railway.app',
         'https://frontend-service-production.up.railway.app',
         'http://localhost:3000',
         'http://localhost:3001',
     ];
+    const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
+        ? process.env.CORS_ALLOWED_ORIGINS.split(',').map((origin) => origin.trim())
+        : defaultOrigins;
     console.log(`🌐 NODE_ENV: ${process.env.NODE_ENV}`);
     console.log(`🔧 Allowed CORS origins:`, allowedOrigins);
-    app.enableCors({
-        origin: true,
+    const corsConfig = {
+        origin: allowedOrigins,
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
         allowedHeaders: [
@@ -31,6 +34,19 @@ async function bootstrap() {
         ],
         preflightContinue: false,
         optionsSuccessStatus: 204,
+    };
+    console.log(`🚀 CORS Configuration Applied:`, JSON.stringify(corsConfig, null, 2));
+    app.enableCors(corsConfig);
+    app.use((req, res, next) => {
+        if (req.method === 'OPTIONS') {
+            console.log(`🔍 CORS Preflight Request:`, {
+                method: req.method,
+                origin: req.headers.origin,
+                headers: req.headers,
+                url: req.url,
+            });
+        }
+        next();
     });
     const port = process.env.PORT || 9000;
     await app.listen(port);
