@@ -26,7 +26,7 @@ async function bootstrap() {
   console.log(`🔧 Allowed CORS origins:`, allowedOrigins);
 
   // Use a more explicit CORS configuration
-  app.enableCors({
+  const corsConfig = {
     origin: true, // Allow all origins temporarily for debugging
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -39,6 +39,25 @@ async function bootstrap() {
     ],
     preflightContinue: false,
     optionsSuccessStatus: 204,
+  };
+
+  console.log(
+    `🚀 CORS Configuration Applied:`,
+    JSON.stringify(corsConfig, null, 2),
+  );
+  app.enableCors(corsConfig);
+
+  // Add custom middleware to log CORS requests
+  app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
+      console.log(`🔍 CORS Preflight Request:`, {
+        method: req.method,
+        origin: req.headers.origin,
+        headers: req.headers,
+        url: req.url,
+      });
+    }
+    next();
   });
 
   const port = process.env.PORT || 9000;
