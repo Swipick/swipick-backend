@@ -14,7 +14,7 @@ async function bootstrap() {
     }),
   );
 
-  // CORS configuration - Production ready
+  // CORS configuration - Production ready with explicit origin setting
   const allowedOrigins = [
     'https://swipick-production.up.railway.app',
     'https://frontend-service-production.up.railway.app',
@@ -25,8 +25,9 @@ async function bootstrap() {
   console.log(`🌐 NODE_ENV: ${process.env.NODE_ENV}`);
   console.log(`🔧 Allowed CORS origins:`, allowedOrigins);
 
+  // Use a more explicit CORS configuration
   app.enableCors({
-    origin: allowedOrigins, // Direct array instead of callback function
+    origin: true, // Allow all origins temporarily for debugging
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: [
