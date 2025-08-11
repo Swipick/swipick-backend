@@ -257,7 +257,7 @@ export class FirebaseConfigService {
       }
 
       const actionCodeSettings = {
-        url: `${this.configService.get<string>('FRONTEND_URL', 'https://frontend-service-production.up.railway.app')}/login?verified=true`,
+        url: `${this.configService.get<string>('FRONTEND_URL', 'https://swipick-production.up.railway.app')}/loginVerified`,
         handleCodeInApp: false,
       };
 

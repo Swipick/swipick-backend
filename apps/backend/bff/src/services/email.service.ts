@@ -194,7 +194,7 @@ export class EmailService {
           .verify-button {
             display: inline-block;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #ffffff;
+            color: #ffffff !important;
             text-decoration: none;
             padding: 16px 32px;
             border-radius: 8px;
