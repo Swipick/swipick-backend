@@ -18,9 +18,16 @@ async function bootstrap() {
   const defaultOrigins = [
     'https://swipick-frontend-production.up.railway.app',
     'https://frontend-service-production.up.railway.app',
+    'https://swipick-backend-production.up.railway.app',
     'http://localhost:3000',
     'http://localhost:3001',
+    'http://localhost:9000',
   ];
+
+  // Add frontend URL from environment if available
+  if (process.env.FRONTEND_URL) {
+    defaultOrigins.push(process.env.FRONTEND_URL);
+  }
 
   // Read allowed origins from environment variable or use defaults
   const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
@@ -32,7 +39,21 @@ async function bootstrap() {
 
   // Use a more explicit CORS configuration
   const corsConfig = {
-    origin: allowedOrigins, // Use specific origins instead of true
+    origin: (
+      origin: string | undefined,
+      callback: (error: Error | null, allow?: boolean) => void,
+    ) => {
+      // Allow requests with no origin (mobile apps, etc.)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        console.log(`🚫 CORS blocked origin: ${origin}`);
+        console.log(`🔧 Allowed origins:`, allowedOrigins);
+        return callback(new Error('Not allowed by CORS'), false);
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: [
