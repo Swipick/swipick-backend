@@ -84,7 +84,6 @@ Thumbs.db
 # Build artifacts
 dist/
 build/
-*.tsbuildinfo
 
 # Logs
 logs

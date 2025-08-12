@@ -56,8 +56,6 @@ RUN npm run build
 
 # Build the BFF application
 WORKDIR /app/apps/backend/bff
-# Clean any existing build artifacts to avoid cache conflicts
-RUN rm -rf dist/tsconfig.tsbuildinfo dist/tsconfig.build.tsbuildinfo || true
 RUN npm run build
 
 # =============================================================================
@@ -104,4 +102,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 ENTRYPOINT ["dumb-init", "--"]
 
 # Start the application
-CMD ["node", "dist/src/main.js"]
+CMD ["node", "dist/main.js"]
