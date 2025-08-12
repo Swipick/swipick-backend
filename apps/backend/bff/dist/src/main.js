@@ -13,16 +13,21 @@ async function bootstrap() {
     const defaultOrigins = [
         'https://swipick-frontend-production.up.railway.app',
         'https://frontend-service-production.up.railway.app',
+        'https://swipick-backend-production.up.railway.app',
         'http://localhost:3000',
         'http://localhost:3001',
+        'http://localhost:9000',
     ];
+    if (process.env.FRONTEND_URL) {
+        defaultOrigins.push(process.env.FRONTEND_URL);
+    }
     const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
         ? process.env.CORS_ALLOWED_ORIGINS.split(',').map((origin) => origin.trim())
         : defaultOrigins;
     console.log(`🌐 NODE_ENV: ${process.env.NODE_ENV}`);
     console.log(`🔧 Allowed CORS origins:`, allowedOrigins);
     const corsConfig = {
-        origin: allowedOrigins,
+        origin: true,
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
         allowedHeaders: [
@@ -39,13 +44,17 @@ async function bootstrap() {
     console.log(`🔍 URL REDIRECT CONFIRMED: https://swipick-frontend-production.up.railway.app/loginVerified`);
     app.enableCors(corsConfig);
     app.use((req, res, next) => {
+        res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept,Origin');
+        res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
         if (req.method === 'OPTIONS') {
             console.log(`🔍 CORS Preflight Request:`, {
                 method: req.method,
                 origin: req.headers.origin,
-                headers: req.headers,
                 url: req.url,
             });
+            return res.status(204).send();
         }
         next();
     });
