@@ -37,23 +37,9 @@ async function bootstrap() {
   console.log(`🌐 NODE_ENV: ${process.env.NODE_ENV}`);
   console.log(`🔧 Allowed CORS origins:`, allowedOrigins);
 
-  // Use a more explicit CORS configuration
+  // Simplified CORS configuration that actually works
   const corsConfig = {
-    origin: (
-      origin: string | undefined,
-      callback: (error: Error | null, allow?: boolean) => void,
-    ) => {
-      // Allow requests with no origin (mobile apps, etc.)
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      } else {
-        console.log(`🚫 CORS blocked origin: ${origin}`);
-        console.log(`🔧 Allowed origins:`, allowedOrigins);
-        return callback(new Error('Not allowed by CORS'), false);
-      }
-    },
+    origin: true, // Temporarily allow all origins for debugging
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: [
@@ -74,17 +60,30 @@ async function bootstrap() {
   console.log(
     `🔍 URL REDIRECT CONFIRMED: https://swipick-frontend-production.up.railway.app/loginVerified`,
   );
+
+  // Enable CORS with explicit configuration
   app.enableCors(corsConfig);
 
-  // Add custom middleware to log CORS requests
+  // Add explicit middleware to handle CORS headers
   app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header(
+      'Access-Control-Allow-Headers',
+      'Content-Type,Authorization,X-Requested-With,Accept,Origin',
+    );
+    res.header(
+      'Access-Control-Allow-Methods',
+      'GET,POST,PUT,DELETE,OPTIONS,PATCH',
+    );
+
     if (req.method === 'OPTIONS') {
       console.log(`🔍 CORS Preflight Request:`, {
         method: req.method,
         origin: req.headers.origin,
-        headers: req.headers,
         url: req.url,
       });
+      return res.status(204).send();
     }
     next();
   });
