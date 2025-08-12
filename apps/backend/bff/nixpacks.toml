@@ -1,0 +1,19 @@
+[phases.setup]
+nixPkgs = ['nodejs_20', 'npm']
+
+[phases.install]
+cmds = [
+  'cd ../../../',
+  'npm ci',
+  'cd apps/backend/bff'
+]
+
+[phases.build]
+cmds = [
+  'cd ../../../',
+  'npm run build --workspace=bff',
+  'cd apps/backend/bff'
+]
+
+[start]
+cmd = 'npm run start:prod'
