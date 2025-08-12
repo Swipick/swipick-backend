@@ -409,7 +409,8 @@ export class UsersService {
 
     try {
       // Generate a test verification link
-      const testLink = 'https://swipick-production.up.railway.app/verify-test';
+      const testLink =
+        'https://swipick-frontend-production.up.railway.app/verify-test';
 
       await this.emailService.sendVerificationEmail(email, name, testLink);
 

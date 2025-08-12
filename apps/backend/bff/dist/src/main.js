@@ -11,7 +11,7 @@ async function bootstrap() {
         transform: true,
     }));
     const defaultOrigins = [
-        'https://swipick-production.up.railway.app',
+        'https://swipick-frontend-production.up.railway.app',
         'https://frontend-service-production.up.railway.app',
         'http://localhost:3000',
         'http://localhost:3001',
@@ -36,7 +36,7 @@ async function bootstrap() {
         optionsSuccessStatus: 204,
     };
     console.log(`🚀 CORS Configuration Applied:`, JSON.stringify(corsConfig, null, 2));
-    console.log(`🔍 URL REDIRECT CONFIRMED: https://swipick-production.up.railway.app/loginVerified`);
+    console.log(`🔍 URL REDIRECT CONFIRMED: https://swipick-frontend-production.up.railway.app/loginVerified`);
     app.enableCors(corsConfig);
     app.use((req, res, next) => {
         if (req.method === 'OPTIONS') {

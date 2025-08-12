@@ -16,7 +16,7 @@ async function bootstrap() {
 
   // CORS configuration - Production ready with explicit origin setting
   const defaultOrigins = [
-    'https://swipick-production.up.railway.app',
+    'https://swipick-frontend-production.up.railway.app',
     'https://frontend-service-production.up.railway.app',
     'http://localhost:3000',
     'http://localhost:3001',
@@ -51,7 +51,7 @@ async function bootstrap() {
     JSON.stringify(corsConfig, null, 2),
   );
   console.log(
-    `🔍 URL REDIRECT CONFIRMED: https://swipick-production.up.railway.app/loginVerified`,
+    `🔍 URL REDIRECT CONFIRMED: https://swipick-frontend-production.up.railway.app/loginVerified`,
   );
   app.enableCors(corsConfig);
 

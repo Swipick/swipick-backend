@@ -253,7 +253,7 @@ let UsersService = UsersService_1 = class UsersService {
     async testEmailSending(email, name) {
         this.logger.log(`🧪 Testing email sending to: ${email}`);
         try {
-            const testLink = 'https://swipick-production.up.railway.app/verify-test';
+            const testLink = 'https://swipick-frontend-production.up.railway.app/verify-test';
             await this.emailService.sendVerificationEmail(email, name, testLink);
             this.logger.log(`✅ Test email sent successfully to: ${email}`);
         }

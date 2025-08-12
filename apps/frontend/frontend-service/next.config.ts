@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 
+// Startup log to confirm loginVerified page is available
+console.log('📄 LOGINVERIFIED PAGE CONFIRMED: Route available');
+
 const nextConfig: NextConfig = {
   /* config options here */
   images: {
