@@ -89,9 +89,9 @@ async function bootstrap() {
   });
 
   const port = process.env.PORT || 9000;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 
-  console.log(`🚀 BFF Service is running on: http://localhost:${port}`);
+  console.log(`🚀 BFF Service is running on: http://0.0.0.0:${port}`);
   console.log(`📱 Environment: ${process.env.NODE_ENV}`);
 }
 bootstrap();
