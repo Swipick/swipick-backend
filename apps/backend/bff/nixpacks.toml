@@ -3,12 +3,12 @@ nixPkgs = ['nodejs_20']
 
 [phases.install]
 cmds = [
-  'cd ../../../ && npm ci && cd apps/backend/bff'
+  'cd /app && npm ci && cd /app/apps/backend/bff'
 ]
 
 [phases.build]
 cmds = [
-  'cd ../../../ && npm run build --workspace=bff && cd apps/backend/bff'
+  'cd /app && npm run build --workspace=bff && cd /app/apps/backend/bff'
 ]
 
 [start]
