@@ -36,6 +36,7 @@ async function bootstrap() {
         optionsSuccessStatus: 204,
     };
     console.log(`🚀 CORS Configuration Applied:`, JSON.stringify(corsConfig, null, 2));
+    console.log(`🔍 URL REDIRECT CONFIRMED: https://swipick-production.up.railway.app/loginVerified`);
     app.enableCors(corsConfig);
     app.use((req, res, next) => {
         if (req.method === 'OPTIONS') {

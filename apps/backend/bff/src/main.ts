@@ -50,6 +50,9 @@ async function bootstrap() {
     `🚀 CORS Configuration Applied:`,
     JSON.stringify(corsConfig, null, 2),
   );
+  console.log(
+    `🔍 URL REDIRECT CONFIRMED: https://swipick-production.up.railway.app/loginVerified`,
+  );
   app.enableCors(corsConfig);
 
   // Add custom middleware to log CORS requests

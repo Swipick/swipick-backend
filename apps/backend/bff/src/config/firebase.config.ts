@@ -261,6 +261,8 @@ export class FirebaseConfigService {
         handleCodeInApp: false,
       };
 
+      this.logger.log(`🔍 REDIRECT URL CONFIRMED: ${actionCodeSettings.url}`);
+
       const link = await auth.generateEmailVerificationLink(
         email,
         actionCodeSettings,
