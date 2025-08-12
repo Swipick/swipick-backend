@@ -1,6 +1,5 @@
 [variables]
 NODE_ENV = "production"
-NIXPACKS_NO_CACHE = "1"
 
 [phases.setup]
 nixPkgs = ['nodejs_20']
@@ -10,10 +9,9 @@ cmds = ['npm install --omit=dev']
 
 [phases.build]
 cmds = [
-  'rm -rf apps/backend/bff/dist/tsconfig.tsbuildinfo || true',
   'npm run build --workspace=@swipick/common',
-  'npm run build --workspace=bff'
+  'npm run build --workspace=@swipick/gaming-services'
 ]
 
 [start]
-cmd = 'npm run start:prod --workspace=bff'
+cmd = 'npm run start:prod --workspace=@swipick/gaming-services'
