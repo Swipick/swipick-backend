@@ -89,6 +89,40 @@ let AppController = AppController_1 = class AppController {
         this.logger.log('Forwarding health check to Gaming Services');
         return this.appService.forwardToGamingServices('/api/health');
     }
+    async createPrediction(dto) {
+        this.logger.log(`Creating ${dto.mode} prediction: User ${dto.userId}, Fixture ${dto.fixtureId}, Choice: ${dto.choice}`);
+        const { userId, mode, fixtureId, choice } = dto;
+        if (mode === 'test') {
+            return this.appService.forwardToGamingServices('/api/test-mode/predictions', 'POST', { userId, fixtureId, choice });
+        }
+        else {
+            return this.appService.forwardToGamingServices('/api/predictions', 'POST', { userId, fixtureId, choice });
+        }
+    }
+    async getUserWeeklyPredictions(userId, week, query) {
+        const mode = query.mode || 'live';
+        this.logger.log(`Getting ${mode} weekly predictions: User ${userId}, Week ${week}`);
+        if (mode === 'test') {
+            return this.appService.forwardToGamingServices(`/api/test-mode/predictions/user/${userId}/week/${week}`);
+        }
+        else {
+            return this.appService.forwardToGamingServices(`/api/predictions/user/${userId}/week/${week}`);
+        }
+    }
+    async getUserSummary(userId, query) {
+        const mode = query.mode || 'live';
+        this.logger.log(`Getting ${mode} user summary: User ${userId}`);
+        if (mode === 'test') {
+            return this.appService.forwardToGamingServices(`/api/test-mode/predictions/user/${userId}/summary`);
+        }
+        else {
+            return this.appService.forwardToGamingServices(`/api/predictions/user/${userId}/summary`);
+        }
+    }
+    async resetTestData(userId) {
+        this.logger.log(`Resetting test data for user ${userId}`);
+        return this.appService.forwardToGamingServices(`/api/test-mode/reset/${userId}`, 'DELETE');
+    }
 };
 exports.AppController = AppController;
 __decorate([
@@ -176,6 +210,37 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], AppController.prototype, "getGamingServicesHealth", null);
+__decorate([
+    (0, common_1.Post)('api/predictions'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AppController.prototype, "createPrediction", null);
+__decorate([
+    (0, common_1.Get)('api/predictions/user/:userId/week/:week'),
+    __param(0, (0, common_1.Param)('userId')),
+    __param(1, (0, common_1.Param)('week')),
+    __param(2, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", Promise)
+], AppController.prototype, "getUserWeeklyPredictions", null);
+__decorate([
+    (0, common_1.Get)('api/predictions/user/:userId/summary'),
+    __param(0, (0, common_1.Param)('userId')),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], AppController.prototype, "getUserSummary", null);
+__decorate([
+    (0, common_1.Delete)('api/test-mode/reset/:userId'),
+    __param(0, (0, common_1.Param)('userId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], AppController.prototype, "resetTestData", null);
 exports.AppController = AppController = AppController_1 = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [app_service_1.AppService])

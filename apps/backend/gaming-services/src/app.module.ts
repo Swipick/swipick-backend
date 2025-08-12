@@ -16,6 +16,8 @@ import { TeamsModule } from './modules/teams/teams.module';
 import { LiveUpdatesModule } from './modules/live-updates/live-updates.module';
 import { CacheServiceModule } from './modules/cache/cache.module';
 import { HealthModule } from './modules/health/health.module';
+import { SpecsModule } from './modules/specs/specs.module';
+import { TestModeModule } from './modules/test-mode/test-mode.module';
 
 @Module({
   imports: [
@@ -47,6 +49,8 @@ import { HealthModule } from './modules/health/health.module';
     LiveUpdatesModule,
     CacheServiceModule,
     HealthModule,
+    SpecsModule,
+    TestModeModule,
   ],
 })
 export class AppModule {}

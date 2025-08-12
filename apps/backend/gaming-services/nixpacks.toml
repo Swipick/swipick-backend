@@ -1,0 +1,19 @@
+[phases.setup]
+nixPkgs = ['nodejs_20', 'npm']
+
+[phases.install]
+cmds = [
+  'cd ../../../',
+  'npm ci',
+  'cd apps/backend/gaming-services'
+]
+
+[phases.build]
+cmds = [
+  'cd ../../../',
+  'npm run build --workspace=@swipick/gaming-services',
+  'cd apps/backend/gaming-services'
+]
+
+[start]
+cmd = 'npm run start:prod'

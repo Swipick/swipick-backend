@@ -147,6 +147,40 @@ class ApiClient {
   async getUserByFirebaseUid(firebaseUid: string) {
     return this.request(`/users/profile/firebase/${firebaseUid}`);
   }
+
+  // Prediction Management API
+  async getUserSummary(userId: string, mode: 'live' | 'test' = 'live') {
+    return this.request(`/predictions/user/${userId}/summary?mode=${mode}`);
+  }
+
+  async getUserWeeklyPredictions(userId: string, mode: 'live' | 'test' = 'live') {
+    return this.request(`/predictions/weekly/${userId}?mode=${mode}`);
+  }
+
+  async createPrediction(data: {
+    userId: string;
+    fixtureId: number;
+    prediction: string;
+    mode?: 'live' | 'test';
+  }) {
+    return this.request('/predictions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Test Mode API
+  async resetTestData(userId: string) {
+    return this.request(`/test-mode/reset/${userId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async seedTestFixtures() {
+    return this.request('/test-mode/seed', {
+      method: 'POST',
+    });
+  }
 }
 
 // Export singleton instance

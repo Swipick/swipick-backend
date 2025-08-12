@@ -1,5 +1,9 @@
 import { registerAs } from '@nestjs/config';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { Fixture } from '../entities/fixture.entity';
+import { Spec } from '../entities/spec.entity';
+import { TestFixture } from '../entities/test-fixture.entity';
+import { TestSpec } from '../entities/test-spec.entity';
 
 export const DatabaseConfig = registerAs(
   'database',
@@ -9,9 +13,9 @@ export const DatabaseConfig = registerAs(
       return {
         type: 'postgres',
         url: process.env.DATABASE_URL,
-        entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+        entities: [Fixture, Spec, TestFixture, TestSpec],
         migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
-        synchronize: process.env.NODE_ENV !== 'production',
+        synchronize: false, // Disabled for local builds
         logging: process.env.NODE_ENV === 'development',
         ssl: { rejectUnauthorized: false }, // Always use SSL for cloud databases
       };
@@ -25,9 +29,9 @@ export const DatabaseConfig = registerAs(
       username: process.env.DATABASE_USER || 'gaming_user',
       password: process.env.DATABASE_PASSWORD || 'password',
       database: process.env.DATABASE_NAME || 'swipick_gaming',
-      entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+      entities: [Fixture, Spec, TestFixture, TestSpec],
       migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
-      synchronize: process.env.NODE_ENV !== 'production',
+      synchronize: false, // Disabled for local builds
       logging: process.env.NODE_ENV === 'development',
       ssl:
         process.env.NODE_ENV === 'production'

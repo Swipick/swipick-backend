@@ -2,7 +2,6 @@ import {
   Controller,
   Get,
   Post,
-  Put,
   Delete,
   Param,
   Query,
@@ -12,6 +11,18 @@ import {
 } from '@nestjs/common';
 import { AppService } from './app.service';
 import { Request } from 'express';
+
+// DTOs for mode-based predictions
+interface CreatePredictionDto {
+  userId: number;
+  mode: 'live' | 'test';
+  fixtureId: number;
+  choice: '1' | 'X' | '2';
+}
+
+interface GetUserStatsParams {
+  mode?: 'live' | 'test';
+}
 
 @Controller()
 export class AppController {
@@ -127,5 +138,79 @@ export class AppController {
   async getGamingServicesHealth() {
     this.logger.log('Forwarding health check to Gaming Services');
     return this.appService.forwardToGamingServices('/api/health');
+  }
+
+  // Mode-based prediction endpoints
+  @Post('api/predictions')
+  async createPrediction(@Body() dto: CreatePredictionDto) {
+    this.logger.log(
+      `Creating ${dto.mode} prediction: User ${dto.userId}, Fixture ${dto.fixtureId}, Choice: ${dto.choice}`,
+    );
+
+    const { userId, mode, fixtureId, choice } = dto;
+
+    if (mode === 'test') {
+      return this.appService.forwardToGamingServices(
+        '/api/test-mode/predictions',
+        'POST',
+        { userId, fixtureId, choice },
+      );
+    } else {
+      return this.appService.forwardToGamingServices(
+        '/api/predictions',
+        'POST',
+        { userId, fixtureId, choice },
+      );
+    }
+  }
+
+  @Get('api/predictions/user/:userId/week/:week')
+  async getUserWeeklyPredictions(
+    @Param('userId') userId: string,
+    @Param('week') week: string,
+    @Query() query: GetUserStatsParams,
+  ) {
+    const mode = query.mode || 'live';
+    this.logger.log(
+      `Getting ${mode} weekly predictions: User ${userId}, Week ${week}`,
+    );
+
+    if (mode === 'test') {
+      return this.appService.forwardToGamingServices(
+        `/api/test-mode/predictions/user/${userId}/week/${week}`,
+      );
+    } else {
+      return this.appService.forwardToGamingServices(
+        `/api/predictions/user/${userId}/week/${week}`,
+      );
+    }
+  }
+
+  @Get('api/predictions/user/:userId/summary')
+  async getUserSummary(
+    @Param('userId') userId: string,
+    @Query() query: GetUserStatsParams,
+  ) {
+    const mode = query.mode || 'live';
+    this.logger.log(`Getting ${mode} user summary: User ${userId}`);
+
+    if (mode === 'test') {
+      return this.appService.forwardToGamingServices(
+        `/api/test-mode/predictions/user/${userId}/summary`,
+      );
+    } else {
+      return this.appService.forwardToGamingServices(
+        `/api/predictions/user/${userId}/summary`,
+      );
+    }
+  }
+
+  @Delete('api/test-mode/reset/:userId')
+  async resetTestData(@Param('userId') userId: string) {
+    this.logger.log(`Resetting test data for user ${userId}`);
+    return this.appService.forwardToGamingServices(
+      `/api/test-mode/reset/${userId}`,
+      'DELETE',
+    );
   }
 }

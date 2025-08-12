@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from "react";
+import { useRouter } from 'next/navigation';
 import { apiClient } from "@/lib/api-client";
 
 interface Team {
@@ -53,6 +54,7 @@ interface Fixture {
 }
 
 export default function GiocaPage() {
+  const router = useRouter();
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -380,14 +382,17 @@ export default function GiocaPage() {
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
         <div className="flex">
-          <div className="flex-1 text-center py-4">
+          <button
+            onClick={() => router.push('/risultati')}
+            className="flex-1 text-center py-4"
+          >
             <div className="text-gray-400 mb-1">
               <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M9 11H7v6h2v-6zm4 0h-2v6h2v-6zm4 0h-2v6h2v-6zM4 22h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16V8H4v2zm0-6h16V2H4v2z"/>
               </svg>
             </div>
             <span className="text-xs text-gray-500">Risultati</span>
-          </div>
+          </button>
           <div className="flex-1 text-center py-4 border-b-2 border-purple-600">
             <div className="text-purple-600 mb-1">
               <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
@@ -396,14 +401,17 @@ export default function GiocaPage() {
             </div>
             <span className="text-xs text-purple-600 font-medium">Gioca</span>
           </div>
-          <div className="flex-1 text-center py-4">
+          <button
+            onClick={() => router.push('/profilo')}
+            className="flex-1 text-center py-4"
+          >
             <div className="text-gray-400 mb-1">
               <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2c1.1 0 2 .9 2 2 0 .74-.4 1.38-1 1.72v.78h-.5c-.83 0-1.5.67-1.5 1.5v.5c0 .28-.22.5-.5.5s-.5-.22-.5-.5v-.5c0-1.38 1.12-2.5 2.5-2.5H13V5.72c-.6-.34-1-.98-1-1.72 0-1.1.9-2 2-2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
               </svg>
             </div>
             <span className="text-xs text-gray-500">Profilo</span>
-          </div>
+          </button>
         </div>
       </div>
     </div>
