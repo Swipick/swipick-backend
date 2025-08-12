@@ -23,7 +23,7 @@
 
 ### Railway Production Services (All Running ✅)
 
-- **BFF Service:** https://bff-service-production-644c.up.railway.app
+- **BFF Service:** https://swipick-backend-production.up.railway.app
 - **Gaming Services:** https://gaming-services-production.up.railway.app
 - **Frontend Service:** https://frontend-service-production.up.railway.app
 
@@ -163,15 +163,15 @@ sequenceDiagram
 
 - **Frontend:** Next.js 15.4.5 running on port 3000
 - **Backend:** NestJS running on port 9000
-- **API Base URL:** https://bff-service-production-644c.up.railway.app/api
+- **API Base URL:** https://swipick-backend-production.up.railway.app/api
 - **All services healthy and responsive**
 
 ### API Client Configuration
 
 ```typescript
 🔗 API Client initialized: {
-  baseUrl: 'https://bff-service-production-644c.up.railway.app',
-  apiUrl: 'https://bff-service-production-644c.up.railway.app/api'
+  baseUrl: 'https://swipick-backend-production.up.railway.app',
+  apiUrl: 'https://swipick-backend-production.up.railway.app/api'
 }
 ```
 

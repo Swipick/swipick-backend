@@ -177,9 +177,10 @@ let FirebaseConfigService = FirebaseConfigService_1 = class FirebaseConfigServic
                 throw new Error('Firebase Admin SDK non inizializzato');
             }
             const actionCodeSettings = {
-                url: `${this.configService.get('FRONTEND_URL', 'https://frontend-service-production.up.railway.app')}/login?verified=true`,
+                url: `https://swipick-production.up.railway.app/loginVerified`,
                 handleCodeInApp: false,
             };
+            this.logger.log(`🔍 REDIRECT URL CONFIRMED: ${actionCodeSettings.url}`);
             const link = await auth.generateEmailVerificationLink(email, actionCodeSettings);
             this.logger.log(`Email verification link generated for: ${email}`);
             return link;

@@ -257,9 +257,11 @@ export class FirebaseConfigService {
       }
 
       const actionCodeSettings = {
-        url: `${this.configService.get<string>('FRONTEND_URL', 'https://frontend-service-production.up.railway.app')}/login?verified=true`,
+        url: `https://swipick-production.up.railway.app/loginVerified`,
         handleCodeInApp: false,
       };
+
+      this.logger.log(`🔍 REDIRECT URL CONFIRMED: ${actionCodeSettings.url}`);
 
       const link = await auth.generateEmailVerificationLink(
         email,

@@ -20,6 +20,8 @@ module.exports = {
     'jest.config.js',
     '**/*.spec.ts',
     '**/*.test.ts',
+    'dist/**/*',
+    'node_modules/**/*',
   ],
   rules: {
     '@typescript-eslint/interface-name-prefix': 'off',
