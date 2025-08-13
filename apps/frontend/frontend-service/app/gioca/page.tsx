@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiClient } from "@/lib/api-client";
 import { useGameMode } from "@/src/contexts/GameModeContext";
@@ -54,7 +54,7 @@ interface Fixture {
   };
 }
 
-export default function GiocaPage() {
+function GiocaPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { mode, setMode } = useGameMode();
@@ -76,7 +76,6 @@ export default function GiocaPage() {
   }, [currentMode, mode, setMode]);
 
   useEffect(() => {
-    useEffect(() => {
     const fetchFixtures = async () => {
       try {
         setLoading(true);
@@ -165,7 +164,6 @@ export default function GiocaPage() {
 
     fetchFixtures();
   }, [currentMode]); // Re-fetch when mode changes
-  }, []);
 
   const handlePrediction = (fixtureId: number, prediction: '1' | 'X' | '2') => {
     setPredictions(prev => ({
@@ -500,5 +498,17 @@ export default function GiocaPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function GiocaPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 to-blue-600">
+        <div className="text-white text-xl">Caricamento...</div>
+      </div>
+    }>
+      <GiocaPageContent />
+    </Suspense>
   );
 }

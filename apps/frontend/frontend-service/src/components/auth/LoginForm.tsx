@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLoginContext } from '../../contexts/LoginContext';
 import { useAuthContext } from '../../contexts/AuthContext';
-import Button from '../../../components/ui/Button';
 
 /**
  * LoginForm Component
@@ -25,8 +24,7 @@ const LoginForm: React.FC = () => {
     updateField,
     submitLogin,
     clearError,
-    sendPasswordReset,
-    isPasswordResetSent
+    sendPasswordReset
   } = useLoginContext();
 
   const { signInWithGoogle } = useAuthContext();
