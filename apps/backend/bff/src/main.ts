@@ -23,6 +23,10 @@ async function bootstrap() {
     'https://swipick-frontend-production.up.railway.app',
     'https://frontend-service-production.up.railway.app',
     'https://swipick-backend-production.up.railway.app',
+    // Add potential Railway domain variations
+    'https://swipick-frontend.up.railway.app',
+    'https://frontend-service.up.railway.app',
+    'https://swipick.up.railway.app',
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:9000',
@@ -50,6 +54,12 @@ async function bootstrap() {
       console.log(`🔍 CORS Origin Check: ${origin}`);
       // Allow requests with no origin (mobile apps, etc.)
       if (!origin) return callback(null, true);
+
+      // Temporary: Allow all Railway domains for debugging
+      if (origin && origin.includes('.up.railway.app')) {
+        console.log(`✅ CORS Origin Allowed (Railway): ${origin}`);
+        return callback(null, true);
+      }
 
       if (allowedOrigins.includes(origin)) {
         console.log(`✅ CORS Origin Allowed: ${origin}`);
