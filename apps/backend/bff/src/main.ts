@@ -14,6 +14,10 @@ async function bootstrap() {
     }),
   );
 
+  console.log(
+    '🔄 LOADING CORS UPDATE - Timestamp: 2025-08-13 v2.1 - Commit Verification',
+  );
+
   // CORS configuration - Production ready with explicit origin setting
   const defaultOrigins = [
     'https://swipick-frontend-production.up.railway.app',
@@ -31,10 +35,13 @@ async function bootstrap() {
 
   // Read allowed origins from environment variable or use defaults
   const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
-    ? process.env.CORS_ALLOWED_ORIGINS.split(',').map((origin) => origin.trim())
+    ? process.env.CORS_ALLOWED_ORIGINS.split(',').map((origin) =>
+        origin.trim().replace(/['"]/g, ''),
+      )
     : defaultOrigins;
 
   console.log(`🌐 NODE_ENV: ${process.env.NODE_ENV}`);
+  console.log(`🔧 Raw CORS_ALLOWED_ORIGINS:`, process.env.CORS_ALLOWED_ORIGINS);
   console.log(`🔧 Allowed CORS origins:`, allowedOrigins);
 
   // Enhanced CORS configuration
