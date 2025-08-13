@@ -1,15 +1,18 @@
 [phases.setup]
 nixPkgs = ['nodejs_20']
 
+[variables]
+FORCE_REBUILD = "2025-08-13-v3-BFF-FIX"
+
 [phases.install]
 cmds = [
-  'npm ci'
+  'cd ../../../ && npm ci'
 ]
 
 [phases.build]
 cmds = [
-  'npm run build'
+  'cd ../../../ && npm run build --workspace=apps/backend/bff'
 ]
 
 [start]
-cmd = 'npm run start:prod'
+cmd = 'cd ../../../ && npm run start:prod --workspace=apps/backend/bff'
