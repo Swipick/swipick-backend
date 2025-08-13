@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from "react";
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiClient } from "@/lib/api-client";
+import { useGameMode } from "@/src/contexts/GameModeContext";
 
 interface Team {
   id: number;
@@ -55,38 +56,115 @@ interface Fixture {
 
 export default function GiocaPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { mode, setMode } = useGameMode();
+  
+  // Get mode from URL parameters or context
+  const currentMode = (searchParams.get('mode') as 'live' | 'test') || mode;
+  
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentFixtureIndex, setCurrentFixtureIndex] = useState(0);
   const [predictions, setPredictions] = useState<Record<number, '1' | 'X' | '2'>>({});
 
+  // Update context if mode changed via URL
   useEffect(() => {
-    const fetchSerieAFixtures = async () => {
+    if (currentMode !== mode) {
+      setMode(currentMode);
+    }
+  }, [currentMode, mode, setMode]);
+
+  useEffect(() => {
+    useEffect(() => {
+    const fetchFixtures = async () => {
       try {
         setLoading(true);
         setError(null);
         
-        const response = await apiClient.getUpcomingSerieAFixtures(7);
-        if (response.error) {
-          throw new Error(response.error);
+        let fixtureData: Fixture[];
+        
+        if (currentMode === 'test') {
+          // Load test fixtures (historical Serie A data)
+          try {
+            const response = await apiClient.getTestFixtures();
+            fixtureData = response.data || response;
+          } catch (testError) {
+            console.warn('Test fixtures not available, using mock data:', testError);
+            // Fallback to mock test data for development
+            fixtureData = [
+              {
+                id: 1001,
+                date: '2023-08-19T18:30:00Z',
+                timestamp: 1692467400,
+                venue: { id: 1, name: 'San Siro', city: 'Milano' },
+                status: { long: 'Match Finished', short: 'FT' },
+                league: { 
+                  id: 135, 
+                  name: 'Serie A', 
+                  country: 'Italy', 
+                  season: 2023, 
+                  round: 'Regular Season - 1' 
+                },
+                teams: {
+                  home: { id: 1, name: 'AC Milan', logo: '/teams/ac-milan.png' },
+                  away: { id: 2, name: 'Bologna', logo: '/teams/bologna.png' }
+                },
+                goals: { home: 2, away: 0 },
+                score: {
+                  halftime: { home: 1, away: 0 },
+                  fulltime: { home: 2, away: 0 }
+                }
+              },
+              {
+                id: 1002,
+                date: '2023-08-19T18:30:00Z',
+                timestamp: 1692467400,
+                venue: { id: 2, name: 'Giuseppe Meazza', city: 'Milano' },
+                status: { long: 'Match Finished', short: 'FT' },
+                league: { 
+                  id: 135, 
+                  name: 'Serie A', 
+                  country: 'Italy', 
+                  season: 2023, 
+                  round: 'Regular Season - 1' 
+                },
+                teams: {
+                  home: { id: 3, name: 'Inter', logo: '/teams/inter.png' },
+                  away: { id: 4, name: 'Monza', logo: '/teams/monza.png' }
+                },
+                goals: { home: 1, away: 1 },
+                score: {
+                  halftime: { home: 0, away: 1 },
+                  fulltime: { home: 1, away: 1 }
+                }
+              }
+            ];
+          }
+        } else {
+          // Load live fixtures
+          const response = await apiClient.getUpcomingSerieAFixtures(7);
+          if (response.error) {
+            throw new Error(response.error);
+          }
+          fixtureData = response.data || response;
         }
         
-        const fixtureData = response.data as Fixture[];
         setFixtures(fixtureData);
         
         if (fixtureData.length > 0) {
           setCurrentFixtureIndex(0);
         }
       } catch (err) {
-        console.error('Failed to fetch Serie A fixtures:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load fixtures');
+        console.error('Error fetching fixtures:', err);
+        setError(err instanceof Error ? err.message : 'Errore nel caricamento delle partite');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchSerieAFixtures();
+    fetchFixtures();
+  }, [currentMode]); // Re-fetch when mode changes
   }, []);
 
   const handlePrediction = (fixtureId: number, prediction: '1' | 'X' | '2') => {
@@ -201,6 +279,13 @@ export default function GiocaPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600">
+      {/* Test Mode Indicator */}
+      {currentMode === 'test' && (
+        <div className="bg-orange-500 text-white text-center py-3 font-semibold">
+          🧪 MODALITÀ TEST - Dati storici Serie A 2023-24
+        </div>
+      )}
+      
       {/* Header */}
       <div className="text-center text-white pt-8 pb-6">
         <h1 className="text-2xl font-bold mb-2">{getCurrentRound()}</h1>

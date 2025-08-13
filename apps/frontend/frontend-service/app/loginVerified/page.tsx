@@ -52,7 +52,7 @@ export default function LoginVerifiedPage() {
 
   // If user is already logged in and verified, redirect to game
   if (firebaseUser && firebaseUser.emailVerified) {
-    router.push('/gioca');
+    router.push('/mode-selection');
     return null;
   }
 

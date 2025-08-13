@@ -170,6 +170,38 @@ class ApiClient {
   }
 
   // Test Mode API
+  async getTestFixtures(week: number = 1) {
+    // Default to week 1 if no week specified
+    return this.request(`/test-mode/fixtures/week/${week}`);
+  }
+
+  async getTestFixturesByWeek(week: number) {
+    return this.request(`/test-mode/fixtures/week/${week}`);
+  }
+
+  async getTestWeeks() {
+    return this.request('/test-mode/weeks');
+  }
+
+  async createTestPrediction(data: {
+    userId: number;
+    fixtureId: number;
+    choice: '1' | 'X' | '2';
+  }) {
+    return this.request('/test-mode/predictions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getTestWeeklyStats(userId: number, week: number) {
+    return this.request(`/test-mode/predictions/user/${userId}/week/${week}`);
+  }
+
+  async getTestUserSummary(userId: number) {
+    return this.request(`/test-mode/predictions/user/${userId}/summary`);
+  }
+
   async resetTestData(userId: string) {
     return this.request(`/test-mode/reset/${userId}`, {
       method: 'DELETE',

@@ -60,10 +60,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsEmailLinkSent(false);
       setEmailForSignInState(null);
       
-      // Redirect to game page or home
-      if (typeof window !== 'undefined') {
-        window.history.replaceState({}, document.title, '/gioca');
-      }
+              // Redirect to game page or home
+        if (typeof window !== 'undefined') {
+          window.history.replaceState({}, document.title, '/mode-selection');
+        }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Errore durante l\'accesso');
     } finally {

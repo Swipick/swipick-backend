@@ -213,4 +213,28 @@ export class AppController {
       'DELETE',
     );
   }
+
+  // Test Mode Fixture Endpoints
+  @Get('api/test-mode/fixtures/week/:week')
+  async getTestFixturesByWeek(@Param('week') week: string) {
+    this.logger.log(`Getting test fixtures for week ${week}`);
+    return this.appService.forwardToGamingServices(
+      `/api/test-mode/fixtures/week/${week}`,
+    );
+  }
+
+  @Get('api/test-mode/weeks')
+  async getTestWeeks() {
+    this.logger.log('Getting all test weeks');
+    return this.appService.forwardToGamingServices('/api/test-mode/weeks');
+  }
+
+  @Post('api/test-mode/seed')
+  async seedTestData() {
+    this.logger.log('Seeding test data');
+    return this.appService.forwardToGamingServices(
+      '/api/test-mode/seed',
+      'POST',
+    );
+  }
 }

@@ -52,12 +52,12 @@ const RegistrationForm: React.FC = () => {
         if (result.data && (result.data as BackendUserResponse).needsProfileCompletion) {
           router.push(`/complete-profile/${(result.data as BackendUserResponse).id}`);
         } else {
-          router.push('/gioca');
+          router.push('/mode-selection');
         }
       } catch (backendError) {
         console.error('❌ Backend sync failed, proceeding anyway:', backendError);
         // Still redirect to game even if backend sync fails
-        router.push('/gioca');
+        router.push('/mode-selection');
       }
     } catch (error) {
       console.error('Google sign-in failed:', error);

@@ -27,8 +27,7 @@ const VerifiedLoginForm: React.FC = () => {
     e.preventDefault();
     try {
       await submitLogin();
-      // On successful login, redirect to game
-      router.push('/gioca');
+      router.push('/mode-selection'); // Redirect to mode selection after successful login
     } catch (error) {
       // Error is handled by LoginContext
       console.error('Login failed:', error);

@@ -41,7 +41,7 @@ const LoginForm: React.FC = () => {
       setGoogleLoading(true);
       await signInWithGoogle();
       // On success, user will be redirected by AuthContext or parent component
-      router.push('/gioca');
+      router.push('/mode-selection');
     } catch (error) {
       console.error('Google sign-in failed:', error);
       // Error is handled by AuthContext

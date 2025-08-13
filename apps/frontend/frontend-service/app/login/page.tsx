@@ -100,7 +100,7 @@ export default function LoginPage() {
                 <p className="text-[#554099] font-medium mb-6">{firebaseUser.email}</p>
                 <div className="space-y-4">
                   <button
-                    onClick={() => router.push('/gioca')}
+                    onClick={() => router.push('/mode-selection')}
                     className="w-full bg-[#554099] hover:bg-[#443077] text-white font-semibold py-4 text-lg rounded-lg transition-colors shadow-sm"
                   >
                     Continua al Gioco
