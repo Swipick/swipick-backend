@@ -18,7 +18,6 @@ async function bootstrap() {
   const defaultOrigins = [
     'https://swipick-frontend-production.up.railway.app',
     'https://frontend-service-production.up.railway.app',
-    'https://swipick-production.up.railway.app',
     'https://swipick-backend-production.up.railway.app',
     'http://localhost:3000',
     'http://localhost:3001',
