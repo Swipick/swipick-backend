@@ -1,6 +1,9 @@
 [phases.setup]
 nixPkgs = ['nodejs_20']
 
+[variables]
+FORCE_REBUILD = "2025-08-13-v2"
+
 [phases.install]
 cmds = [
   'npm ci'

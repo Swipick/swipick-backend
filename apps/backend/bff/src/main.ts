@@ -15,7 +15,7 @@ async function bootstrap() {
   );
 
   console.log(
-    '🔄 LOADING CORS UPDATE - Timestamp: 2025-08-13 v2.1 - Commit Verification',
+    '🔄 LOADING CORS UPDATE - Timestamp: 2025-08-13 v2.2 - FORCE REBUILD',
   );
 
   // CORS configuration - Production ready with explicit origin setting
@@ -107,6 +107,7 @@ async function bootstrap() {
   });
 
   const port = process.env.PORT || 9000;
+  console.log(`🔧 Force rebuild verification - binding to 0.0.0.0:${port}`);
   await app.listen(port, '0.0.0.0');
 
   console.log(`🚀 BFF Service is running on: http://0.0.0.0:${port}`);
