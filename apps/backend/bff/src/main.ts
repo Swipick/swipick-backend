@@ -18,6 +18,7 @@ async function bootstrap() {
   const defaultOrigins = [
     'https://swipick-frontend-production.up.railway.app',
     'https://frontend-service-production.up.railway.app',
+    'https://swipick-production.up.railway.app',
     'https://swipick-backend-production.up.railway.app',
     'http://localhost:3000',
     'http://localhost:3001',
@@ -37,9 +38,22 @@ async function bootstrap() {
   console.log(`🌐 NODE_ENV: ${process.env.NODE_ENV}`);
   console.log(`🔧 Allowed CORS origins:`, allowedOrigins);
 
-  // Simplified CORS configuration that actually works
+  // Enhanced CORS configuration
   const corsConfig = {
-    origin: true, // Temporarily allow all origins for debugging
+    origin: (origin, callback) => {
+      console.log(`🔍 CORS Origin Check: ${origin}`);
+      // Allow requests with no origin (mobile apps, etc.)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        console.log(`✅ CORS Origin Allowed: ${origin}`);
+        return callback(null, true);
+      }
+
+      console.log(`❌ CORS Origin Blocked: ${origin}`);
+      console.log(`🔧 Allowed origins:`, allowedOrigins);
+      return callback(new Error('Not allowed by CORS'), false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: [
@@ -53,37 +67,25 @@ async function bootstrap() {
     optionsSuccessStatus: 204,
   };
 
-  console.log(
-    `🚀 CORS Configuration Applied:`,
-    JSON.stringify(corsConfig, null, 2),
-  );
-  console.log(
-    `🔍 URL REDIRECT CONFIRMED: https://swipick-frontend-production.up.railway.app/loginVerified`,
-  );
+  console.log(`🚀 CORS Configuration Applied`);
 
   // Enable CORS with explicit configuration
   app.enableCors(corsConfig);
 
-  // Add explicit middleware to handle CORS headers
+  // Add explicit middleware to handle CORS headers for debugging
   app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header(
-      'Access-Control-Allow-Headers',
-      'Content-Type,Authorization,X-Requested-With,Accept,Origin',
-    );
-    res.header(
-      'Access-Control-Allow-Methods',
-      'GET,POST,PUT,DELETE,OPTIONS,PATCH',
+    const origin = req.headers.origin;
+    console.log(
+      `🔍 Request Origin: ${origin}, Method: ${req.method}, URL: ${req.url}`,
     );
 
     if (req.method === 'OPTIONS') {
       console.log(`🔍 CORS Preflight Request:`, {
         method: req.method,
-        origin: req.headers.origin,
+        origin: origin,
         url: req.url,
+        headers: req.headers,
       });
-      return res.status(204).send();
     }
     next();
   });
