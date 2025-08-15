@@ -151,7 +151,7 @@ export class AppController {
 
     if (mode === 'test') {
       return this.appService.forwardToGamingServices(
-        '/api/api/test-mode/predictions',
+        '/api/test-mode/predictions',
         'POST',
         { userId, fixtureId, choice },
       );
@@ -177,7 +177,7 @@ export class AppController {
 
     if (mode === 'test') {
       return this.appService.forwardToGamingServices(
-        `/api/api/test-mode/predictions/user/${userId}/week/${week}`,
+        `/api/test-mode/predictions/user/${userId}/week/${week}`,
       );
     } else {
       return this.appService.forwardToGamingServices(
@@ -196,7 +196,7 @@ export class AppController {
 
     if (mode === 'test') {
       return this.appService.forwardToGamingServices(
-        `/api/api/test-mode/predictions/user/${userId}/summary`,
+        `/api/test-mode/predictions/user/${userId}/summary`,
       );
     } else {
       return this.appService.forwardToGamingServices(
@@ -209,7 +209,7 @@ export class AppController {
   async resetTestData(@Param('userId') userId: string) {
     this.logger.log(`Resetting test data for user ${userId}`);
     return this.appService.forwardToGamingServices(
-      `/api/api/test-mode/reset/${userId}`,
+      `/api/test-mode/reset/${userId}`,
       'DELETE',
     );
   }
@@ -219,21 +219,21 @@ export class AppController {
   async getTestFixturesByWeek(@Param('week') week: string) {
     this.logger.log(`Getting test fixtures for week ${week}`);
     return this.appService.forwardToGamingServices(
-      `/api/api/test-mode/fixtures/week/${week}`,
+      `/api/test-mode/fixtures/week/${week}`,
     );
   }
 
   @Get('api/test-mode/weeks')
   async getTestWeeks() {
     this.logger.log('Getting all test weeks');
-    return this.appService.forwardToGamingServices('/api/api/test-mode/weeks');
+    return this.appService.forwardToGamingServices('/api/test-mode/weeks');
   }
 
   @Post('api/test-mode/seed')
   async seedTestData() {
     this.logger.log('Seeding test data');
     return this.appService.forwardToGamingServices(
-      '/api/api/test-mode/seed',
+      '/api/test-mode/seed',
       'POST',
     );
   }

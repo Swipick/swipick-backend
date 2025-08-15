@@ -38,11 +38,16 @@ async function bootstrap() {
   }
 
   // Read allowed origins from environment variable or use defaults
-  const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
-    ? process.env.CORS_ALLOWED_ORIGINS.split(',').map((origin) =>
-        origin.trim().replace(/['"]/g, ''),
-      )
-    : defaultOrigins;
+  const allowedOrigins = (
+    process.env.CORS_ALLOWED_ORIGINS
+      ? process.env.CORS_ALLOWED_ORIGINS.split(',')
+      : defaultOrigins
+  )
+    .map((o) => o.trim().replace(/['"]/g, ''))
+    .filter((o) => !!o)
+    .map((o) => o.replace(/\/$/, '')); // strip trailing slash for comparison
+
+  const allowedOriginSet = new Set(allowedOrigins);
 
   console.log(`🌐 NODE_ENV: ${process.env.NODE_ENV}`);
   console.log(`🔧 Raw CORS_ALLOWED_ORIGINS:`, process.env.CORS_ALLOWED_ORIGINS);
@@ -51,22 +56,25 @@ async function bootstrap() {
   // Enhanced CORS configuration
   const corsConfig = {
     origin: (origin, callback) => {
-      console.log(`🔍 CORS Origin Check: ${origin}`);
+      const normalizedOrigin = origin ? origin.replace(/\/$/, '') : origin;
+      console.log(
+        `🔍 CORS Origin Check: raw=${origin} normalized=${normalizedOrigin}`,
+      );
       // Allow requests with no origin (mobile apps, etc.)
-      if (!origin) return callback(null, true);
+      if (!normalizedOrigin) return callback(null, true);
 
       // Temporary: Allow all Railway domains for debugging
-      if (origin && origin.includes('.up.railway.app')) {
-        console.log(`✅ CORS Origin Allowed (Railway): ${origin}`);
+      if (normalizedOrigin && normalizedOrigin.includes('.up.railway.app')) {
+        console.log(`✅ CORS Origin Allowed (Railway): ${normalizedOrigin}`);
         return callback(null, true);
       }
 
-      if (allowedOrigins.includes(origin)) {
-        console.log(`✅ CORS Origin Allowed: ${origin}`);
+      if (allowedOriginSet.has(normalizedOrigin)) {
+        console.log(`✅ CORS Origin Allowed: ${normalizedOrigin}`);
         return callback(null, true);
       }
 
-      console.log(`❌ CORS Origin Blocked: ${origin}`);
+      console.log(`❌ CORS Origin Blocked: ${normalizedOrigin}`);
       console.log(`🔧 Allowed origins:`, allowedOrigins);
       return callback(new Error('Not allowed by CORS'), false);
     },
