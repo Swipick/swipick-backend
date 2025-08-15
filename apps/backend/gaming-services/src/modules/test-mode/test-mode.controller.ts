@@ -11,7 +11,8 @@ import {
 import { TestModeService } from './test-mode.service';
 import { CreateTestPredictionDto } from './dto/test-mode.dto';
 
-@Controller('api/test-mode')
+// NOTE: Global prefix 'api' is already applied in main.ts; use just 'test-mode' here.
+@Controller('test-mode')
 export class TestModeController {
   private readonly logger = new Logger(TestModeController.name);
 

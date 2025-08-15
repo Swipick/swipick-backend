@@ -237,4 +237,10 @@ export class AppController {
       'POST',
     );
   }
+
+  @Get('api/test-mode/health')
+  async getTestModeHealth() {
+    this.logger.log('Forwarding test-mode health check');
+    return this.appService.forwardToGamingServices('/api/test-mode/health');
+  }
 }

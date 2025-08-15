@@ -46,7 +46,8 @@
     "podman:status": "./podman.sh status",
     "podman:dev": "./podman.sh dev",
     "podman:compose:up": "./podman.sh compose-up",
-    "podman:compose:down": "./podman.sh compose-down"
+    "podman:compose:down": "./podman.sh compose-down",
+    "migrate:test-mode": "npm run migration:run --workspace=@swipick/gaming-services"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
