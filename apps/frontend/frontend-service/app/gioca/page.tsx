@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
 import { apiClient } from "@/lib/api-client";
 import { getLogoForTeam } from "@/lib/club-logos";
 import { useGameMode } from "@/src/contexts/GameModeContext";
@@ -55,6 +56,33 @@ interface Fixture {
   };
 }
 
+// Shape returned by Test Mode API (backend)
+interface TestFixtureAPI {
+  id?: number;
+  week?: number;
+  date: string | number | Date;
+  homeTeam: string;
+  awayTeam: string;
+  homeScore?: number;
+  awayScore?: number;
+  status?: string;
+  stadium?: string | null;
+}
+
+function isTestFixture(obj: unknown): obj is TestFixtureAPI {
+  if (typeof obj !== 'object' || obj === null) return false;
+  const o = obj as Record<string, unknown>;
+  return (
+    typeof o.homeTeam === 'string' &&
+    typeof o.awayTeam === 'string' &&
+    ('date' in o)
+  );
+}
+
+function isTestFixtureArray(arr: unknown): arr is TestFixtureAPI[] {
+  return Array.isArray(arr) && arr.every(isTestFixture);
+}
+
 function GiocaPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -82,34 +110,44 @@ function GiocaPageContent() {
         setLoading(true);
         setError(null);
         
-        let fixtureData: Fixture[];
+  let fixtureData: Fixture[];
         
         if (currentMode === 'test') {
           // Load test fixtures (historical Serie A data) and normalize shape for UI
           try {
-      const response = await apiClient.getTestFixtures();
-            const raw = (response as any)?.data ?? response;
-            if (Array.isArray(raw) && raw.length > 0 && typeof raw[0]?.homeTeam === 'string') {
-              fixtureData = (raw as any[]).map((f, idx) => {
+            const response = await apiClient.getTestFixtures();
+            // Some BFF responses may be wrapped in { data }
+            let raw: unknown = response;
+            if (
+              typeof response === 'object' &&
+              response !== null &&
+              'data' in (response as Record<string, unknown>) &&
+              Array.isArray((response as { data?: unknown }).data)
+            ) {
+              raw = (response as { data: unknown }).data;
+            }
+
+            if (isTestFixtureArray(raw)) {
+              fixtureData = raw.map((f, idx) => {
                 const date = typeof f.date === 'string' ? f.date : new Date(f.date).toISOString();
                 return {
-                  id: Number(f.id) ?? idx + 1,
+                  id: typeof f.id === 'number' ? f.id : idx + 1,
                   date,
                   timestamp: Math.floor(new Date(date).getTime() / 1000),
-                  venue: { id: Number(f.id) ?? idx + 1, name: `${f.homeTeam} vs ${f.awayTeam}`, city: 'N/A' },
+                  venue: { id: typeof f.id === 'number' ? f.id : idx + 1, name: String(f.stadium || `${f.homeTeam} vs ${f.awayTeam}`), city: 'N/A' },
                   status: { long: f.status === 'FT' ? 'Match Finished' : 'Scheduled', short: String(f.status || '') },
                   league: { id: 135, name: 'Serie A (Test)', country: 'Italy', season: 2023, round: `Week ${f.week ?? '-'}` },
                   teams: {
-        home: { id: (Number(f.id) ?? idx + 1) * 10 + 1, name: String(f.homeTeam || 'Home'), logo: getLogoForTeam(String(f.homeTeam || '')) || '' },
-        away: { id: (Number(f.id) ?? idx + 1) * 10 + 2, name: String(f.awayTeam || 'Away'), logo: getLogoForTeam(String(f.awayTeam || '')) || '' },
+                    home: { id: ((typeof f.id === 'number' ? f.id : idx + 1) * 10) + 1, name: String(f.homeTeam || 'Home'), logo: getLogoForTeam(String(f.homeTeam || '')) || '' },
+                    away: { id: ((typeof f.id === 'number' ? f.id : idx + 1) * 10) + 2, name: String(f.awayTeam || 'Away'), logo: getLogoForTeam(String(f.awayTeam || '')) || '' },
                   },
-                  goals: { home: Number.isFinite(f.homeScore) ? Number(f.homeScore) : undefined, away: Number.isFinite(f.awayScore) ? Number(f.awayScore) : undefined },
+                  goals: { home: Number.isFinite(f.homeScore as number) ? Number(f.homeScore) : undefined, away: Number.isFinite(f.awayScore as number) ? Number(f.awayScore) : undefined },
                   score: { halftime: {}, fulltime: { home: Number(f.homeScore ?? 0), away: Number(f.awayScore ?? 0) } },
-                } as Fixture;
+                } satisfies Fixture;
               }).slice(0, 10);
             } else {
               // Already in UI shape or empty
-              fixtureData = (raw as Fixture[]) || [];
+              fixtureData = (Array.isArray(raw) ? (raw as Fixture[]) : []) || [];
             }
           } catch (testError) {
             console.warn('Test fixtures not available, using mock data:', testError);
@@ -224,7 +262,14 @@ function GiocaPageContent() {
     return currentFixture?.league?.round || 'Serie A';
   };
 
-  const getTimeToNextMatch = () => {
+  // Extract a numeric week from the round label (e.g., "Week 1" or "Regular Season - 7").
+  const getWeekNumber = () => {
+    const round = getCurrentRound();
+    const m = String(round).match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : 1;
+  };
+
+  const getTimeToNextMatch = useCallback(() => {
     if (fixtures.length === 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
     
     const currentFixture = fixtures[currentFixtureIndex];
@@ -242,7 +287,7 @@ function GiocaPageContent() {
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
     
     return { days, hours, minutes, seconds };
-  };
+  }, [fixtures, currentFixtureIndex]);
 
   const [timeToMatch, setTimeToMatch] = useState(getTimeToNextMatch());
 
@@ -252,7 +297,7 @@ function GiocaPageContent() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [currentFixtureIndex, fixtures]);
+  }, [currentFixtureIndex, fixtures, getTimeToNextMatch]);
 
   if (loading) {
     return (
@@ -297,6 +342,17 @@ function GiocaPageContent() {
 
   const currentFixture = fixtures[currentFixtureIndex];
   const currentPrediction = predictions[currentFixture.id];
+  const buttonStyle: React.CSSProperties = {
+    background: 'radial-gradient(circle at center, #554099, #3d2d73)',
+    boxShadow:
+      '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
+  };
+  const skipStyle: React.CSSProperties = {
+    background: '#ffffff',
+    boxShadow:
+      '0 8px 16px rgba(85, 64, 153, 0.2), 0 4px 8px rgba(0, 0, 0, 0.1)',
+    border: '1px solid rgba(85, 64, 153, 0.2)',
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -307,11 +363,20 @@ function GiocaPageContent() {
         </div>
       )}
       
-      {/* Top Header Panel (Purple) */}
-      <div className="mx-4 mt-4 mb-6 rounded-2xl bg-gradient-to-br  from-indigo-600 to-indigo-900  text-white shadow-md">
-        <div className="text-center pt-6 px-4">
-          <h1 className="text-lg font-semibold mb-1">{getCurrentRound()}</h1>
-          <p className="text-sm opacity-90">dal {formatMatchDateTime(fixtures[0]?.date)} al {formatMatchDateTime(fixtures[fixtures.length - 1]?.date)}</p>
+      {/* Top Header Panel (match button gradient) */}
+      <div
+        className="w-full mx-0 mt-0 mb-6 rounded-b-2xl rounded-t-none text-white"
+        style={{
+          background: 'radial-gradient(circle at center, #554099, #3d2d73)',
+          boxShadow:
+            '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
+        }}
+      >
+        <div className="text-center pt-2 px-4">
+          <p className="text-base md:text-lg  mb-1 whitespace-nowrap">
+            Giornata {getWeekNumber()}&nbsp;
+            <span className="opacity-90">dal {new Date(fixtures[0]?.date).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} al {new Date(fixtures[fixtures.length - 1]?.date).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })}</span>
+          </p>
         </div>
         <div className="flex justify-center px-6 py-4">
           <div className="flex gap-6 text-center">
@@ -334,14 +399,18 @@ function GiocaPageContent() {
           </div>
         </div>
         <div className="px-6 pb-6">
-          <div className="bg-white bg-opacity-30 rounded-full h-2">
-            <div
-              className="bg-white rounded-full h-2 transition-all duration-300"
-              style={{ width: `${((currentFixtureIndex + 1) / fixtures.length) * 100}%` }}
-            />
-          </div>
-          <div className="text-center text-xs mt-2">
-            {currentFixtureIndex + 1}/{fixtures.length}
+          <div className="relative mx-auto" style={{ width: 'calc(100% - 115px)' }}>
+            <div className="bg-white bg-opacity-30 rounded-sm overflow-hidden" style={{ height: '18px' }}>
+              <div
+                className="bg-white h-full rounded-sm transition-all duration-300"
+                style={{ width: `${Math.min(currentFixtureIndex / 10, 1) * 100}%` }}
+              />
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-xs font-medium text-[#3d2d73]">
+                {Math.min(currentFixtureIndex, 10)}/10
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -360,10 +429,13 @@ function GiocaPageContent() {
             {/* Home Team */}
             <div className="flex-1 text-center">
               {currentFixture.teams.home.logo ? (
-                <img
+                <Image
                   src={currentFixture.teams.home.logo}
                   alt={currentFixture.teams.home.name}
+                  width={80}
+                  height={80}
                   className="mx-auto mb-3 w-20 h-20 object-contain"
+                  priority
                 />
               ) : (
                 <div className="w-12 h-12 mx-auto mb-24 bg-purple-800 rounded-full flex items-center justify-center">
@@ -400,10 +472,13 @@ function GiocaPageContent() {
             {/* Away Team */}
             <div className="flex-1 text-center">
               {currentFixture.teams.away.logo ? (
-                <img
+                <Image
                   src={currentFixture.teams.away.logo}
                   alt={currentFixture.teams.away.name}
+                  width={80}
+                  height={80}
                   className="mx-auto mb-3 w-20 h-20 object-contain"
+                  priority
                 />
               ) : (
                 <div className="w-12 h-12 mx-auto mb-3 bg-blue-200 rounded-full flex items-center justify-center">
@@ -442,9 +517,10 @@ function GiocaPageContent() {
           <div className="col-start-2">
             <button
               onClick={() => handlePrediction(currentFixture.id, 'X')}
-              className={`w-18 h-8 rounded-2xl font-bold text-lg text-white shadow-md transition-all bg-gradient-to-br from-indigo-600 to-indigo-900 hover:shadow-lg ${
-                currentPrediction === 'X' ? 'scale-105 shadow-lg' : ''
+                 className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
+                currentPrediction === 'X' ? 'scale-105' : ''
               }`}
+              style={buttonStyle}
             >
               X
             </button>
@@ -453,9 +529,10 @@ function GiocaPageContent() {
           <div className="col-start-1 row-start-2">
             <button
               onClick={() => handlePrediction(currentFixture.id, '1')}
-              className={`w-18 h-8 rounded-2xl font-bold text-lg text-white shadow-md transition-all bg-gradient-to-br from-indigo-600 to-indigo-900 hover:shadow-lg ${
-                currentPrediction === '1' ? 'scale-105 shadow-lg' : ''
+                 className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
+                currentPrediction === '1' ? 'scale-105' : ''
               }`}
+              style={buttonStyle}
             >
               1
             </button>
@@ -464,18 +541,20 @@ function GiocaPageContent() {
           <div className="col-start-3 row-start-2">
             <button
               onClick={() => handlePrediction(currentFixture.id, '2')}
-              className={`w-18 h-8 rounded-2xl font-bold text-lg text-white shadow-md transition-all bg-gradient-to-br from-indigo-600 to-indigo-900 hover:shadow-lg ${
-                currentPrediction === '2' ? 'scale-105 shadow-lg' : ''
+                 className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
+                currentPrediction === '2' ? 'scale-105' : ''
               }`}
+              style={buttonStyle}
             >
               2
             </button>
           </div>
           {/* Bottom: Skip */}
-          <div className="col-start-2 row-start-3 -mt-[15px]">
+  <div className="col-start-2 row-start-3 -mt-[15px]">
             <button
               onClick={skipFixture}
-              className="bg-white  text-indigo-900 w-18 h-8 rounded-2xl font-medium shadow-lg border border-gray-200"
+                 className="relative w-24 text-center bg-white text-[#3d2d73] font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105"
+        style={skipStyle}
             >
               skip
             </button>

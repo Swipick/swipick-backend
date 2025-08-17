@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/src/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
@@ -45,16 +45,7 @@ const RisultatiPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
 
-  useEffect(() => {
-    if (!firebaseUser) {
-      router.push('/login');
-      return;
-    }
-    
-    fetchUserData();
-  }, [firebaseUser, mode]);
-
-  const fetchUserData = async () => {
+  const fetchUserData = useCallback(async () => {
     if (!firebaseUser) return;
     
     setLoading(true);
@@ -79,7 +70,16 @@ const RisultatiPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [firebaseUser, mode]);
+
+  useEffect(() => {
+    if (!firebaseUser) {
+      router.push('/login');
+      return;
+    }
+    
+    fetchUserData();
+  }, [firebaseUser, fetchUserData, router]);
 
   const handleModeSwitch = (newMode: 'live' | 'test') => {
     setMode(newMode);

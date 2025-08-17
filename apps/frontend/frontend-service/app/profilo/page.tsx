@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/src/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
@@ -42,16 +42,7 @@ const ProfiloPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!firebaseUser) {
-      router.push('/login');
-      return;
-    }
-    
-    fetchUserProfile();
-  }, [firebaseUser]);
-
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = useCallback(async () => {
     if (!firebaseUser) return;
     
     setLoading(true);
@@ -78,7 +69,16 @@ const ProfiloPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [firebaseUser]);
+
+  useEffect(() => {
+    if (!firebaseUser) {
+      router.push('/login');
+      return;
+    }
+    
+    fetchUserProfile();
+  }, [firebaseUser, fetchUserProfile, router]);
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

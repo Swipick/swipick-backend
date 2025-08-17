@@ -436,10 +436,34 @@ export class TestModeService {
       },
     ];
 
+    // Map stadiums by home team for quick backfill
+    const STADIUM_BY_TEAM: Record<string, string> = {
+      'AC Milan': 'Giuseppe Meazza (San Siro)',
+      Inter: 'Giuseppe Meazza (San Siro)',
+      Torino: 'Stadio Olimpico Grande Torino',
+      Juventus: 'Allianz Stadium',
+      Napoli: 'Stadio Diego Armando Maradona',
+      Lazio: 'Stadio Olimpico',
+      Roma: 'Stadio Olimpico',
+      Bologna: "Stadio Renato Dall'Ara",
+      Udinese: 'Dacia Arena (Stadio Friuli)',
+      Monza: 'U-Power Stadium',
+      Salernitana: 'Stadio Arechi',
+      Cagliari: 'Unipol Domus',
+      Frosinone: 'Stadio Benito Stirpe',
+      Fiorentina: 'Stadio Artemio Franchi',
+      Empoli: 'Stadio Carlo Castellani – Computer Gross Arena',
+      'Hellas Verona': "Stadio Marc'Antonio Bentegodi",
+      Atalanta: 'Gewiss Stadium',
+      Lecce: 'Stadio Via del Mare',
+      TorinoFC: 'Stadio Olimpico Grande Torino',
+    };
+
     for (const fixtureData of testFixtures) {
       const fixture = this.testFixtureRepository.create({
         ...fixtureData,
         date: new Date(fixtureData.date),
+        stadium: STADIUM_BY_TEAM[String(fixtureData.homeTeam)] || null,
         status: 'FT',
         result: this.calculateResultFromScores(
           fixtureData.homeScore,

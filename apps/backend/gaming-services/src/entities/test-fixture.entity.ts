@@ -21,6 +21,9 @@ export class TestFixture {
   @Column({ type: 'timestamp' })
   date: Date;
 
+  @Column({ length: 150, nullable: true })
+  stadium: string;
+
   @Column({ length: 100 })
   homeTeam: string;
 

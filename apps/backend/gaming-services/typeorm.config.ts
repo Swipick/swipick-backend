@@ -1,4 +1,9 @@
 import { DataSource } from 'typeorm';
+import * as path from 'path';
+import * as dotenv from 'dotenv';
+
+// Ensure .env is loaded when running TypeORM CLI/migrations
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 // Use DATABASE_URL if available (cloud database), otherwise use individual parameters
 const config = process.env.DATABASE_URL
