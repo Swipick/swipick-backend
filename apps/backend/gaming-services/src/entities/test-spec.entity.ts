@@ -28,7 +28,7 @@ export class TestSpec {
 
   @Column({
     type: 'enum',
-    enum: ['1', 'X', '2'],
+    enum: ['1', 'X', '2', 'SKIP'],
   })
   choice: string; // User's prediction
 
@@ -66,6 +66,8 @@ export class TestSpec {
         return 'Draw';
       case '2':
         return 'Away Win';
+      case 'SKIP':
+        return 'Skipped';
       default:
         return 'Unknown';
     }
@@ -76,8 +78,12 @@ export class TestSpec {
 
     const match = this.fixture.getMatchDisplay();
     const choice = this.getChoiceDisplay();
-    const status = this.isCorrect ? '✅ Correct' : '❌ Wrong';
-
+    let status: string;
+    if (this.choice === 'SKIP') {
+      status = '⏭ Skipped';
+    } else {
+      status = this.isCorrect ? '✅ Correct' : '❌ Wrong';
+    }
     return `${match} - Predicted: ${choice} ${status}`;
   }
 }

@@ -1,6 +1,89 @@
-# 🏈 Gaming Services Container
+# ⚽ Gaming Services (1 × 2 Speculation Game Backend)
 
-The Gaming Services Container is the core microservice responsible for integrating with API-FOOTBALL to provide real-time football data, match fixtures, team information, and live updates to the Swipick prediction game platform.
+Gaming Services powers Swipick’s football speculation game using the classic “1 × 2” system. This is not gambling; it’s pure predictions and engagement. The service integrates with API-FOOTBALL for fixtures/results and exposes both live-mode and test-mode APIs.
+
+## 🎯 Game Concept: "1 × 2"
+
+Each match has three outcomes:
+
+- 1 → Home win
+- X → Draw (pareggio)
+- 2 → Away win
+
+Frontend inputs:
+
+- Swipe left or press 1 → Home Win
+- Swipe up or press X → Draw
+- Swipe right or press 2 → Away Win
+- Swipe down or press Skip → Skip the match
+
+Rules: outcomes are based on the final score at 90' (+stoppage), no extra time or penalties.
+
+## 📊 Core Mechanics
+
+- 10 matches per week (Serie A matchday)
+- One speculation per match per user; user may skip
+- Scoring:
+  - Correct → 1 point
+  - Incorrect → 0 points
+  - Skipped → recorded but excluded from percentage
+- Weekly and cumulative success are based only on non-skipped specs
+
+Example: 38 games, 22 correct → success_rate = 22 / 38 = 57.89%
+
+## 🧱 Data Model (Neon Postgres)
+
+Production uses Neon for managed Postgres. Core tables:
+
+- fixtures: API-FOOTBALL fixtures (live mode)
+- specs: live-mode user speculations (UUID ids)
+- test_fixtures: historical Serie A fixtures (test mode)
+- test_specs: test-mode speculations with numeric user ids
+
+Key fields:
+
+- specs: id (UUID), user_id (UUID), fixture_id (UUID), choice ENUM('1','X','2','SKIP'), result ENUM('1','X','2'), correct BOOL, week INT, created_at
+- test_specs: id SERIAL, userId INT, fixtureId INT, week INT, choice ENUM('1','X','2','SKIP'), isCorrect BOOL, countsTowardPercentage BOOL, createdAt/updatedAt
+
+Notes:
+
+- SKIP is stored but excluded from accuracy calculations; it still counts as a turn.
+- Unique(user, fixture) is enforced to prevent duplicates. Test-mode create is idempotent.
+
+## 🔌 REST API
+
+Health:
+
+- GET /api/health
+
+Fixtures:
+
+- GET /api/fixtures
+- GET /api/fixtures/live
+- GET /api/fixtures/:id
+- POST /api/fixtures/sync
+
+Live Predictions (specs):
+
+- POST /api/predictions
+- GET /api/predictions/user/:userId/week/:week
+- GET /api/predictions/user/:userId/summary
+
+Test Mode:
+
+- POST /api/test-mode/predictions
+- GET /api/test-mode/fixtures/week/:week
+- GET /api/test-mode/weeks
+- GET /api/test-mode/predictions/user/:userId/week/:week
+- GET /api/test-mode/predictions/user/:userId/summary
+- POST /api/test-mode/seed
+- DELETE /api/test-mode/reset/:userId
+
+Behavioral guarantees:
+
+- One speculation per (user, fixture) → DB unique index
+- Idempotent create in test-mode
+- SKIP is recorded but never affects percentages
 
 ## 🚀 Quick Start
 
@@ -10,36 +93,32 @@ The Gaming Services Container is the core microservice responsible for integrati
 - PostgreSQL 14+
 - Redis 7+
 - API-FOOTBALL API key
+- Neon PostgreSQL (production)
 
 ### Environment Variables
 
-Create a `.env` file in the root directory:
+Create a `.env` file in this folder:
 
-```bash
-# Application
+```
 NODE_ENV=development
 PORT=3000
 WEBSOCKET_PORT=3001
 
-# Database
 DATABASE_HOST=localhost
 DATABASE_PORT=5432
 DATABASE_NAME=swipick_gaming
 DATABASE_USER=gaming_user
 DATABASE_PASSWORD=your_password
 
-# Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=your_redis_password
 
-# API-FOOTBALL
 API_FOOTBALL_BASE_URL=https://v3.football.api-sports.io
 API_FOOTBALL_KEY=your_api_key
 API_FOOTBALL_BACKUP_KEY=backup_key_optional
 API_FOOTBALL_TIER=basic
 
-# Monitoring (Optional for MVP)
 PROMETHEUS_ENABLED=false
 LOG_LEVEL=info
 HEALTH_CHECK_INTERVAL=30000
@@ -47,136 +126,40 @@ HEALTH_CHECK_INTERVAL=30000
 
 ### Development
 
-```bash
-# Install dependencies
+```
 npm install
-
-# Start in development mode
 npm run start:dev
-
-# Run tests
-npm run test
-
-# Run e2e tests
-npm run test:e2e
 ```
 
 ### Production with Containers
 
-```bash
-# Build production container
+```
 podman build -f Containerfile -t gaming-services:latest .
-
-# Run container
-podman run -d \
-  --name gaming-services \
-  --env-file .env \
-  -p 3000:3000 \
-  -p 3001:3001 \
-  gaming-services:latest
+podman run -d --name gaming-services --env-file .env -p 3000:3000 -p 3001:3001 gaming-services:latest
 ```
 
-## 📊 API Endpoints
+## 🧪 Tests
 
-### Health Checks
-
-- `GET /api/health` - Overall health status
-- `GET /api/health/ready` - Readiness check
-- `GET /api/health/live` - Liveness check
-
-### Fixtures
-
-- `GET /api/fixtures` - Get fixtures (query: date, gameweek)
-- `GET /api/fixtures/live` - Get live matches
-- `GET /api/fixtures/:id` - Get specific fixture
-- `POST /api/fixtures/sync` - Sync fixtures for date
-
-### Teams
-
-- `GET /api/teams` - Get teams (query: id, name, league, season)
-- `GET /api/teams/:id` - Get specific team
-- `GET /api/teams/:id/statistics` - Get team statistics
-- `GET /api/teams/:id1/vs/:id2` - Get head-to-head data
-
-## 🔄 WebSocket Events
-
-### Client → Server
-
-- `subscribe_match` - Subscribe to match updates
-- `unsubscribe_match` - Unsubscribe from match updates
-- `get_live_matches` - Get current live matches
-
-### Server → Client
-
-- `match_update` - Live match update
-- `fixtures_update` - Fixture list update
-- `live_matches` - Current live matches response
-
-## 🛡️ Security Features
-
-- Non-root container execution
-- API rate limiting and circuit breaker
-- Environment variable-based configuration
-- Health check endpoints
-- Request timeout handling
-
-## 📈 Monitoring
-
-- Health check endpoints for container orchestration
-- Structured logging with configurable levels
-- WebSocket connection tracking
-- API usage tracking and quota management
-
-## 🧪 Testing
-
-```bash
-# Unit tests
+```
 npm run test
-
-# E2E tests
 npm run test:e2e
-
-# Test coverage
 npm run test:cov
 ```
 
-## 🔧 Configuration
+## 🧩 Modules
 
-The service uses environment-based configuration with the following key areas:
+- fixtures: Live fixtures and API-FOOTBALL sync
+- teams: Team info and stats
+- specs: Live-mode speculation CRUD and stats
+- test-mode: Historical fixtures, predictions, weekly stats, user summaries
+- health: Liveness/readiness
 
-- **Database**: PostgreSQL connection settings
-- **Cache**: Redis configuration for caching layer
-- **API-FOOTBALL**: External API configuration and rate limits
-- **WebSocket**: Real-time communication settings
-- **Monitoring**: Health checks and logging configuration
+## � WebSocket
 
-## 📝 Development Notes
+A live updates gateway exists for future use; not required for test mode.
 
-This is an MVP implementation with the following characteristics:
+## Notes & Ops
 
-- Simple in-memory rate limiting (production would use Redis)
-- Environment variable-based API key management
-- Basic caching strategy
-- Health checks for container orchestration
-- WebSocket support for real-time updates
-
-For production deployment beyond MVP, consider:
-
-- Redis-based rate limiting
-- Database migrations and connection pooling
-- Advanced monitoring with Prometheus
-- API key rotation mechanisms
-- Horizontal scaling considerations
-
-## 🏗️ Architecture
-
-The service follows a modular architecture with:
-
-- **API-FOOTBALL Module**: External API integration
-- **Fixtures Module**: Match fixture management
-- **Teams Module**: Team and player data
-- **Live Updates Module**: Real-time WebSocket updates
-- **Cache Module**: Caching layer abstraction
-- **Health Module**: Health check endpoints
-
-Each module is independently testable and follows NestJS best practices.
+- Neon hosts production Postgres with branching for safe test-mode data and migrations.
+- Tables are split between live (`fixtures`, `specs`) and test mode (`test_fixtures`, `test_specs`).
+- The separation isolates historical test data while reusing logic.

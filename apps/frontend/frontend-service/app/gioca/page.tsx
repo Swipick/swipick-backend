@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiClient } from "@/lib/api-client";
+import { getLogoForTeam } from "@/lib/club-logos";
 import { useGameMode } from "@/src/contexts/GameModeContext";
 
 interface Team {
@@ -84,10 +85,32 @@ function GiocaPageContent() {
         let fixtureData: Fixture[];
         
         if (currentMode === 'test') {
-          // Load test fixtures (historical Serie A data)
+          // Load test fixtures (historical Serie A data) and normalize shape for UI
           try {
-            const response = await apiClient.getTestFixtures();
-            fixtureData = response.data || response;
+      const response = await apiClient.getTestFixtures();
+            const raw = (response as any)?.data ?? response;
+            if (Array.isArray(raw) && raw.length > 0 && typeof raw[0]?.homeTeam === 'string') {
+              fixtureData = (raw as any[]).map((f, idx) => {
+                const date = typeof f.date === 'string' ? f.date : new Date(f.date).toISOString();
+                return {
+                  id: Number(f.id) ?? idx + 1,
+                  date,
+                  timestamp: Math.floor(new Date(date).getTime() / 1000),
+                  venue: { id: Number(f.id) ?? idx + 1, name: `${f.homeTeam} vs ${f.awayTeam}`, city: 'N/A' },
+                  status: { long: f.status === 'FT' ? 'Match Finished' : 'Scheduled', short: String(f.status || '') },
+                  league: { id: 135, name: 'Serie A (Test)', country: 'Italy', season: 2023, round: `Week ${f.week ?? '-'}` },
+                  teams: {
+        home: { id: (Number(f.id) ?? idx + 1) * 10 + 1, name: String(f.homeTeam || 'Home'), logo: getLogoForTeam(String(f.homeTeam || '')) || '' },
+        away: { id: (Number(f.id) ?? idx + 1) * 10 + 2, name: String(f.awayTeam || 'Away'), logo: getLogoForTeam(String(f.awayTeam || '')) || '' },
+                  },
+                  goals: { home: Number.isFinite(f.homeScore) ? Number(f.homeScore) : undefined, away: Number.isFinite(f.awayScore) ? Number(f.awayScore) : undefined },
+                  score: { halftime: {}, fulltime: { home: Number(f.homeScore ?? 0), away: Number(f.awayScore ?? 0) } },
+                } as Fixture;
+              }).slice(0, 10);
+            } else {
+              // Already in UI shape or empty
+              fixtureData = (raw as Fixture[]) || [];
+            }
           } catch (testError) {
             console.warn('Test fixtures not available, using mock data:', testError);
             // Fallback to mock test data for development
@@ -106,8 +129,8 @@ function GiocaPageContent() {
                   round: 'Regular Season - 1' 
                 },
                 teams: {
-                  home: { id: 1, name: 'AC Milan', logo: '/teams/ac-milan.png' },
-                  away: { id: 2, name: 'Bologna', logo: '/teams/bologna.png' }
+                  home: { id: 1, name: 'AC Milan', logo: getLogoForTeam('AC Milan') || '' },
+                  away: { id: 2, name: 'Bologna', logo: getLogoForTeam('Bologna') || '' }
                 },
                 goals: { home: 2, away: 0 },
                 score: {
@@ -129,8 +152,8 @@ function GiocaPageContent() {
                   round: 'Regular Season - 1' 
                 },
                 teams: {
-                  home: { id: 3, name: 'Inter', logo: '/teams/inter.png' },
-                  away: { id: 4, name: 'Monza', logo: '/teams/monza.png' }
+                  home: { id: 3, name: 'Inter', logo: getLogoForTeam('Inter') || '' },
+                  away: { id: 4, name: 'Monza', logo: getLogoForTeam('Monza') || '' }
                 },
                 goals: { home: 1, away: 1 },
                 score: {
@@ -249,7 +272,7 @@ function GiocaPageContent() {
           <div className="text-6xl mb-4">⚠️</div>
           <h2 className="text-2xl font-bold mb-4">Errore nel caricamento</h2>
           <p className="text-lg opacity-90 mb-6">{error}</p>
-          <button 
+          <button
             onClick={() => window.location.reload()}
             className="bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
           >
@@ -276,7 +299,7 @@ function GiocaPageContent() {
   const currentPrediction = predictions[currentFixture.id];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600">
+    <div className="min-h-screen bg-white">
       {/* Test Mode Indicator */}
       {currentMode === 'test' && (
         <div className="bg-orange-500 text-white text-center py-3 font-semibold">
@@ -284,81 +307,77 @@ function GiocaPageContent() {
         </div>
       )}
       
-      {/* Header */}
-      <div className="text-center text-white pt-8 pb-6">
-        <h1 className="text-2xl font-bold mb-2">{getCurrentRound()}</h1>
-        <p className="text-lg opacity-90">dal {formatMatchDateTime(fixtures[0]?.date)} al {formatMatchDateTime(fixtures[fixtures.length - 1]?.date)}</p>
-      </div>
-
-      {/* Countdown Timer */}
-      <div className="flex justify-center text-white mb-8">
-        <div className="flex gap-6 text-center">
-          <div>
-            <div className="text-3xl font-bold">{timeToMatch.days}</div>
-            <div className="text-sm opacity-75">giorni</div>
-          </div>
-          <div>
-            <div className="text-3xl font-bold">{timeToMatch.hours}</div>
-            <div className="text-sm opacity-75">ore</div>
-          </div>
-          <div>
-            <div className="text-3xl font-bold">{timeToMatch.minutes}</div>
-            <div className="text-sm opacity-75">minuti</div>
-          </div>
-          <div>
-            <div className="text-3xl font-bold">{timeToMatch.seconds}</div>
-            <div className="text-sm opacity-75">secondi</div>
+      {/* Top Header Panel (Purple) */}
+      <div className="mx-4 mt-4 mb-6 rounded-2xl bg-gradient-to-br  from-indigo-600 to-indigo-900  text-white shadow-md">
+        <div className="text-center pt-6 px-4">
+          <h1 className="text-lg font-semibold mb-1">{getCurrentRound()}</h1>
+          <p className="text-sm opacity-90">dal {formatMatchDateTime(fixtures[0]?.date)} al {formatMatchDateTime(fixtures[fixtures.length - 1]?.date)}</p>
+        </div>
+        <div className="flex justify-center px-6 py-4">
+          <div className="flex gap-6 text-center">
+            <div>
+              <div className="text-2xl font-bold">{timeToMatch.days}</div>
+              <div className="text-xs opacity-80">giorni</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold">{timeToMatch.hours}</div>
+              <div className="text-xs opacity-80">ore</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold">{timeToMatch.minutes}</div>
+              <div className="text-xs opacity-80">minuti</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold">{timeToMatch.seconds}</div>
+              <div className="text-xs opacity-80">secondi</div>
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* Progress Bar */}
-      <div className="mx-6 mb-8">
-        <div className="bg-white bg-opacity-20 rounded-full h-2">
-          <div 
-            className="bg-white rounded-full h-2 transition-all duration-300"
-            style={{ width: `${((currentFixtureIndex + 1) / fixtures.length) * 100}%` }}
-          />
-        </div>
-        <div className="text-center text-white text-sm mt-2">
-          {currentFixtureIndex + 1}/{fixtures.length}
+        <div className="px-6 pb-6">
+          <div className="bg-white bg-opacity-30 rounded-full h-2">
+            <div
+              className="bg-white rounded-full h-2 transition-all duration-300"
+              style={{ width: `${((currentFixtureIndex + 1) / fixtures.length) * 100}%` }}
+            />
+          </div>
+          <div className="text-center text-xs mt-2">
+            {currentFixtureIndex + 1}/{fixtures.length}
+          </div>
         </div>
       </div>
 
       {/* Match Card */}
-      <div className="mx-6 mb-8">
-        <div className="bg-white rounded-2xl p-6 shadow-xl">
+      <div className="mx-4 mb-8">
+        <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
           {/* Match Info */}
           <div className="text-center mb-6">
-            <p className="text-gray-600 text-sm mb-1">{formatMatchDateTime(currentFixture.date)}</p>
-            <p className="text-gray-500 text-xs">{currentFixture.venue.name}</p>
+            <p className="text-black text-sm mb-1">{formatMatchDateTime(currentFixture.date)}</p>
+            <p className="text-black text-xs">{currentFixture.venue.name}</p>
           </div>
 
           {/* Teams */}
           <div className="flex items-center justify-between mb-8">
             {/* Home Team */}
             <div className="flex-1 text-center">
-              <div className="w-20 h-20 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
-                {currentFixture.teams.home.logo ? (
-                  <img 
-                    src={currentFixture.teams.home.logo} 
-                    alt={currentFixture.teams.home.name}
-                    className="w-12 h-12 object-contain"
-                  />
-                ) : (
-                  <div className="w-12 h-12 bg-purple-200 rounded-full flex items-center justify-center">
-                    <span className="text-purple-600 font-bold text-lg">
-                      {currentFixture.teams.home.name.charAt(0)}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <h3 className="font-bold text-lg mb-1">{currentFixture.teams.home.name}</h3>
-              <p className="text-xs text-gray-500">Posizione in classifica</p>
-              <p className="font-bold text-purple-600">1</p>
-              <p className="text-xs text-gray-500 mt-1">Vittorie in casa</p>
-              <p className="font-bold">82%</p>
-              <p className="text-xs text-gray-500 mt-1">Ultimi 5 risultati</p>
+              {currentFixture.teams.home.logo ? (
+                <img
+                  src={currentFixture.teams.home.logo}
+                  alt={currentFixture.teams.home.name}
+                  className="mx-auto mb-3 w-20 h-20 object-contain"
+                />
+              ) : (
+                <div className="w-12 h-12 mx-auto mb-24 bg-purple-800 rounded-full flex items-center justify-center">
+                  <span className="text-black font-bold text-lg">
+                    {currentFixture.teams.home.name.charAt(0)}
+                  </span>
+                </div>
+              )}
+              <h3 className="font-bold text-lg mb-1 text-black">{currentFixture.teams.home.name}</h3>
+              <p className="text-xs text-black">Posizione in classifica</p>
+              <p className="font-bold text-black">1</p>
+              <p className="text-xs text-black mt-1">Vittorie in casa</p>
+              <p className="font-bold text-black">82%</p>
+              <p className="text-xs text-black mt-1">Ultimi 5 risultati</p>
               <div className="flex justify-center gap-1 mt-1">
                 {[2, 1, 2, 1, 2].map((result, idx) => (
                   <div 
@@ -380,27 +399,25 @@ function GiocaPageContent() {
 
             {/* Away Team */}
             <div className="flex-1 text-center">
-              <div className="w-20 h-20 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
-                {currentFixture.teams.away.logo ? (
-                  <img 
-                    src={currentFixture.teams.away.logo} 
-                    alt={currentFixture.teams.away.name}
-                    className="w-12 h-12 object-contain"
-                  />
-                ) : (
-                  <div className="w-12 h-12 bg-blue-200 rounded-full flex items-center justify-center">
-                    <span className="text-blue-600 font-bold text-lg">
-                      {currentFixture.teams.away.name.charAt(0)}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <h3 className="font-bold text-lg mb-1">{currentFixture.teams.away.name}</h3>
-              <p className="text-xs text-gray-500">Posizione in classifica</p>
-              <p className="font-bold text-purple-600">14</p>
-              <p className="text-xs text-gray-500 mt-1">Vittorie in trasferta</p>
-              <p className="font-bold">34%</p>
-              <p className="text-xs text-gray-500 mt-1">Ultimi 5 risultati</p>
+              {currentFixture.teams.away.logo ? (
+                <img
+                  src={currentFixture.teams.away.logo}
+                  alt={currentFixture.teams.away.name}
+                  className="mx-auto mb-3 w-20 h-20 object-contain"
+                />
+              ) : (
+                <div className="w-12 h-12 mx-auto mb-3 bg-blue-200 rounded-full flex items-center justify-center">
+                  <span className="text-blue-600 font-bold text-lg">
+                    {currentFixture.teams.away.name.charAt(0)}
+                  </span>
+                </div>
+              )}
+              <h3 className="font-bold text-lg mb-1 text-black">{currentFixture.teams.away.name}</h3>
+              <p className="text-xs text-black">Posizione in classifica</p>
+              <p className="font-bold text-black">14</p>
+              <p className="text-xs text-black mt-1">Vittorie in trasferta</p>
+              <p className="font-bold text-black">34%</p>
+              <p className="text-xs text-black mt-1">Ultimi 5 risultati</p>
               <div className="flex justify-center gap-1 mt-1">
                 {[1, 2, 1, 2, 1].map((result, idx) => (
                   <div 
@@ -418,63 +435,67 @@ function GiocaPageContent() {
         </div>
       </div>
 
-      {/* Prediction Buttons */}
-      <div className="flex justify-center gap-4 mb-6 px-6">
-        <button
-          onClick={() => handlePrediction(currentFixture.id, '1')}
-          className={`flex-1 py-4 rounded-2xl font-bold text-2xl transition-all ${
-            currentPrediction === '1'
-              ? 'bg-white text-purple-600 shadow-lg scale-105'
-              : 'bg-purple-500 text-white hover:bg-purple-400'
-          }`}
-        >
-          1
-        </button>
-        <button
-          onClick={() => handlePrediction(currentFixture.id, 'X')}
-          className={`flex-1 py-4 rounded-2xl font-bold text-2xl transition-all ${
-            currentPrediction === 'X'
-              ? 'bg-white text-purple-600 shadow-lg scale-105'
-              : 'bg-purple-500 text-white hover:bg-purple-400'
-          }`}
-        >
-          X
-        </button>
-        <button
-          onClick={() => handlePrediction(currentFixture.id, '2')}
-          className={`flex-1 py-4 rounded-2xl font-bold text-2xl transition-all ${
-            currentPrediction === '2'
-              ? 'bg-white text-purple-600 shadow-lg scale-105'
-              : 'bg-purple-500 text-white hover:bg-purple-400'
-          }`}
-        >
-          2
-        </button>
+      {/* Prediction Buttons - Diamond Layout */}
+      <div className="flex justify-center  ">
+        <div className="grid grid-cols-3 gap-x-10 gap-y-0 justify-items-center items-center ">
+          {/* Top: X */}
+          <div className="col-start-2">
+            <button
+              onClick={() => handlePrediction(currentFixture.id, 'X')}
+              className={`w-18 h-8 rounded-2xl font-bold text-lg text-white shadow-md transition-all bg-gradient-to-br from-indigo-600 to-indigo-900 hover:shadow-lg ${
+                currentPrediction === 'X' ? 'scale-105 shadow-lg' : ''
+              }`}
+            >
+              X
+            </button>
+          </div>
+          {/* Middle Left: 1 */}
+          <div className="col-start-1 row-start-2">
+            <button
+              onClick={() => handlePrediction(currentFixture.id, '1')}
+              className={`w-18 h-8 rounded-2xl font-bold text-lg text-white shadow-md transition-all bg-gradient-to-br from-indigo-600 to-indigo-900 hover:shadow-lg ${
+                currentPrediction === '1' ? 'scale-105 shadow-lg' : ''
+              }`}
+            >
+              1
+            </button>
+          </div>
+          {/* Middle Right: 2 */}
+          <div className="col-start-3 row-start-2">
+            <button
+              onClick={() => handlePrediction(currentFixture.id, '2')}
+              className={`w-18 h-8 rounded-2xl font-bold text-lg text-white shadow-md transition-all bg-gradient-to-br from-indigo-600 to-indigo-900 hover:shadow-lg ${
+                currentPrediction === '2' ? 'scale-105 shadow-lg' : ''
+              }`}
+            >
+              2
+            </button>
+          </div>
+          {/* Bottom: Skip */}
+          <div className="col-start-2 row-start-3 -mt-[15px]">
+            <button
+              onClick={skipFixture}
+              className="bg-white  text-indigo-900 w-18 h-8 rounded-2xl font-medium shadow-lg border border-gray-200"
+            >
+              skip
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Skip Button */}
-      <div className="flex justify-center mb-6">
-        <button
-          onClick={skipFixture}
-          className="bg-white bg-opacity-20 text-white px-6 py-3 rounded-xl font-medium hover:bg-opacity-30 transition-colors"
-        >
-          skip
-        </button>
-      </div>
-
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
+  {/* Bottom Navigation */}
+  <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
         <div className="flex">
           <button
             onClick={() => router.push('/risultati')}
             className="flex-1 text-center py-4"
           >
-            <div className="text-gray-400 mb-1">
+    <div className="text-gray-500 mb-1">
               <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M9 11H7v6h2v-6zm4 0h-2v6h2v-6zm4 0h-2v6h2v-6zM4 22h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16V8H4v2zm0-6h16V2H4v2z"/>
               </svg>
             </div>
-            <span className="text-xs text-gray-500">Risultati</span>
+    <span className="text-xs text-black">Risultati</span>
           </button>
           <div className="flex-1 text-center py-4 border-b-2 border-purple-600">
             <div className="text-purple-600 mb-1">
@@ -482,18 +503,18 @@ function GiocaPageContent() {
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
               </svg>
             </div>
-            <span className="text-xs text-purple-600 font-medium">Gioca</span>
+    <span className="text-xs text-purple-600 font-medium">Gioca</span>
           </div>
           <button
             onClick={() => router.push('/profilo')}
             className="flex-1 text-center py-4"
           >
-            <div className="text-gray-400 mb-1">
+    <div className="text-gray-500 mb-1">
               <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2c1.1 0 2 .9 2 2 0 .74-.4 1.38-1 1.72v.78h-.5c-.83 0-1.5.67-1.5 1.5v.5c0 .28-.22.5-.5.5s-.5-.22-.5-.5v-.5c0-1.38 1.12-2.5 2.5-2.5H13V5.72c-.6-.34-1-.98-1-1.72 0-1.1.9-2 2-2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
               </svg>
             </div>
-            <span className="text-xs text-gray-500">Profilo</span>
+    <span className="text-xs text-black">Profilo</span>
           </button>
         </div>
       </div>

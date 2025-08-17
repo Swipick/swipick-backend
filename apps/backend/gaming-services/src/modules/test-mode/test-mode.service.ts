@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TestFixture } from '../../entities/test-fixture.entity';
@@ -27,7 +22,7 @@ export class TestModeService {
   async createTestPrediction(
     userId: number,
     fixtureId: number,
-    choice: '1' | 'X' | '2',
+    choice: '1' | 'X' | '2' | 'SKIP',
   ): Promise<TestSpec> {
     // Check if fixture exists
     const fixture = await this.testFixtureRepository.findOne({
@@ -46,23 +41,24 @@ export class TestModeService {
     });
 
     if (existingSpec) {
-      throw new BadRequestException(
-        `User ${userId} has already made a prediction for fixture ${fixtureId}`,
+      this.logger.warn(
+        `Duplicate test prediction attempt (idempotent success): user ${userId}, fixture ${fixtureId}`,
       );
+      return existingSpec; // Idempotent behavior
     }
 
     // Create new test prediction
+    const isSkip = choice === 'SKIP';
     const testSpec = this.testSpecRepository.create({
       userId,
       fixtureId,
       week: fixture.week,
       choice,
-      isCorrect: false, // Will be calculated after match completion
-      countsTowardPercentage: true, // Always true for test mode
+      isCorrect: false,
+      countsTowardPercentage: !isSkip,
     });
 
-    // Calculate correctness if fixture is completed
-    if (fixture.isCompleted()) {
+    if (!isSkip && fixture.isCompleted()) {
       const actualResult = fixture.calculateResult();
       testSpec.isCorrect = choice === actualResult;
     }
@@ -88,8 +84,13 @@ export class TestModeService {
       );
     }
 
-    const totalPredictions = specs.length;
-    const correctPredictions = specs.filter((spec) => spec.isCorrect).length;
+    const nonSkipSpecs = specs.filter((s) => s.choice !== 'SKIP');
+    const totalPredictions = nonSkipSpecs.length;
+    const correctPredictions = nonSkipSpecs.filter(
+      (spec) => spec.isCorrect,
+    ).length;
+    const skippedCount = specs.length - nonSkipSpecs.length;
+    const totalTurns = specs.length; // predictions + skips
     const weeklyPercentage =
       totalPredictions > 0
         ? Math.round((correctPredictions / totalPredictions) * 100)
@@ -115,6 +116,8 @@ export class TestModeService {
       totalPredictions,
       correctPredictions,
       weeklyPercentage,
+      totalTurns,
+      skippedCount,
       predictions,
     };
   }
@@ -131,8 +134,11 @@ export class TestModeService {
       );
     }
 
-    const totalPredictions = specs.length;
-    const totalCorrect = specs.filter((spec) => spec.isCorrect).length;
+    const nonSkipSpecs = specs.filter((s) => s.choice !== 'SKIP');
+    const totalPredictions = nonSkipSpecs.length;
+    const totalCorrect = nonSkipSpecs.filter((spec) => spec.isCorrect).length;
+    const skippedCount = specs.length - nonSkipSpecs.length;
+    const totalTurns = specs.length;
     const overallPercentage =
       totalPredictions > 0
         ? Math.round((totalCorrect / totalPredictions) * 100)
@@ -153,16 +159,22 @@ export class TestModeService {
 
     const weeklyBreakdown = Object.entries(weeklyGroups).map(
       ([week, weekSpecs]) => {
-        const totalCount = weekSpecs.length;
-        const correctCount = weekSpecs.filter((spec) => spec.isCorrect).length;
+        const nonSkipWeek = weekSpecs.filter((s) => s.choice !== 'SKIP');
+        const totalCount = nonSkipWeek.length;
+        const correctCount = nonSkipWeek.filter(
+          (spec) => spec.isCorrect,
+        ).length;
+        const skipped = weekSpecs.length - nonSkipWeek.length;
+        const totalTurnsWeek = weekSpecs.length;
         const percentage =
           totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
-
         return {
           week: parseInt(week),
           percentage,
           correctCount,
           totalCount,
+          totalTurns: totalTurnsWeek,
+          skippedCount: skipped,
         };
       },
     );
@@ -186,6 +198,8 @@ export class TestModeService {
       totalPredictions,
       totalCorrect,
       overallPercentage,
+      totalTurns,
+      skippedCount,
       weeklyBreakdown,
       bestWeek: {
         week: bestWeek.week,

@@ -1,8 +1,10 @@
 export interface WeeklyStats {
   week: number;
-  totalPredictions: number;
-  correctPredictions: number;
-  weeklyPercentage: number;
+  totalPredictions: number; // excluding skips
+  correctPredictions: number; // excluding skips
+  weeklyPercentage: number; // based on non-skip predictions
+  totalTurns: number; // predictions + skips
+  skippedCount: number;
   predictions: Array<{
     fixtureId: number;
     homeTeam: string;
@@ -18,14 +20,18 @@ export interface WeeklyStats {
 export interface UserSummary {
   userId: number;
   totalWeeks: number;
-  totalPredictions: number;
-  totalCorrect: number;
-  overallPercentage: number;
+  totalPredictions: number; // excluding skips
+  totalCorrect: number; // excluding skips
+  overallPercentage: number; // based on non-skips
+  totalTurns: number; // predictions + skips
+  skippedCount: number;
   weeklyBreakdown: Array<{
     week: number;
     percentage: number;
     correctCount: number;
-    totalCount: number;
+    totalCount: number; // excluding skips
+    totalTurns: number;
+    skippedCount: number;
   }>;
   bestWeek: {
     week: number;
@@ -37,8 +43,17 @@ export interface UserSummary {
   };
 }
 
+import { IsInt, IsIn, IsPositive } from 'class-validator';
+
 export class CreateTestPredictionDto {
+  @IsInt()
+  @IsPositive()
   userId: number;
+
+  @IsInt()
+  @IsPositive()
   fixtureId: number;
-  choice: '1' | 'X' | '2';
+
+  @IsIn(['1', 'X', '2', 'SKIP'])
+  choice: '1' | 'X' | '2' | 'SKIP';
 }

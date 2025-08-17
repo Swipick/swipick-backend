@@ -17,7 +17,7 @@ interface CreatePredictionDto {
   userId: number;
   mode: 'live' | 'test';
   fixtureId: number;
-  choice: '1' | 'X' | '2';
+  choice: '1' | 'X' | '2' | 'SKIP';
 }
 
 interface GetUserStatsParams {
