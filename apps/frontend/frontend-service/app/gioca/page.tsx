@@ -289,6 +289,21 @@ function GiocaPageContent() {
     return { days, hours, minutes, seconds };
   }, [fixtures, currentFixtureIndex]);
 
+  // Get the start/end dates for the current settimana (giornata) based on fixtures of that week only
+  const getWeekDateRange = () => {
+    const week = getWeekNumber();
+    const weekFixtures = fixtures.filter((f) => {
+      const m = String(f.league?.round ?? '').match(/(\d+)/);
+      return m ? parseInt(m[1], 10) === week : false;
+    });
+
+    if (weekFixtures.length === 0) return null;
+    const times = weekFixtures.map((f) => new Date(f.date).getTime());
+    const start = new Date(Math.min(...times));
+    const end = new Date(Math.max(...times));
+    return { start, end } as const;
+  };
+
   const [timeToMatch, setTimeToMatch] = useState(getTimeToNextMatch());
 
   useEffect(() => {
@@ -372,11 +387,20 @@ function GiocaPageContent() {
             '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
         }}
       >
-        <div className="text-center pt-2 px-4">
-          <p className="text-base md:text-lg  mb-1 whitespace-nowrap">
-            Giornata {getWeekNumber()}&nbsp;
-            <span className="opacity-90">dal {new Date(fixtures[0]?.date).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} al {new Date(fixtures[fixtures.length - 1]?.date).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })}</span>
-          </p>
+        <div className="text-center pt-6 px-4">
+          {(() => {
+            const range = getWeekDateRange();
+            const from = range?.start?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+            const to = range?.end?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+            return (
+              <p className="text-base md:text-lg  mb-1 whitespace-nowrap">
+                Giornata {getWeekNumber()}&nbsp;
+                <span className="opacity-90">
+                  {from && to ? `dal ${from} al ${to}` : ''}
+                </span>
+              </p>
+            );
+          })()}
         </div>
         <div className="flex justify-center px-6 py-4">
           <div className="flex gap-6 text-center">

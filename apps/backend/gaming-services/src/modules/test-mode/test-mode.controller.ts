@@ -7,6 +7,7 @@ import {
   Param,
   ParseIntPipe,
   Logger,
+  Query,
 } from '@nestjs/common';
 import { TestModeService } from './test-mode.service';
 import { CreateTestPredictionDto } from './dto/test-mode.dto';
@@ -93,14 +94,15 @@ export class TestModeController {
   }
 
   @Post('seed')
-  async seedTestData() {
-    this.logger.log('Seeding test data');
+  async seedTestData(@Query('force') force?: string) {
+    const forceReplace = force === 'true' || force === '1';
+    this.logger.log(`Seeding test data (force=${forceReplace})`);
 
-    await this.testModeService.seedTestData();
+    await this.testModeService.seedTestData(forceReplace);
 
     return {
       success: true,
-      message: 'Test data seeded successfully',
+      message: `Test data seeded successfully${forceReplace ? ' (force replace)' : ''}`,
     };
   }
 
