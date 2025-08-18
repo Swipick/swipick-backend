@@ -7,9 +7,16 @@ const nextConfig: NextConfig = {
   /* config options here */
   images: {
     remotePatterns: [
+      // Local assets (if any served via full URL in dev)
       {
         protocol: 'https',
         hostname: 'localhost',
+      },
+      // External team logos used in Test Mode (API-FOOTBALL)
+      {
+        protocol: 'https',
+        hostname: 'media.api-sports.io',
+        pathname: '/football/teams/**',
       },
     ],
     // Disable caching for production builds in containers
