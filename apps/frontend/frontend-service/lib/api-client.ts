@@ -142,6 +142,13 @@ class ApiClient {
     return this.request(`/users/profile/firebase/${firebaseUid}`);
   }
 
+  async updateEmailVerified(userId: string, emailVerified: boolean) {
+    return this.request(`/users/${userId}/email-verified`, {
+      method: 'PATCH',
+      body: JSON.stringify({ emailVerified }),
+    });
+  }
+
   // Prediction Management API
   async getUserSummary(userId: string, mode: 'live' | 'test' = 'live') {
     return this.request(`/predictions/user/${userId}/summary?mode=${mode}`);
@@ -165,7 +172,7 @@ class ApiClient {
 
   // Test Mode predictions via BFF unified route
   async createTestModePrediction(data: {
-    userId: number;
+    userId: string; // UUID supported by BFF
     fixtureId: number;
     choice: '1' | 'X' | '2';
   }) {
@@ -190,7 +197,7 @@ class ApiClient {
   }
 
   async createTestPrediction(data: {
-    userId: number;
+    userId: string; // UUID
     fixtureId: number;
     choice: '1' | 'X' | '2';
   }) {
@@ -200,12 +207,14 @@ class ApiClient {
     });
   }
 
-  async getTestWeeklyStats(userId: number, week: number) {
-    return this.request(`/test-mode/predictions/user/${userId}/week/${week}`);
+  async getTestWeeklyStats(userId: string | number, week: number) {
+    // Use BFF mode-switching endpoint to reach gaming test-mode stats
+    return this.request(`/predictions/user/${userId}/week/${week}?mode=test`);
   }
 
-  async getTestUserSummary(userId: number) {
-    return this.request(`/test-mode/predictions/user/${userId}/summary`);
+  async getTestUserSummary(userId: string | number) {
+    // Use BFF mode-switching endpoint to reach gaming test-mode summary
+    return this.request(`/predictions/user/${userId}/summary?mode=test`);
   }
 
   async resetTestData(userId: string) {

@@ -113,7 +113,11 @@ function GiocaPageContent() {
   const [predictions, setPredictions] = useState<Record<number, '1' | 'X' | '2'>>({});
   const [matchCards, setMatchCards] = useState<MatchCard[]>([]);
   const controls = useAnimationControls();
-  const [userIdForTest, setUserIdForTest] = useState<number | null>(null);
+  // Backend user id (UUID string) for Test Mode persistence/overlays
+  const [userKey, setUserKey] = useState<string | null>(null);
+  const [userMissingModal, setUserMissingModal] = useState<{ show: boolean; triedUid?: string }>(() => ({ show: false }));
+  // Test Mode: if week already completed (10/10 predictions), disable gameplay and show veil
+  const [weekComplete, setWeekComplete] = useState(false);
 
   // Update context if mode changed via URL
   useEffect(() => {
@@ -129,10 +133,11 @@ function GiocaPageContent() {
         setError(null);
         let fixtureData: Fixture[] = [];
 
-        if (currentMode === 'test') {
+    if (currentMode === 'test') {
           // Fetch enriched match-cards for card stats
           try {
-            const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, firebaseUser?.uid);
+      const userIdForOverlay = userKey ?? undefined;
+            const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, userIdForOverlay);
             let mcRaw: unknown = mcResponse;
             if (mcResponse && typeof mcResponse === 'object' && 'data' in (mcResponse as Record<string, unknown>)) {
               mcRaw = (mcResponse as Record<string, unknown>).data as unknown;
@@ -202,31 +207,70 @@ function GiocaPageContent() {
     };
 
     fetchFixtures();
-  }, [currentMode, selectedWeek, firebaseUser?.uid]);
+  }, [currentMode, selectedWeek, firebaseUser?.uid, userKey]);
 
-  // Resolve backend user id from Firebase UID for persistence in Test Mode
+  // Check if selected week is already fully predicted (Test Mode) and set veil
   useEffect(() => {
-    const resolveUserId = async () => {
-      if (!firebaseUser?.uid) {
-        setUserIdForTest(null);
+    const checkWeekCompletion = async () => {
+      if (currentMode !== 'test' || !userKey) {
+        setWeekComplete(false);
         return;
       }
       try {
-        const resp = await apiClient.getUserByFirebaseUid(firebaseUser.uid) as unknown as { success?: boolean; data?: { id?: number } };
-        const asNumber = Number(resp?.data?.id);
-        if (Number.isFinite(asNumber) && asNumber > 0) {
-          setUserIdForTest(asNumber);
+        // Authoritative check: ping weekly stats (counts rows in test_specs)
+        const weekly = await apiClient.getTestWeeklyStats(userKey, selectedWeek);
+        const totalPreds = (() => {
+          const r = weekly as unknown;
+          if (r && typeof r === 'object') {
+            const ro = r as Record<string, unknown>;
+            if ('data' in ro && ro.data && typeof ro.data === 'object') {
+              const d = ro.data as Record<string, unknown>;
+              const tp = d.totalPredictions;
+              return typeof tp === 'number' ? tp : 0;
+            }
+            const tp = ro.totalPredictions;
+            return typeof tp === 'number' ? tp : 0;
+          }
+          return 0;
+        })();
+        setWeekComplete(totalPreds >= 10);
+      } catch {
+        // If weekly endpoint not available, fall back to no veil
+        setWeekComplete(false);
+      }
+    };
+    checkWeekCompletion();
+  }, [currentMode, selectedWeek, userKey]);
+
+  // Resolve backend user id (UUID string) from Firebase UID for persistence in Test Mode
+  useEffect(() => {
+    const resolveUserId = async () => {
+      if (!firebaseUser?.uid) {
+        setUserKey(null);
+        return;
+      }
+      try {
+        const resp = await apiClient.getUserByFirebaseUid(firebaseUser.uid) as unknown as { success?: boolean; data?: { id?: string } };
+        const idStr = resp?.data?.id;
+        if (idStr && String(idStr).length > 0) {
+          setUserKey(String(idStr));
+          setUserMissingModal({ show: false });
+          // If Firebase says verified, sync DB once when ID known
+          if (firebaseUser.emailVerified === true) {
+            try { await apiClient.updateEmailVerified(String(idStr), true); } catch {}
+          }
         } else {
-          // Keep null if not numeric; backend test-mode requires numeric id
-          setUserIdForTest(null);
+          setUserKey(null);
+          setUserMissingModal({ show: true, triedUid: firebaseUser.uid });
         }
       } catch (e) {
         console.warn('Failed to resolve user id from Firebase UID', e);
-        setUserIdForTest(null);
+        setUserKey(null);
+        setUserMissingModal({ show: true, triedUid: firebaseUser.uid });
       }
     };
     resolveUserId();
-  }, [firebaseUser?.uid]);
+  }, [firebaseUser?.uid, firebaseUser?.emailVerified]);
 
   // Light polling to keep header countdown in sync with any backend updates
   useEffect(() => {
@@ -275,20 +319,47 @@ function GiocaPageContent() {
   }, [currentMode, selectedWeek]);
 
   const handlePrediction = async (fixtureId: number, prediction: '1' | 'X' | '2') => {
+    if (currentMode === 'test' && weekComplete) {
+      // Prevent further plays when week is complete
+      return;
+    }
     // Optimistic UI update
     setPredictions(prev => ({ ...prev, [fixtureId]: prediction }));
 
     // Persist to backend in Test Mode only
     try {
-      if (currentMode === 'test' && userIdForTest) {
-        await apiClient.createTestPrediction({
-          userId: userIdForTest,
+      if (currentMode === 'test' && userKey) {
+        // Use unified BFF route: POST /api/predictions with mode='test'
+        await apiClient.createTestModePrediction({
+          userId: userKey,
           fixtureId,
           choice: prediction,
         });
+        // After posting, re-check completion via test weekly-stats to engage veil immediately after 10th pick
+        try {
+          const weekly = await apiClient.getTestWeeklyStats(userKey, selectedWeek);
+          const totalPreds = (() => {
+            const r = weekly as unknown;
+            if (r && typeof r === 'object') {
+              const ro = r as Record<string, unknown>;
+              if ('data' in ro && ro.data && typeof ro.data === 'object') {
+                const d = ro.data as Record<string, unknown>;
+                const tp = d.totalPredictions;
+                return typeof tp === 'number' ? tp : 0;
+              }
+              const tp = ro.totalPredictions;
+              return typeof tp === 'number' ? tp : 0;
+            }
+            return 0;
+          })();
+          if (totalPreds >= 10) {
+            setWeekComplete(true);
+          }
+        } catch {}
         // Optionally refresh match-cards to show overlay correctness if any prior fixtures are involved
         try {
-          const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, firebaseUser?.uid || undefined) as unknown as { success?: boolean; data?: MatchCard[] } | MatchCard[];
+          const userIdForOverlay = userKey ?? undefined;
+          const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, userIdForOverlay) as unknown as { success?: boolean; data?: MatchCard[] } | MatchCard[];
           const mcRaw: MatchCard[] | undefined = Array.isArray(mcResponse)
             ? mcResponse
             : (mcResponse as { data?: MatchCard[] })?.data;
@@ -336,6 +407,9 @@ function GiocaPageContent() {
   // Framer Motion: decide direction and commit without snap-back
   const onDragEndCommit = async (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (!currentFixture) return;
+    if (currentMode === 'test' && weekComplete) {
+      return; // Block interactions under veil
+    }
     const dx = info.offset.x ?? 0;
     const dy = info.offset.y ?? 0;
     const ax = Math.abs(dx);
@@ -499,6 +573,7 @@ function GiocaPageContent() {
   const currentPrediction = currentFixture ? predictions[currentFixture.id] : undefined;
   const predictionsCount = fixtures.reduce((acc, f) => acc + (predictions[f.id] ? 1 : 0), 0);
   const progressPct = Math.min(predictionsCount / 10, 1) * 100;
+  const isComplete = predictionsCount >= 10;
 
   const buttonStyle: React.CSSProperties = {
     background: 'radial-gradient(circle at center, #554099, #3d2d73)',
@@ -544,6 +619,147 @@ function GiocaPageContent() {
       </div>
     );
   };
+
+  // Short date/time for summary list pills (e.g., "Ven 04 18:30")
+  const formatShortDateTime = (iso: string) => {
+    const d = new Date(iso);
+    const dow = d.toLocaleDateString('it-IT', { weekday: 'short', timeZone: 'Europe/Rome' });
+    const dd = d.toLocaleDateString('it-IT', { day: '2-digit', timeZone: 'Europe/Rome' });
+    const hhmm = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
+    return `${dow} ${dd} ${hhmm}`;
+  };
+
+  // Completed view: summary list of the 10 selections with indigo highlight on chosen 1/X/2
+  if (isComplete) {
+    return (
+      <div className="min-h-screen bg-white">
+        {currentMode === 'test' && (
+          <div className="bg-orange-500 text-white text-center py-3 font-semibold">🧪 MODALITÀ TEST - Dati storici Serie A 2023-24</div>
+        )}
+
+        {/* Header with progress locked at 10/10 */}
+        <div
+          className="w-full mx-0 mt-0 mb-6 rounded-b-2xl rounded-t-none text-white"
+          style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
+        >
+          <div className="text-center pt-6 px-4">
+            {(() => {
+              const range = getWeekDateRange();
+              const from = range?.start?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
+              const to = range?.end?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
+              return (
+                <p className="text-base md:text-lg mb-1 whitespace-nowrap">
+                  Giornata {getWeekNumber()} <span className="opacity-90">{from && to ? `dal ${from} al ${to}` : ''}</span>
+                </p>
+              );
+            })()}
+          </div>
+          <div className="px-6 pb-6">
+            <div className="relative mx-auto" style={{ width: 'calc(100% - 115px)' }}>
+              <div className="bg-white bg-opacity-30 rounded-sm overflow-hidden" style={{ height: '18px' }}>
+                <div className="bg-white h-full rounded-sm" style={{ width: '100%' }} />
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xs font-medium text-[#3d2d73]">10/10</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary list */}
+        <div className="px-4 pb-24">
+          {fixtures.map((f, idx) => {
+            const card = matchCards[idx];
+            const pick = predictions[f.id];
+            const kickoff = card ? card.kickoff.display : formatShortDateTime(f.date);
+            const homeLogo = (card?.home.logo || f.teams.home.logo) as string | undefined;
+            const awayLogo = (card?.away.logo || f.teams.away.logo) as string | undefined;
+            const homeName = card?.home.name || f.teams.home.name;
+            const awayName = card?.away.name || f.teams.away.name;
+
+            const badge = (label: '1'|'X'|'2') => (
+              <div
+                className={
+                  `w-8 h-8 rounded-full grid place-items-center text-xs font-bold ` +
+                  (pick === label ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-500')
+                }
+              >
+                {label}
+              </div>
+            );
+
+            return (
+              <div key={f.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200 mb-4 flex items-center">
+                {/* Teams and details */}
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    {homeLogo ? (
+                      <Image src={homeLogo} alt={homeName} width={28} height={28} className="w-7 h-7 object-contain" />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-purple-100" />
+                    )}
+                    <span className="text-sm font-semibold text-black">{homeName}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {awayLogo ? (
+                      <Image src={awayLogo} alt={awayName} width={28} height={28} className="w-7 h-7 object-contain" />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-blue-100" />
+                    )}
+                    <span className="text-sm font-semibold text-black">{awayName}</span>
+                  </div>
+                </div>
+
+                {/* Kickoff pill */}
+                <div className="mx-3">
+                  <div className="px-3 py-1 rounded-md border text-[11px] text-gray-700 border-gray-200 whitespace-nowrap">
+                    {kickoff}
+                  </div>
+                </div>
+
+                {/* Choice badges */}
+                <div className="flex flex-col gap-2 items-center">
+                  {badge('1')}
+                  {badge('X')}
+                  {badge('2')}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Bottom Nav (same as play view) */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
+          <div className="flex">
+            <button onClick={() => router.push('/risultati')} className="flex-1 text-center py-4">
+              <div className="text-gray-500 mb-1">
+                <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M9 11H7v6h2v-6zm4 0h-2v6h2v-6zm4 0h-2v6h2v-6zM4 22h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16V8H4v2zm0-6h16V2H4v2z"/>
+                </svg>
+              </div>
+              <span className="text-xs text-black">Risultati</span>
+            </button>
+            <div className="flex-1 text-center py-4 border-b-2 border-purple-600">
+              <div className="text-purple-600 mb-1">
+                <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+              </div>
+              <span className="text-xs text-purple-600 font-medium">Gioca</span>
+            </div>
+            <button onClick={() => router.push('/profilo')} className="flex-1 text-center py-4">
+              <div className="text-gray-500 mb-1">
+                <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2c1.1 0 2 .9 2 2 0 .74-.4 1.38-1 1.72v.78h-.5c-.83 0-1.5.67-1.5 1.5v.5c0 .28-.22.5-.5.5s-.5-.22-.5-.5v-.5c0-1.38 1.12-2.5 2.5-2.5H13V5.72c-.6-.34-1-.98-1-1.72 0-1.1.9-2 2-2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+                </svg>
+              </div>
+              <span className="text-xs text-black">Profilo</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -662,7 +878,7 @@ function GiocaPageContent() {
         {/* Top (current) card - draggable */}
         <motion.div
           key={currentFixture?.id}
-          drag
+          drag={currentMode === 'test' ? Boolean(userKey) && !weekComplete : true}
           dragElastic={0}
           dragMomentum={false}
           onDragEnd={onDragEndCommit}
@@ -671,7 +887,7 @@ function GiocaPageContent() {
           whileDrag={{ scale: 1.02 }}
           className="relative z-10"
         >
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
+          <div className={`bg-white rounded-2xl p-6 shadow-lg border border-gray-200 ${weekComplete ? 'opacity-60 pointer-events-none' : ''}`}>
             {/* Match Info */}
             <div className="text-center mb-6">
               <p className="text-black text-sm mb-1">{currentCard ? currentCard.kickoff.display : formatMatchDateTime(currentFixture.date)}</p>
@@ -748,10 +964,11 @@ function GiocaPageContent() {
         <div className="grid grid-cols-3 gap-x-10 gap-y-0 justify-items-center items-center ">
           {/* Top: X */}
           <div className="col-start-2">
-            <button
+      <button
               onClick={() => handlePrediction(currentFixture.id, 'X')}
-                 className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
-                currentPrediction === 'X' ? 'scale-105' : ''
+  disabled={(currentMode === 'test' && (!userKey || weekComplete))}
+        className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
+    currentPrediction === 'X' ? 'scale-105' : ''
               }`}
               style={buttonStyle}
             >
@@ -760,9 +977,10 @@ function GiocaPageContent() {
           </div>
           {/* Middle Left: 1 */}
           <div className="col-start-1 row-start-2">
-            <button
+      <button
               onClick={() => handlePrediction(currentFixture.id, '1')}
-                 className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
+  disabled={(currentMode === 'test' && (!userKey || weekComplete))}
+        className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
                 currentPrediction === '1' ? 'scale-105' : ''
               }`}
               style={buttonStyle}
@@ -772,9 +990,10 @@ function GiocaPageContent() {
           </div>
           {/* Middle Right: 2 */}
           <div className="col-start-3 row-start-2">
-            <button
+      <button
               onClick={() => handlePrediction(currentFixture.id, '2')}
-                 className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
+  disabled={(currentMode === 'test' && (!userKey || weekComplete))}
+        className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
                 currentPrediction === '2' ? 'scale-105' : ''
               }`}
               style={buttonStyle}
@@ -786,7 +1005,8 @@ function GiocaPageContent() {
   <div className="col-start-2 row-start-3 -mt-[15px]">
             <button
               onClick={skipFixture}
-                 className="relative w-24 text-center bg-white text-[#3d2d73] font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105"
+     disabled={(currentMode === 'test' && weekComplete)}
+     className="relative w-24 text-center bg-white text-[#3d2d73] font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 disabled:opacity-60"
         style={skipStyle}
             >
               skip
@@ -794,6 +1014,50 @@ function GiocaPageContent() {
           </div>
         </div>
       </div>
+
+      {/* Modal: User not found */}
+      {currentMode === 'test' && userMissingModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl p-6 w-80 shadow-xl">
+            <h3 className="text-lg font-semibold text-black mb-2">Account non trovato</h3>
+            <p className="text-sm text-gray-600 mb-4">Per continuare in Test Mode serve un account backend. Vai alla pagina di benvenuto per completare.</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="px-4 py-2 text-sm rounded-md border border-gray-300 text-black"
+                onClick={() => {
+                  setUserMissingModal({ show: false });
+                }}
+              >
+                Chiudi
+              </button>
+              <button
+                className="px-4 py-2 text-sm rounded-md bg-purple-600 text-white"
+                onClick={() => router.push('/welcome')}
+              >
+                Vai a Welcome
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Veil when week is completed (Test Mode) */}
+      {currentMode === 'test' && weekComplete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
+            <h3 className="text-xl font-semibold text-black mb-2">Giornata completata</h3>
+            <p className="text-sm text-gray-700 mb-5">Hai già effettuato 10 scelte per questa settimana. Vai alla pagina Risultati per rivelare e vedere l&apos;andamento.</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => router.push(`/risultati?mode=test&week=${selectedWeek}`)}
+                className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
+              >
+                Vai a Risultati
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
   {/* Bottom Navigation */}
   <div className="fixed bottom-0 left-0 right-0 bg-white border-t">

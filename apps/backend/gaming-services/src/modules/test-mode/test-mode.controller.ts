@@ -40,7 +40,7 @@ export class TestModeController {
 
   @Get('predictions/user/:userId/week/:week')
   async getTestWeeklyStats(
-    @Param('userId', ParseIntPipe) userId: number,
+    @Param('userId') userId: string,
     @Param('week', ParseIntPipe) week: number,
   ) {
     this.logger.log(`Getting test weekly stats: User ${userId}, Week ${week}`);
@@ -55,7 +55,7 @@ export class TestModeController {
   }
 
   @Get('predictions/user/:userId/summary')
-  async getTestUserSummary(@Param('userId', ParseIntPipe) userId: number) {
+  async getTestUserSummary(@Param('userId') userId: string) {
     this.logger.log(`Getting test user summary: User ${userId}`);
 
     const summary = await this.testModeService.getTestUserSummary(userId);
@@ -125,7 +125,7 @@ export class TestModeController {
   }
 
   @Delete('reset/:userId')
-  async resetUserTestData(@Param('userId', ParseIntPipe) userId: number) {
+  async resetUserTestData(@Param('userId') userId: string) {
     this.logger.log(`Resetting test data for user ${userId}`);
 
     await this.testModeService.resetUserTestData(userId);
