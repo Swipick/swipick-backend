@@ -207,6 +207,10 @@ class ApiClient {
       method: 'POST',
     });
   }
+
+  async getTestMatchCardsByWeek(week: number) {
+    return this.request(`/test-mode/match-cards/week/${week}`);
+  }
 }
 
 // Export singleton instance

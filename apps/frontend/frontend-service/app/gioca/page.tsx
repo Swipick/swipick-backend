@@ -69,6 +69,12 @@ interface TestFixtureAPI {
   stadium?: string | null;
 }
 
+// Match-cards API types
+interface MatchCardKickoff { iso: string; display: string; }
+interface MatchCardTeamHome { name: string; logo: string | null; winRateHome: number | null; last5: Array<'1' | 'X' | '2'>; }
+interface MatchCardTeamAway { name: string; logo: string | null; winRateAway: number | null; last5: Array<'1' | 'X' | '2'>; }
+interface MatchCard { week: number; fixtureId: number; kickoff: MatchCardKickoff; stadium: string | null; home: MatchCardTeamHome; away: MatchCardTeamAway; }
+
 function isTestFixture(obj: unknown): obj is TestFixtureAPI {
   if (typeof obj !== 'object' || obj === null) return false;
   const o = obj as Record<string, unknown>;
@@ -101,6 +107,7 @@ function GiocaPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [currentFixtureIndex, setCurrentFixtureIndex] = useState(0);
   const [predictions, setPredictions] = useState<Record<number, '1' | 'X' | '2'>>({});
+  const [matchCards, setMatchCards] = useState<MatchCard[]>([]);
 
   // Update context if mode changed via URL
   useEffect(() => {
@@ -114,11 +121,27 @@ function GiocaPageContent() {
       try {
         setLoading(true);
         setError(null);
-        
         let fixtureData: Fixture[] = [];
-        
+
         if (currentMode === 'test') {
-          // Use existing API client and filter by week client-side to avoid local 404s
+          // Fetch enriched match-cards for card stats
+          try {
+            const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek);
+            let mcRaw: unknown = mcResponse;
+            if (mcResponse && typeof mcResponse === 'object' && 'data' in (mcResponse as Record<string, unknown>)) {
+              mcRaw = (mcResponse as Record<string, unknown>).data as unknown;
+            }
+            if (Array.isArray(mcRaw)) {
+              const arr = (mcRaw as MatchCard[]).slice().sort((a, b) => new Date(a.kickoff.iso).getTime() - new Date(b.kickoff.iso).getTime());
+              setMatchCards(arr);
+            } else {
+              setMatchCards([]);
+            }
+          } catch {
+            setMatchCards([]);
+          }
+
+          // Existing fixtures for header/date-range and navigation
           const response = await apiClient.getTestFixtures(selectedWeek);
           let raw: unknown = response;
           if (
@@ -366,7 +389,8 @@ function GiocaPageContent() {
   }
 
   const currentFixture = fixtures[currentFixtureIndex];
-  const currentPrediction = predictions[currentFixture.id];
+  const currentCard = matchCards[currentFixtureIndex];
+  const currentPrediction = currentFixture ? predictions[currentFixture.id] : undefined;
   const predictionsCount = fixtures.reduce((acc, f) => acc + (predictions[f.id] ? 1 : 0), 0);
   const progressPct = Math.min(predictionsCount / 10, 1) * 100;
 
@@ -378,6 +402,38 @@ function GiocaPageContent() {
     background: '#ffffff',
     boxShadow: '0 8px 16px rgba(85, 64, 153, 0.2), 0 4px 8px rgba(0, 0, 0, 0.1)',
     border: '1px solid rgba(85, 64, 153, 0.2)',
+  };
+
+  // Helper to render last-5 bubbles
+  const renderLastFive = (list: Array<'1' | 'X' | '2'>, side: 'home' | 'away') => {
+    // Always render 5 bubbles; pad with placeholders if needed
+    const filled: Array<'1' | 'X' | '2' | null> = [...list];
+    while (filled.length < 5) filled.push(null);
+
+    return (
+      <div className="flex justify-center gap-1 mt-1">
+        {filled.map((r, idx) => {
+          if (r === null) {
+            return (
+              <div
+                key={idx}
+                className="w-5 h-5 rounded-full text-[10px] leading-none flex items-center justify-center bg-gray-300 text-gray-500"
+              >
+                —
+              </div>
+            );
+          }
+          const win = (side === 'home' && r === '1') || (side === 'away' && r === '2');
+          const draw = r === 'X';
+          const color = win ? 'bg-green-500' : draw ? 'bg-yellow-500' : 'bg-red-500';
+          return (
+            <div key={idx} className={`w-5 h-5 rounded-full text-[10px] leading-none text-white flex items-center justify-center ${color}`}>
+              {r}
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -455,18 +511,18 @@ function GiocaPageContent() {
         <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
           {/* Match Info */}
           <div className="text-center mb-6">
-            <p className="text-black text-sm mb-1">{formatMatchDateTime(currentFixture.date)}</p>
-            <p className="text-black text-xs">{currentFixture.venue.name}</p>
+            <p className="text-black text-sm mb-1">{currentCard ? currentCard.kickoff.display : formatMatchDateTime(currentFixture.date)}</p>
+            <p className="text-black text-xs">{currentCard?.stadium || currentFixture.venue.name}</p>
           </div>
 
           {/* Teams */}
           <div className="flex items-center justify-between mb-8">
             {/* Home Team */}
             <div className="flex-1 text-center">
-              {currentFixture.teams.home.logo ? (
+              {(currentCard?.home.logo || currentFixture.teams.home.logo) ? (
                 <Image
-                  src={currentFixture.teams.home.logo}
-                  alt={currentFixture.teams.home.name}
+                  src={(currentCard?.home.logo || currentFixture.teams.home.logo) as string}
+                  alt={currentCard?.home.name || currentFixture.teams.home.name}
                   width={80}
                   height={80}
                   className="mx-auto mb-3 w-20 h-20 object-contain"
@@ -475,28 +531,17 @@ function GiocaPageContent() {
               ) : (
                 <div className="w-12 h-12 mx-auto mb-24 bg-purple-800 rounded-full flex items-center justify-center">
                   <span className="text-black font-bold text-lg">
-                    {currentFixture.teams.home.name.charAt(0)}
+                    {(currentCard?.home.name || currentFixture.teams.home.name).charAt(0)}
                   </span>
                 </div>
               )}
-              <h3 className="font-bold text-lg mb-1 text-black">{currentFixture.teams.home.name}</h3>
+              <h3 className="font-bold text-lg mb-1 text-black">{currentCard?.home.name || currentFixture.teams.home.name}</h3>
               <p className="text-xs text-black">Posizione in classifica</p>
-              <p className="font-bold text-black">1</p>
+              <p className="font-bold text-black">—</p>
               <p className="text-xs text-black mt-1">Vittorie in casa</p>
-              <p className="font-bold text-black">82%</p>
+              <p className="font-bold text-black">{currentCard?.home.winRateHome != null ? `${currentCard.home.winRateHome}%` : '—'}</p>
               <p className="text-xs text-black mt-1">Ultimi 5 risultati</p>
-              <div className="flex justify-center gap-1 mt-1">
-                {[2, 1, 2, 1, 2].map((result, idx) => (
-                  <div 
-                    key={idx}
-                    className={`w-5 h-5 rounded-full text-xs text-white flex items-center justify-center ${
-                      result === 2 ? 'bg-green-500' : result === 1 ? 'bg-yellow-500' : 'bg-red-500'
-                    }`}
-                  >
-                    {result}
-                  </div>
-                ))}
-              </div>
+              {currentCard ? renderLastFive(currentCard.home.last5, 'home') : renderLastFive([], 'home')}
             </div>
 
             {/* VS */}
@@ -506,10 +551,10 @@ function GiocaPageContent() {
 
             {/* Away Team */}
             <div className="flex-1 text-center">
-              {currentFixture.teams.away.logo ? (
+              {(currentCard?.away.logo || currentFixture.teams.away.logo) ? (
                 <Image
-                  src={currentFixture.teams.away.logo}
-                  alt={currentFixture.teams.away.name}
+                  src={(currentCard?.away.logo || currentFixture.teams.away.logo) as string}
+                  alt={currentCard?.away.name || currentFixture.teams.away.name}
                   width={80}
                   height={80}
                   className="mx-auto mb-3 w-20 h-20 object-contain"
@@ -518,28 +563,17 @@ function GiocaPageContent() {
               ) : (
                 <div className="w-12 h-12 mx-auto mb-3 bg-blue-200 rounded-full flex items-center justify-center">
                   <span className="text-blue-600 font-bold text-lg">
-                    {currentFixture.teams.away.name.charAt(0)}
+                    {(currentCard?.away.name || currentFixture.teams.away.name).charAt(0)}
                   </span>
                 </div>
               )}
-              <h3 className="font-bold text-lg mb-1 text-black">{currentFixture.teams.away.name}</h3>
+              <h3 className="font-bold text-lg mb-1 text-black">{currentCard?.away.name || currentFixture.teams.away.name}</h3>
               <p className="text-xs text-black">Posizione in classifica</p>
-              <p className="font-bold text-black">14</p>
+              <p className="font-bold text-black">—</p>
               <p className="text-xs text-black mt-1">Vittorie in trasferta</p>
-              <p className="font-bold text-black">34%</p>
+              <p className="font-bold text-black">{currentCard?.away.winRateAway != null ? `${currentCard.away.winRateAway}%` : '—'}</p>
               <p className="text-xs text-black mt-1">Ultimi 5 risultati</p>
-              <div className="flex justify-center gap-1 mt-1">
-                {[1, 2, 1, 2, 1].map((result, idx) => (
-                  <div 
-                    key={idx}
-                    className={`w-5 h-5 rounded-full text-xs text-white flex items-center justify-center ${
-                      result === 2 ? 'bg-green-500' : result === 1 ? 'bg-yellow-500' : 'bg-red-500'
-                    }`}
-                  >
-                    {result}
-                  </div>
-                ))}
-              </div>
+              {currentCard ? renderLastFive(currentCard.away.last5, 'away') : renderLastFive([], 'away')}
             </div>
           </div>
         </div>
