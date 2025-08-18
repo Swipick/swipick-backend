@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/src/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
@@ -28,6 +28,13 @@ interface UserStats {
   totalPoints: number;
   currentWeek: number;
   ranking?: number;
+  weeklyStats?: Array<{
+    week: number;
+    totalPredictions: number;
+    correctPredictions: number;
+    accuracy: number;
+    points: number;
+  }>;
 }
 
 const ProfiloPage: React.FC = () => {
@@ -130,6 +137,42 @@ const ProfiloPage: React.FC = () => {
       setError('Errore nel reset dei dati di test');
     }
   };
+
+  // ---- Computed summaries for weekly stats ----
+  const summarizeMode = useCallback((stats: UserStats | null) => {
+    if (!stats || !Array.isArray(stats.weeklyStats)) {
+      return { played: 0, best: null as null | { week: number; accuracy: number; points: number }, worst: null as null | { week: number; accuracy: number; points: number } };
+    }
+    const weeks = stats.weeklyStats.filter(w => (w.totalPredictions ?? 0) > 0);
+    const played = weeks.length;
+    if (played === 0) return { played: 0, best: null, worst: null };
+    // tie-breakers: best → higher accuracy, then higher points, then most recent week
+    let best = weeks[0];
+    for (const w of weeks.slice(1)) {
+      if (w.accuracy > best.accuracy) { best = w; continue; }
+      if (w.accuracy === best.accuracy && w.points > best.points) { best = w; continue; }
+      if (w.accuracy === best.accuracy && w.points === best.points && w.week > best.week) { best = w; continue; }
+    }
+    // worst → lower accuracy, then lower points, then most recent week
+    let worst = weeks[0];
+    for (const w of weeks.slice(1)) {
+      if (w.accuracy < worst.accuracy) { worst = w; continue; }
+      if (w.accuracy === worst.accuracy && w.points < worst.points) { worst = w; continue; }
+      if (w.accuracy === worst.accuracy && w.points === worst.points && w.week > worst.week) { worst = w; continue; }
+    }
+    return { played, best: { week: best.week, accuracy: best.accuracy, points: best.points }, worst: { week: worst.week, accuracy: worst.accuracy, points: worst.points } };
+  }, []);
+
+  const liveSummary = useMemo(() => summarizeMode(liveStats), [liveStats, summarizeMode]);
+  const testSummary = useMemo(() => summarizeMode(testStats), [testStats, summarizeMode]);
+
+  const shareProfile = useCallback((mode: 'live' | 'test') => {
+    const s = mode === 'live' ? liveStats : testStats;
+    if (!s) return;
+    const text = `Profilo: precisione ${s.overallAccuracy?.toFixed?.(0) ?? 0}%, punti ${s.totalPoints ?? 0}. #Swipick`;
+    // Stub: log, could use Web Share API
+    console.log(text);
+  }, [liveStats, testStats]);
 
   if (loading) {
     return (
@@ -259,22 +302,47 @@ const ProfiloPage: React.FC = () => {
               Modalità Live
             </h3>
             {liveStats ? (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-white">{liveStats.overallAccuracy.toFixed(1)}%</div>
-                  <div className="text-white text-opacity-80 text-sm">Precisione</div>
+              <div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-white">{liveStats.overallAccuracy.toFixed(1)}%</div>
+                    <div className="text-white text-opacity-80 text-sm">Precisione</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-white">{liveStats.totalPoints}</div>
+                    <div className="text-white text-opacity-80 text-sm">Punti</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-white">{liveStats.correctPredictions}</div>
+                    <div className="text-white text-opacity-80 text-sm">Corrette</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-white">{liveStats.totalPredictions}</div>
+                    <div className="text-white text-opacity-80 text-sm">Totali</div>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-white">{liveStats.totalPoints}</div>
-                  <div className="text-white text-opacity-80 text-sm">Punti</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-white">{liveStats.correctPredictions}</div>
-                  <div className="text-white text-opacity-80 text-sm">Corrette</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-white">{liveStats.totalPredictions}</div>
-                  <div className="text-white text-opacity-80 text-sm">Totali</div>
+                {/* Weekly summary */}
+                <div className="mt-4 p-3 rounded-lg bg-white bg-opacity-10">
+                  <div className="flex justify-between text-white text-sm mb-2">
+                    <span>Giornate giocate</span>
+                    <span>{liveSummary.played}</span>
+                  </div>
+                  <div className="flex justify-between text-white text-sm mb-1">
+                    <span>Migliore settimana</span>
+                    <span>{liveSummary.best ? `#${liveSummary.best.week} • ${liveSummary.best.accuracy.toFixed(1)}%` : '-'}</span>
+                  </div>
+                  <div className="flex justify-between text-white text-sm">
+                    <span>Peggiore settimana</span>
+                    <span>{liveSummary.worst ? `#${liveSummary.worst.week} • ${liveSummary.worst.accuracy.toFixed(1)}%` : '-'}</span>
+                  </div>
+                  <div className="mt-3 text-right">
+                    <button
+                      onClick={() => shareProfile('live')}
+                      className="bg-white bg-opacity-20 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-opacity-30 transition-all"
+                    >
+                      Condividi profilo
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -299,22 +367,47 @@ const ProfiloPage: React.FC = () => {
               </button>
             </div>
             {testStats ? (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-white">{testStats.overallAccuracy.toFixed(1)}%</div>
-                  <div className="text-white text-opacity-80 text-sm">Precisione</div>
+              <div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-white">{testStats.overallAccuracy.toFixed(1)}%</div>
+                    <div className="text-white text-opacity-80 text-sm">Precisione</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-white">{testStats.totalPoints}</div>
+                    <div className="text-white text-opacity-80 text-sm">Punti</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-white">{testStats.correctPredictions}</div>
+                    <div className="text-white text-opacity-80 text-sm">Corrette</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-white">{testStats.totalPredictions}</div>
+                    <div className="text-white text-opacity-80 text-sm">Totali</div>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-white">{testStats.totalPoints}</div>
-                  <div className="text-white text-opacity-80 text-sm">Punti</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-white">{testStats.correctPredictions}</div>
-                  <div className="text-white text-opacity-80 text-sm">Corrette</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-white">{testStats.totalPredictions}</div>
-                  <div className="text-white text-opacity-80 text-sm">Totali</div>
+                {/* Weekly summary */}
+                <div className="mt-4 p-3 rounded-lg bg-white bg-opacity-10">
+                  <div className="flex justify-between text-white text-sm mb-2">
+                    <span>Giornate giocate</span>
+                    <span>{testSummary.played}</span>
+                  </div>
+                  <div className="flex justify-between text-white text-sm mb-1">
+                    <span>Migliore settimana</span>
+                    <span>{testSummary.best ? `#${testSummary.best.week} • ${testSummary.best.accuracy.toFixed(1)}%` : '-'}</span>
+                  </div>
+                  <div className="flex justify-between text-white text-sm">
+                    <span>Peggiore settimana</span>
+                    <span>{testSummary.worst ? `#${testSummary.worst.week} • ${testSummary.worst.accuracy.toFixed(1)}%` : '-'}</span>
+                  </div>
+                  <div className="mt-3 text-right">
+                    <button
+                      onClick={() => shareProfile('test')}
+                      className="bg-white bg-opacity-20 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-opacity-30 transition-all"
+                    >
+                      Condividi profilo
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (

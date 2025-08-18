@@ -116,6 +116,8 @@ function GiocaPageContent() {
   // Backend user id (UUID string) for Test Mode persistence/overlays
   const [userKey, setUserKey] = useState<string | null>(null);
   const [userMissingModal, setUserMissingModal] = useState<{ show: boolean; triedUid?: string }>(() => ({ show: false }));
+  // Test Mode: if week already completed (10/10 predictions), disable gameplay and show veil
+  const [weekComplete, setWeekComplete] = useState(false);
 
   // Update context if mode changed via URL
   useEffect(() => {
@@ -207,6 +209,39 @@ function GiocaPageContent() {
     fetchFixtures();
   }, [currentMode, selectedWeek, firebaseUser?.uid, userKey]);
 
+  // Check if selected week is already fully predicted (Test Mode) and set veil
+  useEffect(() => {
+    const checkWeekCompletion = async () => {
+      if (currentMode !== 'test' || !userKey) {
+        setWeekComplete(false);
+        return;
+      }
+      try {
+        // Authoritative check: ping weekly stats (counts rows in test_specs)
+        const weekly = await apiClient.getTestWeeklyStats(userKey, selectedWeek);
+        const totalPreds = (() => {
+          const r = weekly as unknown;
+          if (r && typeof r === 'object') {
+            const ro = r as Record<string, unknown>;
+            if ('data' in ro && ro.data && typeof ro.data === 'object') {
+              const d = ro.data as Record<string, unknown>;
+              const tp = d.totalPredictions;
+              return typeof tp === 'number' ? tp : 0;
+            }
+            const tp = ro.totalPredictions;
+            return typeof tp === 'number' ? tp : 0;
+          }
+          return 0;
+        })();
+        setWeekComplete(totalPreds >= 10);
+      } catch {
+        // If weekly endpoint not available, fall back to no veil
+        setWeekComplete(false);
+      }
+    };
+    checkWeekCompletion();
+  }, [currentMode, selectedWeek, userKey]);
+
   // Resolve backend user id (UUID string) from Firebase UID for persistence in Test Mode
   useEffect(() => {
     const resolveUserId = async () => {
@@ -284,6 +319,10 @@ function GiocaPageContent() {
   }, [currentMode, selectedWeek]);
 
   const handlePrediction = async (fixtureId: number, prediction: '1' | 'X' | '2') => {
+    if (currentMode === 'test' && weekComplete) {
+      // Prevent further plays when week is complete
+      return;
+    }
     // Optimistic UI update
     setPredictions(prev => ({ ...prev, [fixtureId]: prediction }));
 
@@ -296,6 +335,27 @@ function GiocaPageContent() {
           fixtureId,
           choice: prediction,
         });
+        // After posting, re-check completion via test weekly-stats to engage veil immediately after 10th pick
+        try {
+          const weekly = await apiClient.getTestWeeklyStats(userKey, selectedWeek);
+          const totalPreds = (() => {
+            const r = weekly as unknown;
+            if (r && typeof r === 'object') {
+              const ro = r as Record<string, unknown>;
+              if ('data' in ro && ro.data && typeof ro.data === 'object') {
+                const d = ro.data as Record<string, unknown>;
+                const tp = d.totalPredictions;
+                return typeof tp === 'number' ? tp : 0;
+              }
+              const tp = ro.totalPredictions;
+              return typeof tp === 'number' ? tp : 0;
+            }
+            return 0;
+          })();
+          if (totalPreds >= 10) {
+            setWeekComplete(true);
+          }
+        } catch {}
         // Optionally refresh match-cards to show overlay correctness if any prior fixtures are involved
         try {
           const userIdForOverlay = userKey ?? undefined;
@@ -347,6 +407,9 @@ function GiocaPageContent() {
   // Framer Motion: decide direction and commit without snap-back
   const onDragEndCommit = async (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (!currentFixture) return;
+    if (currentMode === 'test' && weekComplete) {
+      return; // Block interactions under veil
+    }
     const dx = info.offset.x ?? 0;
     const dy = info.offset.y ?? 0;
     const ax = Math.abs(dx);
@@ -815,7 +878,7 @@ function GiocaPageContent() {
         {/* Top (current) card - draggable */}
         <motion.div
           key={currentFixture?.id}
-          drag={currentMode === 'test' ? Boolean(userKey) : true}
+          drag={currentMode === 'test' ? Boolean(userKey) && !weekComplete : true}
           dragElastic={0}
           dragMomentum={false}
           onDragEnd={onDragEndCommit}
@@ -824,7 +887,7 @@ function GiocaPageContent() {
           whileDrag={{ scale: 1.02 }}
           className="relative z-10"
         >
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
+          <div className={`bg-white rounded-2xl p-6 shadow-lg border border-gray-200 ${weekComplete ? 'opacity-60 pointer-events-none' : ''}`}>
             {/* Match Info */}
             <div className="text-center mb-6">
               <p className="text-black text-sm mb-1">{currentCard ? currentCard.kickoff.display : formatMatchDateTime(currentFixture.date)}</p>
@@ -903,9 +966,9 @@ function GiocaPageContent() {
           <div className="col-start-2">
       <button
               onClick={() => handlePrediction(currentFixture.id, 'X')}
-        disabled={!userKey && currentMode === 'test'}
+  disabled={(currentMode === 'test' && (!userKey || weekComplete))}
         className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
-                currentPrediction === 'X' ? 'scale-105' : ''
+    currentPrediction === 'X' ? 'scale-105' : ''
               }`}
               style={buttonStyle}
             >
@@ -916,7 +979,7 @@ function GiocaPageContent() {
           <div className="col-start-1 row-start-2">
       <button
               onClick={() => handlePrediction(currentFixture.id, '1')}
-        disabled={!userKey && currentMode === 'test'}
+  disabled={(currentMode === 'test' && (!userKey || weekComplete))}
         className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
                 currentPrediction === '1' ? 'scale-105' : ''
               }`}
@@ -929,7 +992,7 @@ function GiocaPageContent() {
           <div className="col-start-3 row-start-2">
       <button
               onClick={() => handlePrediction(currentFixture.id, '2')}
-        disabled={!userKey && currentMode === 'test'}
+  disabled={(currentMode === 'test' && (!userKey || weekComplete))}
         className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
                 currentPrediction === '2' ? 'scale-105' : ''
               }`}
@@ -942,7 +1005,8 @@ function GiocaPageContent() {
   <div className="col-start-2 row-start-3 -mt-[15px]">
             <button
               onClick={skipFixture}
-                 className="relative w-24 text-center bg-white text-[#3d2d73] font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105"
+     disabled={(currentMode === 'test' && weekComplete)}
+     className="relative w-24 text-center bg-white text-[#3d2d73] font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 disabled:opacity-60"
         style={skipStyle}
             >
               skip
@@ -971,6 +1035,24 @@ function GiocaPageContent() {
                 onClick={() => router.push('/welcome')}
               >
                 Vai a Welcome
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Veil when week is completed (Test Mode) */}
+      {currentMode === 'test' && weekComplete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
+            <h3 className="text-xl font-semibold text-black mb-2">Giornata completata</h3>
+            <p className="text-sm text-gray-700 mb-5">Hai già effettuato 10 scelte per questa settimana. Vai alla pagina Risultati per rivelare e vedere l&apos;andamento.</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => router.push(`/risultati?mode=test&week=${selectedWeek}`)}
+                className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
+              >
+                Vai a Risultati
               </button>
             </div>
           </div>

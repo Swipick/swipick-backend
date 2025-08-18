@@ -207,12 +207,14 @@ class ApiClient {
     });
   }
 
-  async getTestWeeklyStats(userId: number, week: number) {
-    return this.request(`/test-mode/predictions/user/${userId}/week/${week}`);
+  async getTestWeeklyStats(userId: string | number, week: number) {
+    // Use BFF mode-switching endpoint to reach gaming test-mode stats
+    return this.request(`/predictions/user/${userId}/week/${week}?mode=test`);
   }
 
-  async getTestUserSummary(userId: number) {
-    return this.request(`/test-mode/predictions/user/${userId}/summary`);
+  async getTestUserSummary(userId: string | number) {
+    // Use BFF mode-switching endpoint to reach gaming test-mode summary
+    return this.request(`/predictions/user/${userId}/summary?mode=test`);
   }
 
   async resetTestData(userId: string) {
