@@ -7,3 +7,6 @@ test-db-connections.js
 dist/
 build/
 *.tsbuildinfo
+
+# Local data (fixtures, CSVs, etc.)
+data/

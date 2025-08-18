@@ -7,6 +7,7 @@ import {
   Param,
   ParseIntPipe,
   Logger,
+  Query,
 } from '@nestjs/common';
 import { TestModeService } from './test-mode.service';
 import { CreateTestPredictionDto } from './dto/test-mode.dto';
@@ -79,6 +80,24 @@ export class TestModeController {
     };
   }
 
+  @Get('match-cards/week/:week')
+  async getMatchCardsByWeek(
+    @Param('week', ParseIntPipe) week: number,
+    @Query('userId') userId?: string,
+  ) {
+    this.logger.log(
+      `Getting match cards for week ${week}${userId ? ` (userId=${userId})` : ''}`,
+    );
+
+    const cards = await this.testModeService.getMatchCardsByWeek(week, userId);
+
+    return {
+      success: true,
+      data: cards,
+      message: `Match cards retrieved for week ${week}`,
+    };
+  }
+
   @Get('weeks')
   async getAllTestWeeks() {
     this.logger.log('Getting all available test weeks');
@@ -93,14 +112,15 @@ export class TestModeController {
   }
 
   @Post('seed')
-  async seedTestData() {
-    this.logger.log('Seeding test data');
+  async seedTestData(@Query('force') force?: string) {
+    const forceReplace = force === 'true' || force === '1';
+    this.logger.log(`Seeding test data (force=${forceReplace})`);
 
-    await this.testModeService.seedTestData();
+    await this.testModeService.seedTestData(forceReplace);
 
     return {
       success: true,
-      message: 'Test data seeded successfully',
+      message: `Test data seeded successfully${forceReplace ? ' (force replace)' : ''}`,
     };
   }
 

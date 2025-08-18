@@ -15,19 +15,19 @@ Frontend inputs:
 - Swipe left or press 1 → Home Win
 - Swipe up or press X → Draw
 - Swipe right or press 2 → Away Win
-- Swipe down or press Skip → Skip the match
+- Swipe down or press Skip → Defer this match (send card to back of deck; does not consume a turn)
 
 Rules: outcomes are based on the final score at 90' (+stoppage), no extra time or penalties.
 
 ## 📊 Core Mechanics
 
-- 10 matches per week (Serie A matchday)
-- One speculation per match per user; user may skip
+- 10 turns per week (one per match in the Serie A matchday)
+- All cards must ultimately get a 1 / X / 2 selection; Skip only defers the card (it goes to the back of the deck and resurfaces later)
 - Scoring:
   - Correct → 1 point
   - Incorrect → 0 points
-  - Skipped → recorded but excluded from percentage
-- Weekly and cumulative success are based only on non-skipped specs
+  - Skip → not stored as a choice and does not consume a turn (pure defer)
+- Weekly and cumulative success are based only on answered matches; by the end of the week the denominator is 10
 
 Example: 38 games, 22 correct → success_rate = 22 / 38 = 57.89%
 
@@ -47,7 +47,7 @@ Key fields:
 
 Notes:
 
-- SKIP is stored but excluded from accuracy calculations; it still counts as a turn.
+- Skip is a defer action, not a stored choice, and does not count as a turn; the card returns to the back of the deck until the user selects 1 / X / 2.
 - Unique(user, fixture) is enforced to prevent duplicates. Test-mode create is idempotent.
 
 ## 🔌 REST API
@@ -79,11 +79,15 @@ Test Mode:
 - POST /api/test-mode/seed
 - DELETE /api/test-mode/reset/:userId
 
+Match Cards (test-mode):
+
+- GET /api/test-mode/match-cards/week/:week — returns the 10 fixtures for the requested week, pre-ordered by kickoff and ready to be rendered as a stacked deck (Skip on the client defers and re-queues the card)
+
 Behavioral guarantees:
 
 - One speculation per (user, fixture) → DB unique index
 - Idempotent create in test-mode
-- SKIP is recorded but never affects percentages
+- Skip is not persisted as a prediction; clients may defer cards, and the backend only records a prediction once 1 / X / 2 is chosen
 
 ## 🚀 Quick Start
 

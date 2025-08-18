@@ -207,6 +207,11 @@ class ApiClient {
       method: 'POST',
     });
   }
+
+  async getTestMatchCardsByWeek(week: number, userId?: string) {
+    const qs = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+    return this.request(`/test-mode/match-cards/week/${week}${qs}`);
+  }
 }
 
 // Export singleton instance

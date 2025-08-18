@@ -3,16 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
 import { Fixture } from '../api-football/interfaces/fixture.interface';
 
-interface FixtureRecord {
-  id: number;
-  data: any;
-  created_at: Date;
-  updated_at: Date;
-  league_id: number;
-  match_date: Date;
-  season: number;
-}
-
 @Injectable()
 export class DatabasePersistenceService {
   private readonly logger = new Logger(DatabasePersistenceService.name);

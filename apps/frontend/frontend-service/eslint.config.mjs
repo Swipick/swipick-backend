@@ -11,6 +11,12 @@ const compat = new FlatCompat({
 
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+  {
+    rules: {
+      // Temporary: rule crashes under current ESLint/@typescript-eslint combo
+      "@typescript-eslint/no-unsafe-declaration-merging": "off",
+    },
+  },
 ];
 
 export default eslintConfig;
