@@ -57,17 +57,17 @@ export class TestFixture {
 
   // Business logic methods
   calculateResult(): string {
-    if (this.homeScore === null || this.awayScore === null) {
-      return null;
+    // Prefer computed result when scores available
+    if (this.homeScore !== null && this.awayScore !== null) {
+      if (this.homeScore > this.awayScore) return '1';
+      if (this.homeScore < this.awayScore) return '2';
+      return 'X';
     }
-
-    if (this.homeScore > this.awayScore) {
-      return '1'; // Home win
-    } else if (this.homeScore < this.awayScore) {
-      return '2'; // Away win
-    } else {
-      return 'X'; // Draw
+    // Fallback to stored result (from imported historical data)
+    if (this.result && ['1', 'X', '2'].includes(this.result)) {
+      return this.result;
     }
+    return null;
   }
 
   getMatchDisplay(): string {
@@ -75,9 +75,19 @@ export class TestFixture {
   }
 
   isCompleted(): boolean {
-    return (
-      this.status === 'FT' && this.homeScore !== null && this.awayScore !== null
-    );
+    // Completed when we have either full-time status with scores
+    // or a stored result for historical fixtures
+    if (
+      this.status === 'FT' &&
+      this.homeScore !== null &&
+      this.awayScore !== null
+    ) {
+      return true;
+    }
+    if (this.result && ['1', 'X', '2'].includes(this.result)) {
+      return true;
+    }
+    return false;
   }
 
   getScoreDisplay(): string {

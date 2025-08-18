@@ -54,6 +54,6 @@ export class CreateTestPredictionDto {
   @IsPositive()
   fixtureId: number;
 
-  @IsIn(['1', 'X', '2', 'SKIP'])
-  choice: '1' | 'X' | '2' | 'SKIP';
+  @IsIn(['1', 'X', '2'])
+  choice: '1' | 'X' | '2';
 }

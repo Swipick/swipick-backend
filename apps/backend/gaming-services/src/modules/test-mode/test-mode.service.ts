@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TestFixture } from '../../entities/test-fixture.entity';
@@ -24,6 +29,15 @@ export class TestModeService {
     fixtureId: number,
     choice: '1' | 'X' | '2' | 'SKIP',
   ): Promise<TestSpec> {
+    // New rule: SKIP is client-only and must not be persisted
+    if (choice === 'SKIP') {
+      this.logger.warn(
+        `Rejecting SKIP for user ${userId}, fixture ${fixtureId} — skip is client-only (no persistence)`,
+      );
+      throw new BadRequestException(
+        'Skip is client-only and is not stored as a prediction',
+      );
+    }
     // Check if fixture exists
     const fixture = await this.testFixtureRepository.findOne({
       where: { id: fixtureId },
@@ -48,17 +62,16 @@ export class TestModeService {
     }
 
     // Create new test prediction
-    const isSkip = choice === 'SKIP';
     const testSpec = this.testSpecRepository.create({
       userId,
       fixtureId,
       week: fixture.week,
       choice,
       isCorrect: false,
-      countsTowardPercentage: !isSkip,
+      countsTowardPercentage: true,
     });
 
-    if (!isSkip && fixture.isCompleted()) {
+    if (fixture.isCompleted()) {
       const actualResult = fixture.calculateResult();
       testSpec.isCorrect = choice === actualResult;
     }

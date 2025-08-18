@@ -90,6 +90,11 @@ function GiocaPageContent() {
   
   // Get mode from URL parameters or context
   const currentMode = (searchParams.get('mode') as 'live' | 'test') || mode;
+  // Selected week for test mode (defaults to 1)
+  const selectedWeek = (() => {
+    const w = Number(searchParams.get('week'));
+    return Number.isFinite(w) && w >= 1 && w <= 38 ? w : 1;
+  })();
   
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,96 +115,41 @@ function GiocaPageContent() {
         setLoading(true);
         setError(null);
         
-  let fixtureData: Fixture[];
+        let fixtureData: Fixture[] = [];
         
         if (currentMode === 'test') {
-          // Load test fixtures (historical Serie A data) and normalize shape for UI
-          try {
-            const response = await apiClient.getTestFixtures();
-            // Some BFF responses may be wrapped in { data }
-            let raw: unknown = response;
-            if (
-              typeof response === 'object' &&
-              response !== null &&
-              'data' in (response as Record<string, unknown>) &&
-              Array.isArray((response as { data?: unknown }).data)
-            ) {
-              raw = (response as { data: unknown }).data;
-            }
-
-            if (isTestFixtureArray(raw)) {
-              fixtureData = raw.map((f, idx) => {
-                const date = typeof f.date === 'string' ? f.date : new Date(f.date).toISOString();
+          // Use existing API client and filter by week client-side to avoid local 404s
+          const response = await apiClient.getTestFixtures(selectedWeek);
+          let raw: unknown = response;
+          if (
+            typeof response === 'object' &&
+            response !== null &&
+            'data' in (response as Record<string, unknown>) &&
+            Array.isArray((response as { data?: unknown }).data)
+          ) {
+            raw = (response as { data: unknown }).data;
+          }
+          if (isTestFixtureArray(raw)) {
+            const mapped = (raw as TestFixtureAPI[])
+              .filter((f) => (typeof f.week === 'number' ? f.week === selectedWeek : true))
+              .map((f, idx) => {
+                const iso = typeof f.date === 'string' ? f.date : new Date(f.date).toISOString();
                 return {
                   id: typeof f.id === 'number' ? f.id : idx + 1,
-                  date,
-                  timestamp: Math.floor(new Date(date).getTime() / 1000),
+                  date: iso,
+                  timestamp: Math.floor(new Date(iso).getTime() / 1000),
                   venue: { id: typeof f.id === 'number' ? f.id : idx + 1, name: String(f.stadium || `${f.homeTeam} vs ${f.awayTeam}`), city: 'N/A' },
                   status: { long: f.status === 'FT' ? 'Match Finished' : 'Scheduled', short: String(f.status || '') },
-                  league: { id: 135, name: 'Serie A (Test)', country: 'Italy', season: 2023, round: `Week ${f.week ?? '-'}` },
+                  league: { id: 135, name: 'Serie A (Test)', country: 'Italy', season: 2023, round: `Week ${f.week ?? selectedWeek}` },
                   teams: {
                     home: { id: ((typeof f.id === 'number' ? f.id : idx + 1) * 10) + 1, name: String(f.homeTeam || 'Home'), logo: getLogoForTeam(String(f.homeTeam || '')) || '' },
                     away: { id: ((typeof f.id === 'number' ? f.id : idx + 1) * 10) + 2, name: String(f.awayTeam || 'Away'), logo: getLogoForTeam(String(f.awayTeam || '')) || '' },
                   },
                   goals: { home: Number.isFinite(f.homeScore as number) ? Number(f.homeScore) : undefined, away: Number.isFinite(f.awayScore as number) ? Number(f.awayScore) : undefined },
                   score: { halftime: {}, fulltime: { home: Number(f.homeScore ?? 0), away: Number(f.awayScore ?? 0) } },
-                } satisfies Fixture;
-              }).slice(0, 10);
-            } else {
-              // Already in UI shape or empty
-              fixtureData = (Array.isArray(raw) ? (raw as Fixture[]) : []) || [];
-            }
-          } catch (testError) {
-            console.warn('Test fixtures not available, using mock data:', testError);
-            // Fallback to mock test data for development
-            fixtureData = [
-              {
-                id: 1001,
-                date: '2023-08-19T18:30:00Z',
-                timestamp: 1692467400,
-                venue: { id: 1, name: 'San Siro', city: 'Milano' },
-                status: { long: 'Match Finished', short: 'FT' },
-                league: { 
-                  id: 135, 
-                  name: 'Serie A', 
-                  country: 'Italy', 
-                  season: 2023, 
-                  round: 'Regular Season - 1' 
-                },
-                teams: {
-                  home: { id: 1, name: 'AC Milan', logo: getLogoForTeam('AC Milan') || '' },
-                  away: { id: 2, name: 'Bologna', logo: getLogoForTeam('Bologna') || '' }
-                },
-                goals: { home: 2, away: 0 },
-                score: {
-                  halftime: { home: 1, away: 0 },
-                  fulltime: { home: 2, away: 0 }
-                }
-              },
-              {
-                id: 1002,
-                date: '2023-08-19T18:30:00Z',
-                timestamp: 1692467400,
-                venue: { id: 2, name: 'Giuseppe Meazza', city: 'Milano' },
-                status: { long: 'Match Finished', short: 'FT' },
-                league: { 
-                  id: 135, 
-                  name: 'Serie A', 
-                  country: 'Italy', 
-                  season: 2023, 
-                  round: 'Regular Season - 1' 
-                },
-                teams: {
-                  home: { id: 3, name: 'Inter', logo: getLogoForTeam('Inter') || '' },
-                  away: { id: 4, name: 'Monza', logo: getLogoForTeam('Monza') || '' }
-                },
-                goals: { home: 1, away: 1 },
-                score: {
-                  halftime: { home: 0, away: 1 },
-                  fulltime: { home: 1, away: 1 }
-                }
-              }
-            ];
+                } as Fixture;
+              });
+            fixtureData = mapped.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 10);
           }
         } else {
           // Load live fixtures
@@ -211,7 +161,6 @@ function GiocaPageContent() {
         }
         
         setFixtures(fixtureData);
-        
         if (fixtureData.length > 0) {
           setCurrentFixtureIndex(0);
         }
@@ -224,7 +173,53 @@ function GiocaPageContent() {
     };
 
     fetchFixtures();
-  }, [currentMode]); // Re-fetch when mode changes
+  }, [currentMode, selectedWeek]);
+
+  // Light polling to keep header countdown in sync with any backend updates
+  useEffect(() => {
+    if (currentMode !== 'test') return;
+    const interval = setInterval(async () => {
+      try {
+  const response = await apiClient.getTestFixtures(selectedWeek);
+        let raw: unknown = response;
+        if (
+          typeof response === 'object' &&
+          response !== null &&
+          'data' in (response as Record<string, unknown>) &&
+          Array.isArray((response as { data?: unknown }).data)
+        ) {
+          raw = (response as { data: unknown }).data;
+        }
+        if (isTestFixtureArray(raw)) {
+          const mapped = (raw as TestFixtureAPI[])
+            .filter((f) => (typeof f.week === 'number' ? f.week === selectedWeek : true))
+            .map((f, idx) => {
+              const iso = typeof f.date === 'string' ? f.date : new Date(f.date).toISOString();
+              return {
+                id: typeof f.id === 'number' ? f.id : idx + 1,
+                date: iso,
+                timestamp: Math.floor(new Date(iso).getTime() / 1000),
+                venue: { id: typeof f.id === 'number' ? f.id : idx + 1, name: String(f.stadium || `${f.homeTeam} vs ${f.awayTeam}`), city: 'N/A' },
+                status: { long: f.status === 'FT' ? 'Match Finished' : 'Scheduled', short: String(f.status || '') },
+                league: { id: 135, name: 'Serie A (Test)', country: 'Italy', season: 2023, round: `Week ${f.week ?? selectedWeek}` },
+                teams: {
+                  home: { id: ((typeof f.id === 'number' ? f.id : idx + 1) * 10) + 1, name: String(f.homeTeam || 'Home'), logo: getLogoForTeam(String(f.homeTeam || '')) || '' },
+                  away: { id: ((typeof f.id === 'number' ? f.id : idx + 1) * 10) + 2, name: String(f.awayTeam || 'Away'), logo: getLogoForTeam(String(f.awayTeam || '')) || '' },
+                },
+                goals: { home: Number.isFinite(f.homeScore as number) ? Number(f.homeScore) : undefined, away: Number.isFinite(f.awayScore as number) ? Number(f.awayScore) : undefined },
+                score: { halftime: {}, fulltime: { home: Number(f.homeScore ?? 0), away: Number(f.awayScore ?? 0) } },
+              } as Fixture;
+            })
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+            .slice(0, 10);
+          setFixtures(mapped);
+        }
+      } catch {
+        // ignore poll errors
+      }
+    }, 60000); // 60s
+    return () => clearInterval(interval);
+  }, [currentMode, selectedWeek]);
 
   const handlePrediction = (fixtureId: number, prediction: '1' | 'X' | '2') => {
     setPredictions(prev => ({
@@ -240,65 +235,71 @@ function GiocaPageContent() {
   };
 
   const skipFixture = () => {
+    // Skip advances navigation but does not consume a turn
     nextFixture();
   };
 
   const formatMatchDateTime = (dateString: string) => {
     const date = new Date(dateString);
-    const today = new Date();
-    const tomorrow = new Date();
-    tomorrow.setDate(today.getDate() + 1);
-    
-    const dayOfWeek = date.toLocaleDateString('it-IT', { weekday: 'short' });
-    const dayMonth = date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
-    const time = date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-    
+    const dayOfWeek = date.toLocaleDateString('it-IT', { weekday: 'short', timeZone: 'Europe/Rome' });
+    const dayMonth = date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
+    const time = date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
     return `${dayOfWeek} ${dayMonth} - ${time}`;
   };
 
-  const getCurrentRound = () => {
-    if (fixtures.length === 0) return 'Caricamento...';
-    const currentFixture = fixtures[currentFixtureIndex];
-    return currentFixture?.league?.round || 'Serie A';
-  };
-
-  // Extract a numeric week from the round label (e.g., "Week 1" or "Regular Season - 7").
+  // Week number derived from fixtures or URL
   const getWeekNumber = () => {
-    const round = getCurrentRound();
+    if (fixtures.length === 0) return selectedWeek;
+    const round = fixtures[0]?.league?.round;
     const m = String(round).match(/(\d+)/);
-    return m ? parseInt(m[1], 10) : 1;
+    return m ? parseInt(m[1], 10) : selectedWeek;
   };
 
+  // Compute the next kickoff among the 10 fixtures, normalized to this or next year
+  const computeNextTarget = useCallback((items: Fixture[]): Date | null => {
+    if (!items || items.length === 0) return null;
+    const now = Date.now();
+    const year = new Date(now).getFullYear();
+    const candidates = items.map((f) => {
+      const d = new Date(f.date);
+      // Normalize to this year to keep a forward-looking countdown in test mode
+      const c = new Date(d.getTime());
+      c.setFullYear(year);
+      if (c.getTime() <= now) {
+        c.setFullYear(year + 1);
+      }
+      return c.getTime();
+    });
+    const nextTs = candidates.reduce((min, ts) => (ts < min ? ts : min), Number.POSITIVE_INFINITY);
+    return Number.isFinite(nextTs) ? new Date(nextTs) : null;
+  }, []);
+
+  const [nextTarget, setNextTarget] = useState<Date | null>(null);
+
+  // Recompute next target whenever fixtures change
+  useEffect(() => {
+    if (fixtures.length > 0) {
+      setNextTarget(computeNextTarget(fixtures));
+    }
+  }, [fixtures, computeNextTarget]);
+
+  // Countdown to the computed next kickoff
   const getTimeToNextMatch = useCallback(() => {
-    if (fixtures.length === 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
-    
-    const currentFixture = fixtures[currentFixtureIndex];
-    if (!currentFixture) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
-    
-    const matchTime = new Date(currentFixture.date);
-    const now = new Date();
-    const diff = matchTime.getTime() - now.getTime();
-    
+    if (!nextTarget) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    const now = Date.now();
+    const diff = nextTarget.getTime() - now;
     if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
-    
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-    
     return { days, hours, minutes, seconds };
-  }, [fixtures, currentFixtureIndex]);
+  }, [nextTarget]);
 
-  // Get the start/end dates for the current settimana (giornata) based on fixtures of that week only
+  // Date range directly from current week's fixtures
   const getWeekDateRange = () => {
-    const week = getWeekNumber();
-    const weekFixtures = fixtures.filter((f) => {
-      const m = String(f.league?.round ?? '').match(/(\d+)/);
-      return m ? parseInt(m[1], 10) === week : false;
-    });
-
-    if (weekFixtures.length === 0) return null;
-    const times = weekFixtures.map((f) => new Date(f.date).getTime());
+    if (fixtures.length === 0) return null;
+    const times = fixtures.map((f) => new Date(f.date).getTime());
     const start = new Date(Math.min(...times));
     const end = new Date(Math.max(...times));
     return { start, end } as const;
@@ -310,9 +311,18 @@ function GiocaPageContent() {
     const timer = setInterval(() => {
       setTimeToMatch(getTimeToNextMatch());
     }, 1000);
-
     return () => clearInterval(timer);
-  }, [currentFixtureIndex, fixtures, getTimeToNextMatch]);
+  }, [getTimeToNextMatch]);
+
+  // Light recheck to advance target as time passes
+  useEffect(() => {
+    const ref = setInterval(() => {
+      if (fixtures.length > 0) {
+        setNextTarget(computeNextTarget(fixtures));
+      }
+    }, 15000); // every 15s
+    return () => clearInterval(ref);
+  }, [fixtures, computeNextTarget]);
 
   if (loading) {
     return (
@@ -357,15 +367,16 @@ function GiocaPageContent() {
 
   const currentFixture = fixtures[currentFixtureIndex];
   const currentPrediction = predictions[currentFixture.id];
+  const predictionsCount = fixtures.reduce((acc, f) => acc + (predictions[f.id] ? 1 : 0), 0);
+  const progressPct = Math.min(predictionsCount / 10, 1) * 100;
+
   const buttonStyle: React.CSSProperties = {
     background: 'radial-gradient(circle at center, #554099, #3d2d73)',
-    boxShadow:
-      '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
+    boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
   };
   const skipStyle: React.CSSProperties = {
     background: '#ffffff',
-    boxShadow:
-      '0 8px 16px rgba(85, 64, 153, 0.2), 0 4px 8px rgba(0, 0, 0, 0.1)',
+    boxShadow: '0 8px 16px rgba(85, 64, 153, 0.2), 0 4px 8px rgba(0, 0, 0, 0.1)',
     border: '1px solid rgba(85, 64, 153, 0.2)',
   };
 
@@ -390,8 +401,8 @@ function GiocaPageContent() {
         <div className="text-center pt-6 px-4">
           {(() => {
             const range = getWeekDateRange();
-            const from = range?.start?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
-            const to = range?.end?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+            const from = range?.start?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
+            const to = range?.end?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
             return (
               <p className="text-base md:text-lg  mb-1 whitespace-nowrap">
                 Giornata {getWeekNumber()}&nbsp;
@@ -427,12 +438,12 @@ function GiocaPageContent() {
             <div className="bg-white bg-opacity-30 rounded-sm overflow-hidden" style={{ height: '18px' }}>
               <div
                 className="bg-white h-full rounded-sm transition-all duration-300"
-                style={{ width: `${Math.min(currentFixtureIndex / 10, 1) * 100}%` }}
+                style={{ width: `${progressPct}%` }}
               />
             </div>
             <div className="absolute inset-0 flex items-center justify-center">
               <span className="text-xs font-medium text-[#3d2d73]">
-                {Math.min(currentFixtureIndex, 10)}/10
+                {Math.min(predictionsCount, 10)}/10
               </span>
             </div>
           </div>
