@@ -208,8 +208,9 @@ class ApiClient {
     });
   }
 
-  async getTestMatchCardsByWeek(week: number) {
-    return this.request(`/test-mode/match-cards/week/${week}`);
+  async getTestMatchCardsByWeek(week: number, userId?: string) {
+    const qs = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+    return this.request(`/test-mode/match-cards/week/${week}${qs}`);
   }
 }
 

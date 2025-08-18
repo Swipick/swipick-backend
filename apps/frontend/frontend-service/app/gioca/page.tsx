@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { apiClient } from "@/lib/api-client";
 import { getLogoForTeam } from "@/lib/club-logos";
 import { useGameMode } from "@/src/contexts/GameModeContext";
+import { useAuthContext } from "@/src/contexts/AuthContext";
 
 interface Team {
   id: number;
@@ -71,8 +72,9 @@ interface TestFixtureAPI {
 
 // Match-cards API types
 interface MatchCardKickoff { iso: string; display: string; }
-interface MatchCardTeamHome { name: string; logo: string | null; winRateHome: number | null; last5: Array<'1' | 'X' | '2'>; }
-interface MatchCardTeamAway { name: string; logo: string | null; winRateAway: number | null; last5: Array<'1' | 'X' | '2'>; }
+interface Last5Item { fixtureId: number; code: '1'|'X'|'2'; predicted: '1'|'X'|'2'|null; correct: boolean|null; }
+interface MatchCardTeamHome { name: string; logo: string | null; winRateHome: number | null; last5: Array<'1' | 'X' | '2'>; standingsPosition?: number|null; form?: Last5Item[]; }
+interface MatchCardTeamAway { name: string; logo: string | null; winRateAway: number | null; last5: Array<'1' | 'X' | '2'>; standingsPosition?: number|null; form?: Last5Item[]; }
 interface MatchCard { week: number; fixtureId: number; kickoff: MatchCardKickoff; stadium: string | null; home: MatchCardTeamHome; away: MatchCardTeamAway; }
 
 function isTestFixture(obj: unknown): obj is TestFixtureAPI {
@@ -93,6 +95,7 @@ function GiocaPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { mode, setMode } = useGameMode();
+  const { firebaseUser } = useAuthContext();
   
   // Get mode from URL parameters or context
   const currentMode = (searchParams.get('mode') as 'live' | 'test') || mode;
@@ -126,7 +129,7 @@ function GiocaPageContent() {
         if (currentMode === 'test') {
           // Fetch enriched match-cards for card stats
           try {
-            const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek);
+            const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, firebaseUser?.uid);
             let mcRaw: unknown = mcResponse;
             if (mcResponse && typeof mcResponse === 'object' && 'data' in (mcResponse as Record<string, unknown>)) {
               mcRaw = (mcResponse as Record<string, unknown>).data as unknown;
@@ -196,7 +199,7 @@ function GiocaPageContent() {
     };
 
     fetchFixtures();
-  }, [currentMode, selectedWeek]);
+  }, [currentMode, selectedWeek, firebaseUser?.uid]);
 
   // Light polling to keep header countdown in sync with any backend updates
   useEffect(() => {
@@ -405,15 +408,18 @@ function GiocaPageContent() {
   };
 
   // Helper to render last-5 bubbles
-  const renderLastFive = (list: Array<'1' | 'X' | '2'>, side: 'home' | 'away') => {
+  const renderLastFive = (list: Array<'1' | 'X' | '2'>, side: 'home' | 'away', form?: Last5Item[]) => {
     // Always render 5 bubbles; pad with placeholders if needed
-    const filled: Array<'1' | 'X' | '2' | null> = [...list];
+    const raw: (Last5Item | null)[] = (form && form.length)
+      ? form
+      : list.map((code) => ({ fixtureId: 0, code, predicted: null, correct: null }));
+    const filled: Array<Last5Item | null> = [...raw];
     while (filled.length < 5) filled.push(null);
 
     return (
       <div className="flex justify-center gap-1 mt-1">
-        {filled.map((r, idx) => {
-          if (r === null) {
+        {filled.map((it, idx) => {
+          if (it === null) {
             return (
               <div
                 key={idx}
@@ -423,12 +429,12 @@ function GiocaPageContent() {
               </div>
             );
           }
-          const win = (side === 'home' && r === '1') || (side === 'away' && r === '2');
-          const draw = r === 'X';
-          const color = win ? 'bg-green-500' : draw ? 'bg-yellow-500' : 'bg-red-500';
+          const color = it.correct == null
+            ? 'bg-gray-300 text-gray-700'
+            : it.correct ? 'bg-green-500 text-white' : 'bg-red-500 text-white';
           return (
-            <div key={idx} className={`w-5 h-5 rounded-full text-[10px] leading-none text-white flex items-center justify-center ${color}`}>
-              {r}
+            <div key={idx} className={`w-5 h-5 rounded-full text-[10px] leading-none flex items-center justify-center ${color}`}>
+              {it.code}
             </div>
           );
         })}
@@ -537,11 +543,11 @@ function GiocaPageContent() {
               )}
               <h3 className="font-bold text-lg mb-1 text-black">{currentCard?.home.name || currentFixture.teams.home.name}</h3>
               <p className="text-xs text-black">Posizione in classifica</p>
-              <p className="font-bold text-black">—</p>
+              <p className="font-bold text-black">{currentCard?.home.standingsPosition ?? '—'}</p>
               <p className="text-xs text-black mt-1">Vittorie in casa</p>
               <p className="font-bold text-black">{currentCard?.home.winRateHome != null ? `${currentCard.home.winRateHome}%` : '—'}</p>
               <p className="text-xs text-black mt-1">Ultimi 5 risultati</p>
-              {currentCard ? renderLastFive(currentCard.home.last5, 'home') : renderLastFive([], 'home')}
+              {currentCard ? renderLastFive(currentCard.home.last5, 'home', currentCard.home.form) : renderLastFive([], 'home')}
             </div>
 
             {/* VS */}
@@ -569,11 +575,11 @@ function GiocaPageContent() {
               )}
               <h3 className="font-bold text-lg mb-1 text-black">{currentCard?.away.name || currentFixture.teams.away.name}</h3>
               <p className="text-xs text-black">Posizione in classifica</p>
-              <p className="font-bold text-black">—</p>
+              <p className="font-bold text-black">{currentCard?.away.standingsPosition ?? '—'}</p>
               <p className="text-xs text-black mt-1">Vittorie in trasferta</p>
               <p className="font-bold text-black">{currentCard?.away.winRateAway != null ? `${currentCard.away.winRateAway}%` : '—'}</p>
               <p className="text-xs text-black mt-1">Ultimi 5 risultati</p>
-              {currentCard ? renderLastFive(currentCard.away.last5, 'away') : renderLastFive([], 'away')}
+              {currentCard ? renderLastFive(currentCard.away.last5, 'away', currentCard.away.form) : renderLastFive([], 'away')}
             </div>
           </div>
         </div>
