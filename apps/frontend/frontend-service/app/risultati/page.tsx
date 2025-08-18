@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthContext } from '@/src/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
 import { IoShareOutline } from 'react-icons/io5';
+import { AnimatePresence, motion } from 'framer-motion';
 // Gradient header is inlined; page background is white per design
 
 interface WeeklyStats {
@@ -92,9 +93,13 @@ function RisultatiPageContent() {
   const [weeklyStats, setWeeklyStats] = useState<TestWeeklyStatsResp | null>(null);
   const [week2Complete, setWeek2Complete] = useState<boolean | null>(null);
   const [nextWeekRange, setNextWeekRange] = useState<{ from: string; to: string } | null>(null);
+  const [navDir, setNavDir] = useState<1 | -1 | 0>(0);
+  const [pendingWeekForUrl, setPendingWeekForUrl] = useState<number | null>(null);
+  const [rolledWeek1Once, setRolledWeek1Once] = useState(false);
+  const [fixtureScores, setFixtureScores] = useState<Map<number, { homeScore: number | null; awayScore: number | null; actual?: Choice }>>(new Map());
 
   // Semi-circular success meter (SVG half-donut) sized to match the share button width
-  const CircularMeter: React.FC<{ percent: number }> = ({ percent }) => {
+  const CircularMeter: React.FC<{ percent: number; onShare?: () => void; shareEnabled?: boolean }> = ({ percent, onShare, shareEnabled = true }) => {
     const arcWidth = 200;        // slightly narrower to match requested visual
     const stroke = 16;           // thickness
     const r = (arcWidth - stroke) / 2; // radius that keeps caps inside viewBox
@@ -146,8 +151,11 @@ function RisultatiPageContent() {
           </div>
         </div>
         <button
-          onClick={() => console.log('Condividi risultato')}
-          className="mt-2 inline-flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium shadow hover:bg-indigo-700 transition w-[200px]"
+          onClick={onShare}
+          disabled={!shareEnabled}
+          aria-label="Condividi risultato"
+          title={shareEnabled ? 'Condividi risultato' : 'Condivisione disponibile su mobile/PWA'}
+          className={`mt-2 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-medium w-[200px] shadow transition ${shareEnabled ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
         >
           <IoShareOutline size={18} />
           Condividi risultato
@@ -227,6 +235,34 @@ function RisultatiPageContent() {
       setSelectedWeek(w);
     }
   }, [searchParams]);
+  // Share support and feedback toast
+  const [shareSupported, setShareSupported] = useState(false);
+  const [shareToast, setShareToast] = useState<string | null>(null);
+
+  // Narrow navigator type for Web Share API safely
+  type NavigatorWebShare = Navigator & {
+    share?: (data: { title?: string; text?: string; url?: string }) => Promise<void>;
+    clipboard?: Navigator['clipboard'];
+  };
+
+  useEffect(() => {
+    try {
+      const n: NavigatorWebShare | undefined = typeof navigator !== 'undefined' ? (navigator as NavigatorWebShare) : undefined;
+      const supported = !!n && typeof n.share === 'function';
+      setShareSupported(supported);
+    } catch {
+      setShareSupported(false);
+    }
+  }, []);
+
+
+  // Helper to change week and keep URL in sync
+  const updateWeek = useCallback((w: number) => {
+    const next = Math.max(1, Math.min(38, w));
+    setNavDir(next > selectedWeek ? 1 : -1);
+    setSelectedWeek(next);
+    setPendingWeekForUrl(next); // delay URL update until animation completes
+  }, [selectedWeek]);
 
   // Mode is set via URL search params; no toggle required here
 
@@ -296,6 +332,15 @@ function RisultatiPageContent() {
     } catch {}
   }, [revealed, revealKey]);
 
+  // Load auto-rollover flag for week 1 (persisted) so we don't force week 2 when user navigates back
+  useEffect(() => {
+    if (!userId) return;
+    try {
+      const k = `swipick:risultati:autoRoll:week1:user:${userId}`;
+      setRolledWeek1Once(localStorage.getItem(k) === '1');
+    } catch {}
+  }, [userId]);
+
   // Fetch week match-cards when in Test Mode
   useEffect(() => {
     const run = async () => {
@@ -340,26 +385,55 @@ function RisultatiPageContent() {
     run();
   }, [mode, selectedWeek, userId]);
 
-  // Fetch weekly stats for selected week (Test Mode)
+  // Fetch raw fixtures with scores for the selected week (fallback for result display)
   useEffect(() => {
     const run = async () => {
-      if (mode !== 'test' || !userId) {
-        setWeeklyStats(null);
-        return;
-      }
+      if (mode !== 'test') { setFixtureScores(new Map()); return; }
       try {
-        const resp = await apiClient.getTestWeeklyStats(userId, selectedWeek);
-        const stats: TestWeeklyStatsResp | null = (resp && typeof resp === 'object' && 'data' in (resp as Record<string, unknown>))
-          ? (resp as { data: TestWeeklyStatsResp }).data
-          : (resp as unknown as TestWeeklyStatsResp | null);
-        setWeeklyStats(stats ?? null);
-      } catch (e) {
-        console.warn('Failed to load weekly stats for week', selectedWeek, e);
-        setWeeklyStats(null);
+        const resp = await apiClient.getTestFixturesByWeek(selectedWeek) as unknown as { data?: Array<{ id: number | string; homeScore: number | null; awayScore: number | null }> } | Array<{ id: number | string; homeScore: number | null; awayScore: number | null }>;
+        const arr = Array.isArray(resp) ? resp : resp?.data ?? [];
+        const map = new Map<number, { homeScore: number | null; awayScore: number | null; actual?: Choice }>();
+        for (const f of arr as Array<{ id: number | string; homeScore: number | null; awayScore: number | null }>) {
+          const fid = typeof f.id === 'string' ? Number(f.id) : f.id;
+          const hs = f.homeScore ?? null;
+          const as = f.awayScore ?? null;
+          let actual: Choice | undefined;
+          if (typeof hs === 'number' && typeof as === 'number') {
+            actual = hs > as ? '1' : hs < as ? '2' : 'X';
+          }
+          if (Number.isFinite(fid)) {
+            map.set(fid, { homeScore: hs, awayScore: as, actual });
+          }
+        }
+        setFixtureScores(map);
+      } catch {
+        setFixtureScores(new Map());
       }
     };
     run();
-  }, [mode, selectedWeek, userId]);
+  }, [mode, selectedWeek]);
+
+  // Helper: load weekly stats when needed
+  const loadWeeklyStats = useCallback(async (week: number) => {
+    if (mode !== 'test' || !userId) { setWeeklyStats(null); return; }
+    try {
+      const resp = await apiClient.getTestWeeklyStats(userId, week);
+      const stats: TestWeeklyStatsResp | null = (resp && typeof resp === 'object' && 'data' in (resp as Record<string, unknown>))
+        ? (resp as { data: TestWeeklyStatsResp }).data
+        : (resp as unknown as TestWeeklyStatsResp | null);
+      setWeeklyStats(stats ?? null);
+    } catch {
+      // Quietly ignore (e.g., 404 when no predictions yet)
+      setWeeklyStats(null);
+    }
+  }, [mode, userId]);
+
+  // Fetch weekly stats for selected week (Test Mode) — skip week 2 until allowed
+  useEffect(() => {
+    if (mode !== 'test' || !userId) { setWeeklyStats(null); return; }
+    if (selectedWeek === 2 && week2Complete !== true) { setWeeklyStats(null); return; }
+    loadWeeklyStats(selectedWeek);
+  }, [mode, selectedWeek, userId, week2Complete, loadWeeklyStats]);
 
   // (Removed) Preload week 2 completion to avoid noisy 404s in prod; check lazily on reveal instead.
 
@@ -398,6 +472,25 @@ function RisultatiPageContent() {
     return { revealed: revealedCount, correct: correctCount, percent };
   }, [mode, weekCards, revealed, predByFixture]);
 
+  // Share handler (defined after meter so it can reference it safely)
+  const handleShare = useCallback(async () => {
+    const title = `Giornata ${selectedWeek} — Swipick`;
+    const text = `Ho rivelato ${meter.revealed}/10: ${meter.correct} corrette (${meter.percent}%).`;
+    const url = typeof window !== 'undefined' ? window.location.href : undefined;
+    try {
+      const n: NavigatorWebShare | undefined = typeof navigator !== 'undefined' ? (navigator as NavigatorWebShare) : undefined;
+      if (n && typeof n.share === 'function') {
+        await n.share({ title, text, url });
+        return;
+      }
+      throw new Error('Web Share API not supported');
+    } catch {
+      // We keep desktop disabled by default, but if invoked in an unsupported context, show a gentle toast
+      setShareToast('Condivisione non supportata su questo dispositivo');
+      setTimeout(() => setShareToast(null), 2200);
+    }
+  }, [selectedWeek, meter]);
+
   // Week 2 guard: predictions completeness check (from weekly stats)
   const hasWeek2Complete = week2Complete;
 
@@ -425,22 +518,32 @@ function RisultatiPageContent() {
         return;
       }
     }
+    // Ensure stats are present to show scores once reveal is allowed
+    if (!weeklyStats) {
+      await loadWeeklyStats(selectedWeek);
+    }
     setRevealed((prev) => ({ ...prev, [fixtureId]: true }));
   };
 
-  // Auto-rollover to week 2 when all 10 revealed in week 1
+  // Auto-rollover to week 2 when all 10 revealed in week 1 (only once)
   useEffect(() => {
     if (mode !== 'test') return;
     if (selectedWeek !== 1) return;
+    if (rolledWeek1Once) return; // don't auto-roll again when user returns to week 1
     if (weekCards.length === 10) {
       const allRevealed = weekCards.every((m) => revealed[m.fixtureId]);
       if (allRevealed) {
         // Reset and go to week 2
-        setSelectedWeek(2);
+        try {
+          const k = `swipick:risultati:autoRoll:week1:user:${userId ?? 'anon'}`;
+          localStorage.setItem(k, '1');
+        } catch {}
+        setRolledWeek1Once(true);
+        updateWeek(2);
         setRevealed({});
       }
     }
-  }, [mode, selectedWeek, weekCards, revealed]);
+  }, [mode, selectedWeek, weekCards, revealed, updateWeek, rolledWeek1Once, userId]);
 
   if (loading) {
     return (
@@ -467,15 +570,18 @@ function RisultatiPageContent() {
           style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
         >
           <div className="relative px-4 pt-10 pb-6">
-            {/* Faded previous (left) */}
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-sm opacity-30 select-none">
+            {/* Faded previous (left) - clickable */}
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-sm opacity-30">
               {selectedWeek > 1 ? (
-                <div>
-                  <div className="font-medium">Giornata {selectedWeek - 1}</div>
-                  <div className="text-xs">{/* intentionally blank or could compute prev range */}</div>
-                </div>
+                <button
+                  onClick={() => updateWeek(selectedWeek - 1)}
+                  className="font-medium hover:opacity-60 transition-opacity cursor-pointer"
+                >
+                  <div>Giornata {selectedWeek - 1}</div>
+                  <div className="text-xs">{/* prev range optional */}</div>
+                </button>
               ) : (
-                <div className="h-6" />
+                <div className="h-6 select-none" />
               )}
             </div>
 
@@ -494,26 +600,53 @@ function RisultatiPageContent() {
               </div>
             </div>
 
-            {/* Faded next (right) */}
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-white text-sm opacity-60 select-none text-right">
-              <div className="font-medium">Giornata {selectedWeek + 1}</div>
-              <div className="text-xs">{nextWeekRange ? `dal ${nextWeekRange.from} al ${nextWeekRange.to}` : ''}</div>
+            {/* Faded next (right) - clickable */}
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-white text-sm opacity-60 text-right">
+              <button
+                onClick={() => updateWeek(selectedWeek + 1)}
+                className="font-medium hover:opacity-80 transition-opacity cursor-pointer"
+              >
+                <div>Giornata {selectedWeek + 1}</div>
+                <div className="text-xs">{nextWeekRange ? `dal ${nextWeekRange.from} al ${nextWeekRange.to}` : ''}</div>
+              </button>
             </div>
           </div>
         </div>
 
   {/* No secondary header; mode toggle stays if needed in future */}
 
-        {/* Success Meter area (replaces tabs row per design for Test Mode) */}
-        {mode === 'test' && (
-          <div className="px-4 mb-2">
-            <CircularMeter percent={meter.percent} />
-          </div>
-        )}
+        <AnimatePresence
+          initial={false}
+          mode="wait"
+          onExitComplete={() => {
+            if (pendingWeekForUrl != null && typeof window !== 'undefined') {
+              try {
+                const url = new URL(window.location.href);
+                url.searchParams.set('week', String(pendingWeekForUrl));
+                url.searchParams.set('mode', mode);
+                window.history.replaceState({}, '', url.toString());
+              } catch {}
+              setPendingWeekForUrl(null);
+            }
+          }}
+        >
+          <motion.div
+            key={`week-${selectedWeek}`}
+            initial={{ x: navDir === 0 ? 0 : navDir * 80, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: navDir === 0 ? 0 : -navDir * 80, opacity: 0 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+          >
+            {/* Success Meter area (replaces tabs row per design for Test Mode) */}
+      {mode === 'test' && (
+              <div className="px-4 mb-2">
+        <CircularMeter percent={meter.percent} onShare={handleShare} shareEnabled={shareSupported} />
+              </div>
+            )}
 
-        {/* Week Tab (Test Mode) */}
-        {(mode === 'test') && (
-          <div className="px-4 space-y-6">
+            {/* Week Tab (Test Mode) */}
+            {(mode === 'test') && (
+              <div className="px-4 space-y-6">
             {/* Small helper row under meter */}
             <div className="flex items-center justify-between text-black text-sm px-1">
               <div className="opacity-70">Mostra i risultati una partita alla volta</div>
@@ -526,10 +659,16 @@ function RisultatiPageContent() {
             ) : (
               <div className="space-y-3">
                 {weekCards.map((m) => {
-                  const pred = predByFixture.get(m.fixtureId);
+                  const fid = Number(m.fixtureId);
+                  const pred = predByFixture.get(fid);
+                  const scoreFallback = fixtureScores.get(fid);
                   const isRevealed = !!revealed[m.fixtureId];
                   const statusLabel = isRevealed ? 'FINE PARTITA' : 'Mostra risultato';
                   const statusColor = isRevealed ? 'bg-gray-200 text-gray-700' : 'bg-indigo-500 bg-opacity-90 text-white';
+                  if (isRevealed && !pred && !scoreFallback) {
+                    // Minimal diagnostic to help trace missing scores in prod without spamming
+                    console.warn('No score data found for fixture', fid, 'in week', selectedWeek);
+                  }
                   return (
                     <div key={m.fixtureId} className="bg-white rounded-2xl p-4 shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-black/5">
                       <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-4 items-center">
@@ -555,8 +694,8 @@ function RisultatiPageContent() {
 
                         {/* Col 2: Final scores (two rows) */}
                         <div className="flex flex-col items-center gap-5 pr-1">
-                          <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">{isRevealed ? (pred?.homeScore ?? '–') : '–'}</div>
-                          <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">{isRevealed ? (pred?.awayScore ?? '–') : '–'}</div>
+                          <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">{isRevealed ? ((pred?.homeScore ?? scoreFallback?.homeScore) ?? '–') : '–'}</div>
+                          <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">{isRevealed ? ((pred?.awayScore ?? scoreFallback?.awayScore) ?? '–') : '–'}</div>
                         </div>
 
                         {/* Col 3: Status button (centered) */}
@@ -574,7 +713,8 @@ function RisultatiPageContent() {
                         <div className="flex flex-col items-center gap-2">
                           {(['1','X','2'] as Choice[]).map((c) => {
                             const chosen = pred?.prediction === c;
-                            const correct = pred?.actual === c && isRevealed;
+                            const actual = pred?.actual ?? scoreFallback?.actual;
+                            const correct = actual === c && isRevealed;
                             const classes = correct
                               ? 'bg-green-500 text-white'
                               : chosen && isRevealed
@@ -591,8 +731,10 @@ function RisultatiPageContent() {
                 })}
               </div>
             )}
-          </div>
-        )}
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
 
         {/* Overview Tab */}
         {activeTab === 'overview' && summary && (
@@ -763,6 +905,12 @@ function RisultatiPageContent() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {/* Share toast */}
+      {shareToast && (
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-24 z-50 bg-black text-white text-sm px-4 py-2 rounded-full shadow">
+          {shareToast}
         </div>
       )}
   </div>
