@@ -321,6 +321,25 @@ export class UsersService {
   }
 
   /**
+   * Update user's emailVerified flag
+   */
+  async updateEmailVerified(
+    userId: string,
+    emailVerified: boolean,
+  ): Promise<UserResponseDto> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Utente non trovato');
+    }
+    user.emailVerified = emailVerified;
+    const saved = await this.userRepository.save(user);
+    this.logger.log(
+      `Email verification updated for user ${userId}: ${emailVerified}`,
+    );
+    return this.transformToResponse(saved);
+  }
+
+  /**
    * Send password reset email via Firebase (client-side only)
    * This method validates the user exists and provides appropriate response
    */

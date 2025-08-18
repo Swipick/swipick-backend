@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
   Body,
   Param,
   HttpCode,
@@ -17,6 +18,7 @@ import {
   GoogleSyncUserDto,
   CompleteProfileDto,
   UserResponseDto,
+  EmailVerifiedDto,
 } from './dto';
 
 @Controller('api/users')
@@ -143,6 +145,37 @@ export class UsersController {
     return {
       success: true,
       data: user,
+    };
+  }
+
+  /**
+   * Update user's email verification flag
+   * PATCH /api/users/:id/email-verified
+   */
+  @Patch(':id/email-verified')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async updateEmailVerified(
+    @Param('id', ParseUUIDPipe) userId: string,
+    @Body() body: EmailVerifiedDto,
+  ): Promise<{
+    success: boolean;
+    data: UserResponseDto;
+    message: string;
+  }> {
+    this.logger.log(
+      `Updating email verification for user: ${userId} -> ${body.emailVerified}`,
+    );
+
+    const user = await this.usersService.updateEmailVerified(
+      userId,
+      body.emailVerified,
+    );
+
+    return {
+      success: true,
+      data: user,
+      message: 'Stato email verificata aggiornato',
     };
   }
 

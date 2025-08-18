@@ -113,7 +113,9 @@ function GiocaPageContent() {
   const [predictions, setPredictions] = useState<Record<number, '1' | 'X' | '2'>>({});
   const [matchCards, setMatchCards] = useState<MatchCard[]>([]);
   const controls = useAnimationControls();
-  const [userIdForTest, setUserIdForTest] = useState<number | null>(null);
+  // Backend user id (UUID string) for Test Mode persistence/overlays
+  const [userKey, setUserKey] = useState<string | null>(null);
+  const [userMissingModal, setUserMissingModal] = useState<{ show: boolean; triedUid?: string }>(() => ({ show: false }));
 
   // Update context if mode changed via URL
   useEffect(() => {
@@ -129,10 +131,11 @@ function GiocaPageContent() {
         setError(null);
         let fixtureData: Fixture[] = [];
 
-        if (currentMode === 'test') {
+    if (currentMode === 'test') {
           // Fetch enriched match-cards for card stats
           try {
-            const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, firebaseUser?.uid);
+      const userIdForOverlay = userKey ?? undefined;
+            const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, userIdForOverlay);
             let mcRaw: unknown = mcResponse;
             if (mcResponse && typeof mcResponse === 'object' && 'data' in (mcResponse as Record<string, unknown>)) {
               mcRaw = (mcResponse as Record<string, unknown>).data as unknown;
@@ -202,31 +205,37 @@ function GiocaPageContent() {
     };
 
     fetchFixtures();
-  }, [currentMode, selectedWeek, firebaseUser?.uid]);
+  }, [currentMode, selectedWeek, firebaseUser?.uid, userKey]);
 
-  // Resolve backend user id from Firebase UID for persistence in Test Mode
+  // Resolve backend user id (UUID string) from Firebase UID for persistence in Test Mode
   useEffect(() => {
     const resolveUserId = async () => {
       if (!firebaseUser?.uid) {
-        setUserIdForTest(null);
+        setUserKey(null);
         return;
       }
       try {
-        const resp = await apiClient.getUserByFirebaseUid(firebaseUser.uid) as unknown as { success?: boolean; data?: { id?: number } };
-        const asNumber = Number(resp?.data?.id);
-        if (Number.isFinite(asNumber) && asNumber > 0) {
-          setUserIdForTest(asNumber);
+        const resp = await apiClient.getUserByFirebaseUid(firebaseUser.uid) as unknown as { success?: boolean; data?: { id?: string } };
+        const idStr = resp?.data?.id;
+        if (idStr && String(idStr).length > 0) {
+          setUserKey(String(idStr));
+          setUserMissingModal({ show: false });
+          // If Firebase says verified, sync DB once when ID known
+          if (firebaseUser.emailVerified === true) {
+            try { await apiClient.updateEmailVerified(String(idStr), true); } catch {}
+          }
         } else {
-          // Keep null if not numeric; backend test-mode requires numeric id
-          setUserIdForTest(null);
+          setUserKey(null);
+          setUserMissingModal({ show: true, triedUid: firebaseUser.uid });
         }
       } catch (e) {
         console.warn('Failed to resolve user id from Firebase UID', e);
-        setUserIdForTest(null);
+        setUserKey(null);
+        setUserMissingModal({ show: true, triedUid: firebaseUser.uid });
       }
     };
     resolveUserId();
-  }, [firebaseUser?.uid]);
+  }, [firebaseUser?.uid, firebaseUser?.emailVerified]);
 
   // Light polling to keep header countdown in sync with any backend updates
   useEffect(() => {
@@ -280,15 +289,17 @@ function GiocaPageContent() {
 
     // Persist to backend in Test Mode only
     try {
-      if (currentMode === 'test' && userIdForTest) {
-        await apiClient.createTestPrediction({
-          userId: userIdForTest,
+      if (currentMode === 'test' && userKey) {
+        // Use unified BFF route: POST /api/predictions with mode='test'
+        await apiClient.createTestModePrediction({
+          userId: userKey,
           fixtureId,
           choice: prediction,
         });
         // Optionally refresh match-cards to show overlay correctness if any prior fixtures are involved
         try {
-          const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, firebaseUser?.uid || undefined) as unknown as { success?: boolean; data?: MatchCard[] } | MatchCard[];
+          const userIdForOverlay = userKey ?? undefined;
+          const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, userIdForOverlay) as unknown as { success?: boolean; data?: MatchCard[] } | MatchCard[];
           const mcRaw: MatchCard[] | undefined = Array.isArray(mcResponse)
             ? mcResponse
             : (mcResponse as { data?: MatchCard[] })?.data;
@@ -662,7 +673,7 @@ function GiocaPageContent() {
         {/* Top (current) card - draggable */}
         <motion.div
           key={currentFixture?.id}
-          drag
+          drag={currentMode === 'test' ? Boolean(userKey) : true}
           dragElastic={0}
           dragMomentum={false}
           onDragEnd={onDragEndCommit}
@@ -748,9 +759,10 @@ function GiocaPageContent() {
         <div className="grid grid-cols-3 gap-x-10 gap-y-0 justify-items-center items-center ">
           {/* Top: X */}
           <div className="col-start-2">
-            <button
+      <button
               onClick={() => handlePrediction(currentFixture.id, 'X')}
-                 className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
+        disabled={!userKey && currentMode === 'test'}
+        className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
                 currentPrediction === 'X' ? 'scale-105' : ''
               }`}
               style={buttonStyle}
@@ -760,9 +772,10 @@ function GiocaPageContent() {
           </div>
           {/* Middle Left: 1 */}
           <div className="col-start-1 row-start-2">
-            <button
+      <button
               onClick={() => handlePrediction(currentFixture.id, '1')}
-                 className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
+        disabled={!userKey && currentMode === 'test'}
+        className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
                 currentPrediction === '1' ? 'scale-105' : ''
               }`}
               style={buttonStyle}
@@ -772,9 +785,10 @@ function GiocaPageContent() {
           </div>
           {/* Middle Right: 2 */}
           <div className="col-start-3 row-start-2">
-            <button
+      <button
               onClick={() => handlePrediction(currentFixture.id, '2')}
-                 className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
+        disabled={!userKey && currentMode === 'test'}
+        className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
                 currentPrediction === '2' ? 'scale-105' : ''
               }`}
               style={buttonStyle}
@@ -794,6 +808,32 @@ function GiocaPageContent() {
           </div>
         </div>
       </div>
+
+      {/* Modal: User not found */}
+      {currentMode === 'test' && userMissingModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl p-6 w-80 shadow-xl">
+            <h3 className="text-lg font-semibold text-black mb-2">Account non trovato</h3>
+            <p className="text-sm text-gray-600 mb-4">Per continuare in Test Mode serve un account backend. Vai alla pagina di benvenuto per completare.</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="px-4 py-2 text-sm rounded-md border border-gray-300 text-black"
+                onClick={() => {
+                  setUserMissingModal({ show: false });
+                }}
+              >
+                Chiudi
+              </button>
+              <button
+                className="px-4 py-2 text-sm rounded-md bg-purple-600 text-white"
+                onClick={() => router.push('/welcome')}
+              >
+                Vai a Welcome
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
   {/* Bottom Navigation */}
   <div className="fixed bottom-0 left-0 right-0 bg-white border-t">

@@ -18,7 +18,7 @@ export interface WeeklyStats {
 }
 
 export interface UserSummary {
-  userId: number;
+  userId: string;
   totalWeeks: number;
   totalPredictions: number; // excluding skips
   totalCorrect: number; // excluding skips
@@ -43,12 +43,12 @@ export interface UserSummary {
   };
 }
 
-import { IsInt, IsIn, IsPositive } from 'class-validator';
+import { IsInt, IsIn, IsPositive, IsUUID } from 'class-validator';
 
 export class CreateTestPredictionDto {
-  @IsInt()
-  @IsPositive()
-  userId: number;
+  // Backend user id (UUID from BFF)
+  @IsUUID()
+  userId: string;
 
   @IsInt()
   @IsPositive()

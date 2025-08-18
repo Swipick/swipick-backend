@@ -17,8 +17,8 @@ export class TestSpec {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
-  userId: number; // Reference to user (from BFF service)
+  @Column({ type: 'varchar', length: 36 })
+  userId: string; // Backend user id (UUID from BFF service)
 
   @Column()
   fixtureId: number;

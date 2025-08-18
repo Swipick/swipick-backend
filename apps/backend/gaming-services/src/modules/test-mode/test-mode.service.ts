@@ -109,7 +109,7 @@ export class TestModeService {
       const allIds = Array.from(last5IdsByTeam.values()).flat();
       if (allIds.length > 0) {
         const preds = await this.testSpecRepository.find({
-          where: { userId: Number(userId), fixtureId: In(allIds) },
+          where: { userId, fixtureId: In(allIds) },
         });
         userPreds = new Map(
           preds.map((p) => [p.fixtureId, p.choice as ResultCode]),
@@ -378,15 +378,18 @@ export class TestModeService {
     return `${week}|${uid}`;
   }
 
-  private invalidateCacheForUserWeek(userId: number, week: number): void {
+  private invalidateCacheForUserWeek(
+    userId: string | number,
+    week: number,
+  ): void {
     const key = this.getCacheKey(week, userId);
     if (this.matchCardsCache.delete(key)) {
       this.logger.debug(`Cache invalidated for key ${key}`);
     }
   }
 
-  private invalidateCacheForUser(userId: number): void {
-    const suffix = `|${userId}`;
+  private invalidateCacheForUser(userId: string | number): void {
+    const suffix = `|${String(userId)}`;
     for (const key of Array.from(this.matchCardsCache.keys())) {
       if (key.endsWith(suffix)) {
         this.matchCardsCache.delete(key);
@@ -396,7 +399,7 @@ export class TestModeService {
   }
 
   async createTestPrediction(
-    userId: number,
+    userId: string,
     fixtureId: number,
     choice: '1' | 'X' | '2' | 'SKIP',
   ): Promise<TestSpec> {
@@ -459,7 +462,7 @@ export class TestModeService {
     return savedSpec;
   }
 
-  async getTestWeeklyStats(userId: number, week: number): Promise<WeeklyStats> {
+  async getTestWeeklyStats(userId: string, week: number): Promise<WeeklyStats> {
     const specs = await this.testSpecRepository.find({
       where: { userId, week },
       relations: ['fixture'],
@@ -509,7 +512,7 @@ export class TestModeService {
     };
   }
 
-  async getTestUserSummary(userId: number): Promise<UserSummary> {
+  async getTestUserSummary(userId: string): Promise<UserSummary> {
     const specs = await this.testSpecRepository.find({
       where: { userId },
       relations: ['fixture'],
@@ -1059,7 +1062,7 @@ export class TestModeService {
     );
   }
 
-  async resetUserTestData(userId: number): Promise<void> {
+  async resetUserTestData(userId: string): Promise<void> {
     this.logger.log(`Resetting test data for user ${userId}...`);
 
     // Delete all test predictions for this user
