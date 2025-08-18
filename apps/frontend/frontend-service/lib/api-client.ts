@@ -163,6 +163,18 @@ class ApiClient {
     });
   }
 
+  // Test Mode predictions via BFF unified route
+  async createTestModePrediction(data: {
+    userId: number;
+    fixtureId: number;
+    choice: '1' | 'X' | '2';
+  }) {
+    return this.request('/predictions', {
+      method: 'POST',
+      body: JSON.stringify({ ...data, mode: 'test' as const }),
+    });
+  }
+
   // Test Mode API
   async getTestFixtures(week: number = 1) {
     // Default to week 1 if no week specified

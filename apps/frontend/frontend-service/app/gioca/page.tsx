@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense, useCallback } from "react";
+import { motion, useAnimationControls, PanInfo } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { apiClient } from "@/lib/api-client";
@@ -111,6 +112,8 @@ function GiocaPageContent() {
   const [currentFixtureIndex, setCurrentFixtureIndex] = useState(0);
   const [predictions, setPredictions] = useState<Record<number, '1' | 'X' | '2'>>({});
   const [matchCards, setMatchCards] = useState<MatchCard[]>([]);
+  const controls = useAnimationControls();
+  const [userIdForTest, setUserIdForTest] = useState<number | null>(null);
 
   // Update context if mode changed via URL
   useEffect(() => {
@@ -201,6 +204,30 @@ function GiocaPageContent() {
     fetchFixtures();
   }, [currentMode, selectedWeek, firebaseUser?.uid]);
 
+  // Resolve backend user id from Firebase UID for persistence in Test Mode
+  useEffect(() => {
+    const resolveUserId = async () => {
+      if (!firebaseUser?.uid) {
+        setUserIdForTest(null);
+        return;
+      }
+      try {
+        const resp = await apiClient.getUserByFirebaseUid(firebaseUser.uid) as unknown as { success?: boolean; data?: { id?: number } };
+        const asNumber = Number(resp?.data?.id);
+        if (Number.isFinite(asNumber) && asNumber > 0) {
+          setUserIdForTest(asNumber);
+        } else {
+          // Keep null if not numeric; backend test-mode requires numeric id
+          setUserIdForTest(null);
+        }
+      } catch (e) {
+        console.warn('Failed to resolve user id from Firebase UID', e);
+        setUserIdForTest(null);
+      }
+    };
+    resolveUserId();
+  }, [firebaseUser?.uid]);
+
   // Light polling to keep header countdown in sync with any backend updates
   useEffect(() => {
     if (currentMode !== 'test') return;
@@ -247,11 +274,35 @@ function GiocaPageContent() {
     return () => clearInterval(interval);
   }, [currentMode, selectedWeek]);
 
-  const handlePrediction = (fixtureId: number, prediction: '1' | 'X' | '2') => {
-    setPredictions(prev => ({
-      ...prev,
-      [fixtureId]: prediction
-    }));
+  const handlePrediction = async (fixtureId: number, prediction: '1' | 'X' | '2') => {
+    // Optimistic UI update
+    setPredictions(prev => ({ ...prev, [fixtureId]: prediction }));
+
+    // Persist to backend in Test Mode only
+    try {
+      if (currentMode === 'test' && userIdForTest) {
+        await apiClient.createTestPrediction({
+          userId: userIdForTest,
+          fixtureId,
+          choice: prediction,
+        });
+        // Optionally refresh match-cards to show overlay correctness if any prior fixtures are involved
+        try {
+          const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, firebaseUser?.uid || undefined) as unknown as { success?: boolean; data?: MatchCard[] } | MatchCard[];
+          const mcRaw: MatchCard[] | undefined = Array.isArray(mcResponse)
+            ? mcResponse
+            : (mcResponse as { data?: MatchCard[] })?.data;
+          if (Array.isArray(mcRaw)) {
+            const arr = mcRaw.slice().sort((a, b) => new Date(a.kickoff.iso).getTime() - new Date(b.kickoff.iso).getTime());
+            setMatchCards(arr);
+          }
+        } catch {}
+      }
+    } catch (e) {
+      console.error('Prediction persist failed', e);
+    }
+    // Advance to next card
+    nextFixture();
   };
 
   const nextFixture = () => {
@@ -262,7 +313,59 @@ function GiocaPageContent() {
 
   const skipFixture = () => {
     // Skip advances navigation but does not consume a turn
-    nextFixture();
+    // Rotate current card to the end of the list for both fixtures and matchCards
+    setFixtures((prev) => {
+      if (!prev.length) return prev;
+      const copy = prev.slice();
+      const idx = Math.min(Math.max(currentFixtureIndex, 0), copy.length - 1);
+      const [curr] = copy.splice(idx, 1);
+      copy.push(curr);
+      return copy;
+    });
+    setMatchCards((prev) => {
+      if (!prev.length) return prev;
+      const copy = prev.slice();
+      const idx = Math.min(Math.max(currentFixtureIndex, 0), copy.length - 1);
+      const [curr] = copy.splice(idx, 1);
+      copy.push(curr);
+      return copy;
+    });
+    // Keep index at the same position to show the next card now at that slot
+  };
+
+  // Framer Motion: decide direction and commit without snap-back
+  const onDragEndCommit = async (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    if (!currentFixture) return;
+    const dx = info.offset.x ?? 0;
+    const dy = info.offset.y ?? 0;
+    const ax = Math.abs(dx);
+    const ay = Math.abs(dy);
+    const dominant: 'horizontal' | 'vertical' = ax >= ay ? 'horizontal' : 'vertical';
+    const dir = dominant === 'horizontal' ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+
+    // Animate out in chosen direction, then commit
+    const distance = 900; // off-screen
+    const target = {
+      x: dir === 'left' ? -distance : dir === 'right' ? distance : 0,
+      y: dir === 'up' ? -distance : dir === 'down' ? distance : 0,
+      rotate: dir === 'left' ? -8 : dir === 'right' ? 8 : 0,
+      transition: { type: 'tween', ease: 'easeOut', duration: 0.25 },
+    } as const;
+    try {
+      await controls.start(target);
+    } finally {
+      if (dir === 'down') {
+        skipFixture();
+      } else if (dir === 'up') {
+        await handlePrediction(currentFixture.id, 'X');
+      } else if (dir === 'left') {
+        await handlePrediction(currentFixture.id, '1');
+      } else {
+        await handlePrediction(currentFixture.id, '2');
+      }
+      // Reset for next card
+      controls.set({ x: 0, y: 0, rotate: 0 });
+    }
   };
 
   const formatMatchDateTime = (dateString: string) => {
@@ -512,77 +615,132 @@ function GiocaPageContent() {
         </div>
       </div>
 
-      {/* Match Card */}
-      <div className="mx-4 mb-8">
-        <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
-          {/* Match Info */}
-          <div className="text-center mb-6">
-            <p className="text-black text-sm mb-1">{currentCard ? currentCard.kickoff.display : formatMatchDateTime(currentFixture.date)}</p>
-            <p className="text-black text-xs">{currentCard?.stadium || currentFixture.venue.name}</p>
-          </div>
-
-          {/* Teams */}
-          <div className="flex items-center justify-between mb-8">
-            {/* Home Team */}
-            <div className="flex-1 text-center">
-              {(currentCard?.home.logo || currentFixture.teams.home.logo) ? (
-                <Image
-                  src={(currentCard?.home.logo || currentFixture.teams.home.logo) as string}
-                  alt={currentCard?.home.name || currentFixture.teams.home.name}
-                  width={80}
-                  height={80}
-                  className="mx-auto mb-3 w-20 h-20 object-contain"
-                  priority
-                />
-              ) : (
-                <div className="w-12 h-12 mx-auto mb-24 bg-purple-800 rounded-full flex items-center justify-center">
-                  <span className="text-black font-bold text-lg">
-                    {(currentCard?.home.name || currentFixture.teams.home.name).charAt(0)}
-                  </span>
-                </div>
-              )}
-              <h3 className="font-bold text-lg mb-1 text-black">{currentCard?.home.name || currentFixture.teams.home.name}</h3>
-              <p className="text-xs text-black">Posizione in classifica</p>
-              <p className="font-bold text-black">{currentCard?.home.standingsPosition ?? '—'}</p>
-              <p className="text-xs text-black mt-1">Vittorie in casa</p>
-              <p className="font-bold text-black">{currentCard?.home.winRateHome != null ? `${currentCard.home.winRateHome}%` : '—'}</p>
-              <p className="text-xs text-black mt-1">Ultimi 5 risultati</p>
-              {currentCard ? renderLastFive(currentCard.home.last5, 'home', currentCard.home.form) : renderLastFive([], 'home')}
-            </div>
-
-            {/* VS */}
-            <div className="px-4">
-              <div className="text-2xl font-bold text-gray-400">VS</div>
-            </div>
-
-            {/* Away Team */}
-            <div className="flex-1 text-center">
-              {(currentCard?.away.logo || currentFixture.teams.away.logo) ? (
-                <Image
-                  src={(currentCard?.away.logo || currentFixture.teams.away.logo) as string}
-                  alt={currentCard?.away.name || currentFixture.teams.away.name}
-                  width={80}
-                  height={80}
-                  className="mx-auto mb-3 w-20 h-20 object-contain"
-                  priority
-                />
-              ) : (
-                <div className="w-12 h-12 mx-auto mb-3 bg-blue-200 rounded-full flex items-center justify-center">
-                  <span className="text-blue-600 font-bold text-lg">
-                    {(currentCard?.away.name || currentFixture.teams.away.name).charAt(0)}
-                  </span>
-                </div>
-              )}
-              <h3 className="font-bold text-lg mb-1 text-black">{currentCard?.away.name || currentFixture.teams.away.name}</h3>
-              <p className="text-xs text-black">Posizione in classifica</p>
-              <p className="font-bold text-black">{currentCard?.away.standingsPosition ?? '—'}</p>
-              <p className="text-xs text-black mt-1">Vittorie in trasferta</p>
-              <p className="font-bold text-black">{currentCard?.away.winRateAway != null ? `${currentCard.away.winRateAway}%` : '—'}</p>
-              <p className="text-xs text-black mt-1">Ultimi 5 risultati</p>
-              {currentCard ? renderLastFive(currentCard.away.last5, 'away', currentCard.away.form) : renderLastFive([], 'away')}
+      {/* Match Card Stack with Swipe */}
+      <div className="mx-4 mb-8 relative">
+        {/* Next card preview to be revealed */}
+        {fixtures[currentFixtureIndex + 1] && (
+          <div className="absolute inset-0 scale-[0.97] opacity-95 pointer-events-none">
+            <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
+              {/* Next card content */}
+              {(() => {
+                const nf = fixtures[currentFixtureIndex + 1];
+                const nc = matchCards[currentFixtureIndex + 1];
+                return (
+                  <>
+                    <div className="text-center mb-6">
+                      <p className="text-black text-sm mb-1">{nc ? nc.kickoff.display : formatMatchDateTime(nf.date)}</p>
+                      <p className="text-black text-xs">{nc?.stadium || nf.venue.name}</p>
+                    </div>
+                    <div className="flex items-center justify-between mb-8">
+                      <div className="flex-1 text-center opacity-95">
+                        {(nc?.home.logo || nf.teams.home.logo) ? (
+                          <Image src={(nc?.home.logo || nf.teams.home.logo) as string} alt={nc?.home.name || nf.teams.home.name} width={80} height={80} className="mx-auto mb-3 w-20 h-20 object-contain" />
+                        ) : (
+                          <div className="w-12 h-12 mx-auto mb-24 bg-purple-100 rounded-full" />
+                        )}
+                        <h3 className="font-bold text-lg mb-1 text-black">{nc?.home.name || nf.teams.home.name}</h3>
+                      </div>
+                      <div className="px-4">
+                        <div className="text-2xl font-bold text-gray-300">VS</div>
+                      </div>
+                      <div className="flex-1 text-center opacity-95">
+                        {(nc?.away.logo || nf.teams.away.logo) ? (
+                          <Image src={(nc?.away.logo || nf.teams.away.logo) as string} alt={nc?.away.name || nf.teams.away.name} width={80} height={80} className="mx-auto mb-3 w-20 h-20 object-contain" />
+                        ) : (
+                          <div className="w-12 h-12 mx-auto mb-3 bg-blue-100 rounded-full" />
+                        )}
+                        <h3 className="font-bold text-lg mb-1 text-black">{nc?.away.name || nf.teams.away.name}</h3>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Top (current) card - draggable */}
+        <motion.div
+          key={currentFixture?.id}
+          drag
+          dragElastic={0}
+          dragMomentum={false}
+          onDragEnd={onDragEndCommit}
+          animate={controls}
+          initial={{ x: 0, y: 0, rotate: 0 }}
+          whileDrag={{ scale: 1.02 }}
+          className="relative z-10"
+        >
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
+            {/* Match Info */}
+            <div className="text-center mb-6">
+              <p className="text-black text-sm mb-1">{currentCard ? currentCard.kickoff.display : formatMatchDateTime(currentFixture.date)}</p>
+              <p className="text-black text-xs">{currentCard?.stadium || currentFixture.venue.name}</p>
+            </div>
+
+            {/* Teams */}
+            <div className="flex items-center justify-between mb-8">
+              {/* Home Team */}
+              <div className="flex-1 text-center">
+                {(currentCard?.home.logo || currentFixture.teams.home.logo) ? (
+                  <Image
+                    src={(currentCard?.home.logo || currentFixture.teams.home.logo) as string}
+                    alt={currentCard?.home.name || currentFixture.teams.home.name}
+                    width={80}
+                    height={80}
+                    className="mx-auto mb-3 w-20 h-20 object-contain"
+                    priority
+                  />
+                ) : (
+                  <div className="w-12 h-12 mx-auto mb-24 bg-purple-800 rounded-full flex items-center justify-center">
+                    <span className="text-black font-bold text-lg">
+                      {(currentCard?.home.name || currentFixture.teams.home.name).charAt(0)}
+                    </span>
+                  </div>
+                )}
+                <h3 className="font-bold text-lg mb-1 text-black">{currentCard?.home.name || currentFixture.teams.home.name}</h3>
+                <p className="text-xs text-black">Posizione in classifica</p>
+                <p className="font-bold text-black">{currentCard?.home.standingsPosition ?? '—'}</p>
+                <p className="text-xs text-black mt-1">Vittorie in casa</p>
+                <p className="font-bold text-black">{currentCard?.home.winRateHome != null ? `${currentCard.home.winRateHome}%` : '—'}</p>
+                <p className="text-xs text-black mt-1">Ultimi 5 risultati</p>
+                {currentCard ? renderLastFive(currentCard.home.last5, 'home', currentCard.home.form) : renderLastFive([], 'home')}
+              </div>
+
+              {/* VS */}
+              <div className="px-4">
+                <div className="text-2xl font-bold text-gray-400">VS</div>
+              </div>
+
+              {/* Away Team */}
+              <div className="flex-1 text-center">
+                {(currentCard?.away.logo || currentFixture.teams.away.logo) ? (
+                  <Image
+                    src={(currentCard?.away.logo || currentFixture.teams.away.logo) as string}
+                    alt={currentCard?.away.name || currentFixture.teams.away.name}
+                    width={80}
+                    height={80}
+                    className="mx-auto mb-3 w-20 h-20 object-contain"
+                    priority
+                  />
+                ) : (
+                  <div className="w-12 h-12 mx-auto mb-3 bg-blue-200 rounded-full flex items-center justify-center">
+                    <span className="text-blue-600 font-bold text-lg">
+                      {(currentCard?.away.name || currentFixture.teams.away.name).charAt(0)}
+                    </span>
+                  </div>
+                )}
+                <h3 className="font-bold text-lg mb-1 text-black">{currentCard?.away.name || currentFixture.teams.away.name}</h3>
+                <p className="text-xs text-black">Posizione in classifica</p>
+                <p className="font-bold text-black">{currentCard?.away.standingsPosition ?? '—'}</p>
+                <p className="text-xs text-black mt-1">Vittorie in trasferta</p>
+                <p className="font-bold text-black">{currentCard?.away.winRateAway != null ? `${currentCard.away.winRateAway}%` : '—'}</p>
+                <p className="text-xs text-black mt-1">Ultimi 5 risultati</p>
+                {currentCard ? renderLastFive(currentCard.away.last5, 'away', currentCard.away.form) : renderLastFive([], 'away')}
+              </div>
+            </div>
+          </div>
+        </motion.div>
       </div>
 
       {/* Prediction Buttons - Diamond Layout */}
