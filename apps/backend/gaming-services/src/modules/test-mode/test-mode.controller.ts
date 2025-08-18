@@ -80,6 +80,24 @@ export class TestModeController {
     };
   }
 
+  @Get('match-cards/week/:week')
+  async getMatchCardsByWeek(
+    @Param('week', ParseIntPipe) week: number,
+    @Query('userId') userId?: string,
+  ) {
+    this.logger.log(
+      `Getting match cards for week ${week}${userId ? ` (userId=${userId})` : ''}`,
+    );
+
+    const cards = await this.testModeService.getMatchCardsByWeek(week, userId);
+
+    return {
+      success: true,
+      data: cards,
+      message: `Match cards retrieved for week ${week}`,
+    };
+  }
+
   @Get('weeks')
   async getAllTestWeeks() {
     this.logger.log('Getting all available test weeks');

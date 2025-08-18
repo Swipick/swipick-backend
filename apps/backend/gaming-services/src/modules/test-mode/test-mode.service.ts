@@ -9,6 +9,15 @@ import { Repository } from 'typeorm';
 import { TestFixture } from '../../entities/test-fixture.entity';
 import { TestSpec } from '../../entities/test-spec.entity';
 import { WeeklyStats, UserSummary } from './dto/test-mode.dto';
+import {
+  MatchCardDto,
+  OneXTwo,
+  ResultCode,
+  Last5ItemDto,
+} from './dto/match-cards.dto';
+import { In } from 'typeorm';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Re-export for external use
 export { WeeklyStats, UserSummary } from './dto/test-mode.dto';
@@ -16,6 +25,12 @@ export { WeeklyStats, UserSummary } from './dto/test-mode.dto';
 @Injectable()
 export class TestModeService {
   private readonly logger = new Logger(TestModeService.name);
+  // In-memory cache for match-cards keyed by (week|userId)
+  private readonly matchCardsCache = new Map<
+    string,
+    { data: MatchCardDto[]; expiresAt: number }
+  >();
+  private readonly MATCH_CARDS_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
   constructor(
     @InjectRepository(TestFixture)
@@ -23,6 +38,362 @@ export class TestModeService {
     @InjectRepository(TestSpec)
     private testSpecRepository: Repository<TestSpec>,
   ) {}
+
+  // --- Match Cards Aggregation ---
+  async getMatchCardsByWeek(
+    week: number,
+    userId?: string,
+  ): Promise<MatchCardDto[]> {
+    // Cache hit
+    const cacheKey = this.getCacheKey(week, userId);
+    const cached = this.matchCardsCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      this.logger.debug(`Cache hit match-cards: ${cacheKey}`);
+      return cached.data;
+    }
+    // Retrieve fixtures for the requested week
+    const fixtures = await this.testFixtureRepository.find({
+      where: { week },
+      order: { date: 'ASC' },
+    });
+
+    // For Week 1, stats must be empty/null
+    const isWeekOne = week <= 1;
+
+    const cards: MatchCardDto[] = [];
+
+    // Preload prior fixtures up to week-1 to compute stats in-memory
+    const priorFixtures = isWeekOne
+      ? []
+      : await this.testFixtureRepository
+          .createQueryBuilder('fixture')
+          .where('fixture.week < :week', { week })
+          .andWhere(
+            'fixture.homeScore IS NOT NULL AND fixture.awayScore IS NOT NULL',
+          )
+          .orderBy('fixture.date', 'ASC')
+          .getMany();
+
+    // Compute standings up to week-1
+    let standings = isWeekOne
+      ? new Map<string, number>()
+      : await this.computeStandingsUpToWeek(week);
+
+    // Optional: CSV fallback/verification (data/classifica/serie_a_giornata_<week-1>_classifica.csv)
+    if (!isWeekOne && standings.size === 0) {
+      const csvPos = this.tryLoadStandingsCsv(week - 1);
+      if (csvPos) standings = csvPos;
+    }
+
+    // Preload last5 fixture ids per team to join predictions
+    const teams = new Set<string>(
+      fixtures.flatMap((f) => [f.homeTeam, f.awayTeam]),
+    );
+    const last5IdsByTeam = new Map<string, number[]>();
+    const last5CodesByTeam = new Map<string, ResultCode[]>();
+    const resultCodeById = new Map<number, ResultCode>();
+    // Build resultCodeById from prior fixtures
+    for (const f of priorFixtures) {
+      const r = f.calculateResult();
+      if (r) resultCodeById.set(f.id, r as ResultCode);
+    }
+    for (const team of teams) {
+      const last5Context = this.computeLast5Fixtures(priorFixtures, team);
+      last5IdsByTeam.set(team, last5Context.ids);
+      last5CodesByTeam.set(team, last5Context.codes);
+    }
+
+    // Lookup user predictions for overlay
+    let userPreds = new Map<number, ResultCode>();
+    if (userId) {
+      const allIds = Array.from(last5IdsByTeam.values()).flat();
+      if (allIds.length > 0) {
+        const preds = await this.testSpecRepository.find({
+          where: { userId: Number(userId), fixtureId: In(allIds) },
+        });
+        userPreds = new Map(
+          preds.map((p) => [p.fixtureId, p.choice as ResultCode]),
+        );
+      }
+    }
+
+    for (const f of fixtures) {
+      const kickoffIso = f.date.toISOString();
+      const kickoffDisplay = this.formatEuropeRomeDisplay(f.date);
+
+      const homeLast5 = isWeekOne ? [] : last5CodesByTeam.get(f.homeTeam) || [];
+      const awayLast5 = isWeekOne ? [] : last5CodesByTeam.get(f.awayTeam) || [];
+
+      const homeWinRate = isWeekOne
+        ? null
+        : this.computeWinRate(priorFixtures, f.homeTeam, 'home');
+      const awayWinRate = isWeekOne
+        ? null
+        : this.computeWinRate(priorFixtures, f.awayTeam, 'away');
+
+      const homeForm = isWeekOne
+        ? []
+        : this.toForm(
+            last5IdsByTeam.get(f.homeTeam) || [],
+            userPreds,
+            resultCodeById,
+          );
+      const awayForm = isWeekOne
+        ? []
+        : this.toForm(
+            last5IdsByTeam.get(f.awayTeam) || [],
+            userPreds,
+            resultCodeById,
+          );
+
+      cards.push({
+        week: f.week,
+        fixtureId: f.id,
+        kickoff: { iso: kickoffIso, display: kickoffDisplay },
+        stadium: f.stadium || null,
+        home: {
+          name: f.homeTeam,
+          logo: this.resolveTeamLogo(f.homeTeam),
+          winRateHome: homeWinRate,
+          last5: homeLast5,
+          standingsPosition: standings.get(f.homeTeam) ?? null,
+          form: homeForm,
+        },
+        away: {
+          name: f.awayTeam,
+          logo: this.resolveTeamLogo(f.awayTeam),
+          winRateAway: awayWinRate,
+          last5: awayLast5,
+          standingsPosition: standings.get(f.awayTeam) ?? null,
+          form: awayForm,
+        },
+      });
+    }
+
+    this.logger.log(`Match cards built for week ${week}: ${cards.length}`);
+
+    // Store in cache
+    this.matchCardsCache.set(cacheKey, {
+      data: cards,
+      expiresAt: Date.now() + this.MATCH_CARDS_TTL_MS,
+    });
+
+    return cards;
+  }
+
+  private computeLast5Fixtures(priorFixtures: TestFixture[], teamName: string) {
+    // Filter team fixtures and ensure completed; sort by date ASC
+    const teamPlayed = priorFixtures
+      .filter(
+        (f) =>
+          (f.homeTeam === teamName || f.awayTeam === teamName) &&
+          f.homeScore != null &&
+          f.awayScore != null,
+      )
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    const last = teamPlayed.slice(-5);
+    const ids = last.map((f) => f.id);
+    const codes = last
+      .map((f) => f.calculateResult())
+      .filter(Boolean) as ResultCode[];
+    return { ids, codes };
+  }
+
+  private computeLast5(
+    priorFixtures: TestFixture[],
+    teamName: string,
+    context: 'home' | 'away',
+  ): OneXTwo[] {
+    const results: OneXTwo[] = [];
+    for (const f of priorFixtures) {
+      if (results.length >= 5) break;
+      if (context === 'home' && f.homeTeam === teamName) {
+        const r = f.calculateResult();
+        if (r) results.push(r as OneXTwo);
+      } else if (context === 'away' && f.awayTeam === teamName) {
+        const r = f.calculateResult();
+        if (r) results.push(r as OneXTwo);
+      }
+    }
+    return results;
+  }
+
+  private computeWinRate(
+    priorFixtures: TestFixture[],
+    teamName: string,
+    context: 'home' | 'away',
+  ): number | null {
+    let played = 0;
+    let wins = 0;
+    for (const f of priorFixtures) {
+      if (context === 'home' && f.homeTeam === teamName) {
+        const r = f.calculateResult();
+        if (!r) continue;
+        played++;
+        if (r === '1') wins++;
+      } else if (context === 'away' && f.awayTeam === teamName) {
+        const r = f.calculateResult();
+        if (!r) continue;
+        played++;
+        if (r === '2') wins++;
+      }
+    }
+    if (played === 0) return null;
+    return Math.round((wins / played) * 100);
+  }
+
+  private resolveTeamLogo(name: string): string | null {
+    // Minimal placeholder mapping; to be replaced with team-assets.json in a follow-up
+    const map: Record<string, string> = {
+      'AC Milan': 'https://media.api-sports.io/football/teams/489.png',
+      Inter: 'https://media.api-sports.io/football/teams/505.png',
+      Juventus: 'https://media.api-sports.io/football/teams/496.png',
+      Napoli: 'https://media.api-sports.io/football/teams/492.png',
+      Lazio: 'https://media.api-sports.io/football/teams/487.png',
+      'AS Roma': 'https://media.api-sports.io/football/teams/497.png',
+      Atalanta: 'https://media.api-sports.io/football/teams/499.png',
+      Fiorentina: 'https://media.api-sports.io/football/teams/502.png',
+      Bologna: 'https://media.api-sports.io/football/teams/500.png',
+      Torino: 'https://media.api-sports.io/football/teams/503.png',
+      Udinese: 'https://media.api-sports.io/football/teams/494.png',
+      Genoa: 'https://media.api-sports.io/football/teams/495.png',
+      Sassuolo: 'https://media.api-sports.io/football/teams/488.png',
+      Empoli: 'https://media.api-sports.io/football/teams/511.png',
+      Monza: 'https://media.api-sports.io/football/teams/1579.png',
+      Verona: 'https://media.api-sports.io/football/teams/504.png',
+      Lecce: 'https://media.api-sports.io/football/teams/867.png',
+      Cagliari: 'https://media.api-sports.io/football/teams/490.png',
+      Frosinone: 'https://media.api-sports.io/football/teams/4945.png',
+      Salernitana: 'https://media.api-sports.io/football/teams/514.png',
+    };
+    return map[name] || null;
+  }
+
+  private formatEuropeRomeDisplay(date: Date): string {
+    try {
+      const formatter = new Intl.DateTimeFormat('it-IT', {
+        timeZone: 'Europe/Rome',
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const parts = formatter
+        .formatToParts(date)
+        .reduce((acc, p) => ({ ...acc, [p.type]: p.value }), {} as any);
+      const wd = (parts.weekday || '').replace('.', '');
+      return `${wd} ${parts.day}/${parts.month} – ${parts.hour}:${parts.minute}`;
+    } catch {
+      return date.toISOString();
+    }
+  }
+
+  private async computeStandingsUpToWeek(
+    week: number,
+  ): Promise<Map<string, number>> {
+    const rows = await this.testFixtureRepository
+      .createQueryBuilder('f')
+      .where('f.week < :week', { week })
+      .andWhere('f.homeScore IS NOT NULL AND f.awayScore IS NOT NULL')
+      .getMany();
+
+    type Row = { pts: number; gd: number; gf: number };
+    const table = new Map<string, Row>();
+    const ensure = (t: string) => {
+      if (!table.has(t)) table.set(t, { pts: 0, gd: 0, gf: 0 });
+      return table.get(t)!;
+    };
+
+    for (const f of rows) {
+      const h = ensure(f.homeTeam);
+      const a = ensure(f.awayTeam);
+      h.gf += f.homeScore!;
+      a.gf += f.awayScore!;
+      h.gd += f.homeScore! - f.awayScore!;
+      a.gd += f.awayScore! - f.homeScore!;
+      if (f.homeScore! > f.awayScore!) h.pts += 3;
+      else if (f.homeScore! < f.awayScore!) a.pts += 3;
+      else {
+        h.pts += 1;
+        a.pts += 1;
+      }
+    }
+
+    const sorted = Array.from(table.entries()).sort(
+      ([, x], [, y]) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf,
+    );
+    const pos = new Map<string, number>();
+    sorted.forEach(([team], idx) => pos.set(team, idx + 1));
+    return pos;
+  }
+
+  private toForm(
+    ids: number[],
+    userPreds: Map<number, ResultCode>,
+    codeById: Map<number, ResultCode>,
+  ): Last5ItemDto[] {
+    if (!ids || ids.length === 0) return [];
+    return ids.map((id) => {
+      const code = codeById.get(id)!;
+      const predicted = userPreds.get(id) ?? null;
+      const correct = predicted == null ? null : predicted === code;
+      return { fixtureId: id, code, predicted, correct };
+    });
+  }
+
+  private tryLoadStandingsCsv(week: number): Map<string, number> | null {
+    try {
+      const rel = `data/classifica/serie_a_giornata_${week}_classifica.csv`;
+      const filePath = path.resolve(process.cwd(), rel);
+      if (!fs.existsSync(filePath)) return null;
+      const content = fs.readFileSync(filePath, 'utf8');
+      // Expect CSV with headers including Team and Position (posizione)
+      const lines = content.split(/\r?\n/).filter((l) => l.trim().length);
+      if (lines.length <= 1) return null;
+      const header = lines[0].split(',').map((h) => h.trim().toLowerCase());
+      const teamIdx = header.findIndex((h) => /team|squadra/.test(h));
+      const posIdx = header.findIndex((h) => /pos|position|classifica/.test(h));
+      if (teamIdx === -1 || posIdx === -1) return null;
+      const map = new Map<string, number>();
+      for (let i = 1; i < lines.length; i++) {
+        const parts = lines[i].split(',');
+        const team = (parts[teamIdx] || '').trim();
+        const pos = Number((parts[posIdx] || '').trim());
+        if (team && Number.isFinite(pos)) map.set(team, pos);
+      }
+      return map.size ? map : null;
+    } catch (e) {
+      this.logger.warn(
+        `Failed to read standings CSV for week ${week}: ${String(e)}`,
+      );
+      return null;
+    }
+  }
+
+  // --- Cache helpers ---
+  private getCacheKey(week: number, userId?: string | number): string {
+    const uid = userId == null ? 'anon' : String(userId);
+    return `${week}|${uid}`;
+  }
+
+  private invalidateCacheForUserWeek(userId: number, week: number): void {
+    const key = this.getCacheKey(week, userId);
+    if (this.matchCardsCache.delete(key)) {
+      this.logger.debug(`Cache invalidated for key ${key}`);
+    }
+  }
+
+  private invalidateCacheForUser(userId: number): void {
+    const suffix = `|${userId}`;
+    for (const key of Array.from(this.matchCardsCache.keys())) {
+      if (key.endsWith(suffix)) {
+        this.matchCardsCache.delete(key);
+        this.logger.debug(`Cache invalidated for key ${key}`);
+      }
+    }
+  }
 
   async createTestPrediction(
     userId: number,
@@ -77,6 +448,9 @@ export class TestModeService {
     }
 
     const savedSpec = await this.testSpecRepository.save(testSpec);
+
+    // Invalidate cache for this user's week to refresh last-5 overlay
+    this.invalidateCacheForUserWeek(userId, fixture.week);
 
     this.logger.log(
       `Test prediction created: User ${userId}, Fixture ${fixtureId}, Choice: ${choice}`,
@@ -694,6 +1068,9 @@ export class TestModeService {
     this.logger.log(
       `✅ Test data reset completed for user ${userId}: ${deleteResult.affected || 0} predictions deleted`,
     );
+
+    // Invalidate all cache entries for this user across weeks
+    this.invalidateCacheForUser(userId);
   }
 
   private calculateResultFromScores(

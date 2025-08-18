@@ -223,6 +223,19 @@ export class AppController {
     );
   }
 
+  @Get('api/test-mode/match-cards/week/:week')
+  async getTestMatchCardsByWeek(
+    @Param('week') week: string,
+    @Req() req: Request,
+  ) {
+    const queryString = req.url.split('?')[1] || '';
+    this.logger.log(
+      `Getting test match-cards for week ${week}${queryString ? `?${queryString}` : ''}`,
+    );
+    const endpoint = `/api/test-mode/match-cards/week/${week}${queryString ? `?${queryString}` : ''}`;
+    return this.appService.forwardToGamingServices(endpoint);
+  }
+
   @Get('api/test-mode/weeks')
   async getTestWeeks() {
     this.logger.log('Getting all test weeks');
