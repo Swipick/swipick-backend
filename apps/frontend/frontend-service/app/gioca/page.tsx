@@ -510,6 +510,7 @@ function GiocaPageContent() {
   const currentPrediction = currentFixture ? predictions[currentFixture.id] : undefined;
   const predictionsCount = fixtures.reduce((acc, f) => acc + (predictions[f.id] ? 1 : 0), 0);
   const progressPct = Math.min(predictionsCount / 10, 1) * 100;
+  const isComplete = predictionsCount >= 10;
 
   const buttonStyle: React.CSSProperties = {
     background: 'radial-gradient(circle at center, #554099, #3d2d73)',
@@ -555,6 +556,147 @@ function GiocaPageContent() {
       </div>
     );
   };
+
+  // Short date/time for summary list pills (e.g., "Ven 04 18:30")
+  const formatShortDateTime = (iso: string) => {
+    const d = new Date(iso);
+    const dow = d.toLocaleDateString('it-IT', { weekday: 'short', timeZone: 'Europe/Rome' });
+    const dd = d.toLocaleDateString('it-IT', { day: '2-digit', timeZone: 'Europe/Rome' });
+    const hhmm = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
+    return `${dow} ${dd} ${hhmm}`;
+  };
+
+  // Completed view: summary list of the 10 selections with indigo highlight on chosen 1/X/2
+  if (isComplete) {
+    return (
+      <div className="min-h-screen bg-white">
+        {currentMode === 'test' && (
+          <div className="bg-orange-500 text-white text-center py-3 font-semibold">🧪 MODALITÀ TEST - Dati storici Serie A 2023-24</div>
+        )}
+
+        {/* Header with progress locked at 10/10 */}
+        <div
+          className="w-full mx-0 mt-0 mb-6 rounded-b-2xl rounded-t-none text-white"
+          style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
+        >
+          <div className="text-center pt-6 px-4">
+            {(() => {
+              const range = getWeekDateRange();
+              const from = range?.start?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
+              const to = range?.end?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
+              return (
+                <p className="text-base md:text-lg mb-1 whitespace-nowrap">
+                  Giornata {getWeekNumber()} <span className="opacity-90">{from && to ? `dal ${from} al ${to}` : ''}</span>
+                </p>
+              );
+            })()}
+          </div>
+          <div className="px-6 pb-6">
+            <div className="relative mx-auto" style={{ width: 'calc(100% - 115px)' }}>
+              <div className="bg-white bg-opacity-30 rounded-sm overflow-hidden" style={{ height: '18px' }}>
+                <div className="bg-white h-full rounded-sm" style={{ width: '100%' }} />
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xs font-medium text-[#3d2d73]">10/10</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary list */}
+        <div className="px-4 pb-24">
+          {fixtures.map((f, idx) => {
+            const card = matchCards[idx];
+            const pick = predictions[f.id];
+            const kickoff = card ? card.kickoff.display : formatShortDateTime(f.date);
+            const homeLogo = (card?.home.logo || f.teams.home.logo) as string | undefined;
+            const awayLogo = (card?.away.logo || f.teams.away.logo) as string | undefined;
+            const homeName = card?.home.name || f.teams.home.name;
+            const awayName = card?.away.name || f.teams.away.name;
+
+            const badge = (label: '1'|'X'|'2') => (
+              <div
+                className={
+                  `w-8 h-8 rounded-full grid place-items-center text-xs font-bold ` +
+                  (pick === label ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-500')
+                }
+              >
+                {label}
+              </div>
+            );
+
+            return (
+              <div key={f.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200 mb-4 flex items-center">
+                {/* Teams and details */}
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    {homeLogo ? (
+                      <Image src={homeLogo} alt={homeName} width={28} height={28} className="w-7 h-7 object-contain" />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-purple-100" />
+                    )}
+                    <span className="text-sm font-semibold text-black">{homeName}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {awayLogo ? (
+                      <Image src={awayLogo} alt={awayName} width={28} height={28} className="w-7 h-7 object-contain" />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-blue-100" />
+                    )}
+                    <span className="text-sm font-semibold text-black">{awayName}</span>
+                  </div>
+                </div>
+
+                {/* Kickoff pill */}
+                <div className="mx-3">
+                  <div className="px-3 py-1 rounded-md border text-[11px] text-gray-700 border-gray-200 whitespace-nowrap">
+                    {kickoff}
+                  </div>
+                </div>
+
+                {/* Choice badges */}
+                <div className="flex flex-col gap-2 items-center">
+                  {badge('1')}
+                  {badge('X')}
+                  {badge('2')}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Bottom Nav (same as play view) */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
+          <div className="flex">
+            <button onClick={() => router.push('/risultati')} className="flex-1 text-center py-4">
+              <div className="text-gray-500 mb-1">
+                <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M9 11H7v6h2v-6zm4 0h-2v6h2v-6zm4 0h-2v6h2v-6zM4 22h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16V8H4v2zm0-6h16V2H4v2z"/>
+                </svg>
+              </div>
+              <span className="text-xs text-black">Risultati</span>
+            </button>
+            <div className="flex-1 text-center py-4 border-b-2 border-purple-600">
+              <div className="text-purple-600 mb-1">
+                <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+              </div>
+              <span className="text-xs text-purple-600 font-medium">Gioca</span>
+            </div>
+            <button onClick={() => router.push('/profilo')} className="flex-1 text-center py-4">
+              <div className="text-gray-500 mb-1">
+                <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2c1.1 0 2 .9 2 2 0 .74-.4 1.38-1 1.72v.78h-.5c-.83 0-1.5.67-1.5 1.5v.5c0 .28-.22.5-.5.5s-.5-.22-.5-.5v-.5c0-1.38 1.12-2.5 2.5-2.5H13V5.72c-.6-.34-1-.98-1-1.72 0-1.1.9-2 2-2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+                </svg>
+              </div>
+              <span className="text-xs text-black">Profilo</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
