@@ -116,6 +116,8 @@ function RisultatiPageContent() {
   const [pendingWeekForUrl, setPendingWeekForUrl] = useState<number | null>(null);
   const [rolledWeek1Once, setRolledWeek1Once] = useState(false);
   const [fixtureScores, setFixtureScores] = useState<Map<number, { homeScore: number | null; awayScore: number | null; actual?: Choice }>>(new Map());
+  // Final completion veil (after last reveal in Giornata 4)
+  const [finalVeilOpen, setFinalVeilOpen] = useState(false);
 
   // Semi-circular success meter (SVG half-donut) sized to match the share button width
   const CircularMeter: React.FC<{ percent: number; onShare?: () => void; shareEnabled?: boolean }> = ({ percent, onShare, shareEnabled = true }) => {
@@ -313,6 +315,52 @@ function RisultatiPageContent() {
       setError('Errore nel reset dei dati di test');
     }
   };
+
+  // Unified reset flow used by banner reset and final completion veil
+  const performTestReset = useCallback(async (opts?: { requireConfirm?: boolean }) => {
+    if (!firebaseUser) return;
+    try {
+      const userResp = await apiClient.getUserByFirebaseUid(firebaseUser.uid);
+      const uid = userResp?.data?.id as string | undefined;
+      if (!uid) return;
+      if (opts?.requireConfirm) {
+        const ok = typeof window === 'undefined' ? true : window.confirm('Reimpostare la modalità TEST per questo utente? Tutte le predizioni verranno eliminate.');
+        if (!ok) return;
+      }
+      try { await apiClient.resetTestData(uid); } catch {}
+      try {
+        if (typeof window !== 'undefined') {
+          const toRemove: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i) || '';
+            const isGioca = k.startsWith('swipick:gioca:hasPreds:test:week:') && k.includes(`:user:${uid}`);
+            const isReveal = k.startsWith('swipick:risultati:reveal:test:week:') && k.includes(`:user:${uid}`);
+            const isAutoRoll = k === `swipick:risultati:autoRoll:week1:user:${uid}`;
+            if (isGioca || isReveal || isAutoRoll) toRemove.push(k);
+          }
+          toRemove.forEach((k) => localStorage.removeItem(k));
+        }
+      } catch {}
+      // Refresh summary and go back to week 1
+      setSummary((prev) => (prev ? { ...prev, weeklyStats: [] } : prev));
+      setSelectedWeek(1);
+      setWeekCards([]);
+      setWeeklyStats(null);
+      setRevealed({});
+      const href = typeof window !== 'undefined' ? window.location.href : null;
+      if (href) {
+        const url = new URL(href);
+        url.searchParams.set('mode', 'test');
+        url.searchParams.set('week', '1');
+        window.history.replaceState({}, '', url.toString());
+        setTimeout(() => {
+          try { window.location.reload(); } catch {}
+        }, 60);
+      }
+    } catch (e) {
+      console.error('performTestReset failed', e);
+    }
+  }, [firebaseUser]);
 
   const formatPrediction = (prediction: string) => {
     switch (prediction) {
@@ -654,7 +702,21 @@ function RisultatiPageContent() {
         console.debug('[risultati] onReveal join', { fixtureId, weeklyPresent: !!weeklyStats, pred: joinPred, fallback: joinFx });
       } catch {}
     }
+    // Determine if this click completes all reveals for Giornata 4 (Test Mode)
+    const completesWeek4 = (() => {
+      if (mode !== 'test') return false;
+      if (selectedWeek !== 4) return false;
+      if (weekCards.length !== 10) return false;
+      const wasRevealed = !!revealed[fixtureId];
+      if (wasRevealed) return false;
+      const already = Object.values(revealed).filter(Boolean).length;
+      return already + 1 === 10;
+    })();
+
     setRevealed((prev) => ({ ...prev, [fixtureId]: true }));
+    if (completesWeek4) {
+      setTimeout(() => setFinalVeilOpen(true), 80); // allow UI to update first
+    }
   };
 
   // Auto-rollover to week 2 when all 10 revealed in week 1 (only once)
@@ -701,46 +763,7 @@ function RisultatiPageContent() {
           <div className="bg-orange-500 text-white py-2 px-3 font-semibold flex items-center justify-between">
             <div>🧪 MODALITÀ TEST - Dati storici Serie A 2023-24</div>
             <button
-              onClick={async () => {
-                if (!firebaseUser) return;
-                try {
-                  const userResp = await apiClient.getUserByFirebaseUid(firebaseUser.uid);
-                  const uid = userResp?.data?.id as string | undefined;
-                  if (!uid) return;
-                  const ok = typeof window === 'undefined' ? true : window.confirm('Reimpostare la modalità TEST per questo utente? Tutte le predizioni verranno eliminate.');
-                  if (!ok) return;
-                  try { await apiClient.resetTestData(uid); } catch {}
-                  try {
-                    if (typeof window !== 'undefined') {
-                      const toRemove: string[] = [];
-                      for (let i = 0; i < localStorage.length; i++) {
-                        const k = localStorage.key(i) || '';
-                        const isGioca = k.startsWith('swipick:gioca:hasPreds:test:week:') && k.includes(`:user:${uid}`);
-                        const isReveal = k.startsWith('swipick:risultati:reveal:test:week:') && k.includes(`:user:${uid}`);
-                        const isAutoRoll = k === `swipick:risultati:autoRoll:week1:user:${uid}`;
-                        if (isGioca || isReveal || isAutoRoll) toRemove.push(k);
-                      }
-                      toRemove.forEach((k) => localStorage.removeItem(k));
-                    }
-                  } catch {}
-                  // Refresh summary and go back to week 1
-                  setSummary((prev) => prev ? { ...prev, weeklyStats: [] } : prev);
-                  setSelectedWeek(1);
-                  setWeekCards([]);
-                  setWeeklyStats(null);
-                  setRevealed({});
-                  const href = typeof window !== 'undefined' ? window.location.href : null;
-                  if (href) {
-                    const url = new URL(href);
-                    url.searchParams.set('mode', 'test');
-                    url.searchParams.set('week', '1');
-                    window.history.replaceState({}, '', url.toString());
-                    setTimeout(() => { try { window.location.reload(); } catch {} }, 60);
-                  }
-                } catch (e) {
-                  console.error('reset test (risultati) failed', e);
-                }
-              }}
+              onClick={() => performTestReset({ requireConfirm: true })}
               className="text-xs font-semibold border rounded-md px-2.5 py-1 border-white/70 hover:bg-white/10"
             >
               Reset
@@ -846,7 +869,7 @@ function RisultatiPageContent() {
                   const pred = predByFixture.get(fid);
                   const scoreFallback = fixtureScores.get(fid);
                   const isRevealed = !!revealed[m.fixtureId];
-                  const statusLabel = isRevealed ? 'FINE PARTITA' : 'Mostra risultato';
+                  const statusLabel = isRevealed ? 'FINE PARTITA' : 'MOSTRA RISULTATO';
                   const statusColor = isRevealed ? 'bg-gray-200 text-gray-700' : 'bg-indigo-500 bg-opacity-90 text-white';
                   if (isRevealed && !pred && !scoreFallback) {
                     // Minimal diagnostic to help trace missing scores in prod without spamming
@@ -862,54 +885,69 @@ function RisultatiPageContent() {
                       <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-4 items-center">
                         {/* Col 1: Teams (no date) */}
                         <div className="flex flex-col gap-3">
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 h-12">
                             {m.home.logo ? (
-                              <Image src={m.home.logo} alt={m.home.name} width={28} height={28} className="rounded" />
+                              <Image src={m.home.logo} alt={m.home.name} width={48} height={48} className="rounded" />
                             ) : (
-                              <div className="w-7 h-7 rounded bg-gray-100" />
+                              <div className="w-12 h-12 rounded bg-gray-100" />
                             )}
-                            <div className="text-black font-medium truncate">{m.home.name}</div>
+              <div className="text-black font-bold truncate">{m.home.name}</div>
                           </div>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 h-12">
                             {m.away.logo ? (
-                              <Image src={m.away.logo} alt={m.away.name} width={28} height={28} className="rounded" />
+                              <Image src={m.away.logo} alt={m.away.name} width={48} height={48} className="rounded" />
                             ) : (
-                              <div className="w-7 h-7 rounded bg-gray-100" />
+                              <div className="w-12 h-12 rounded bg-gray-100" />
                             )}
-                            <div className="text-black font-medium truncate">{m.away.name}</div>
+              <div className="text-black font-bold truncate">{m.away.name}</div>
                           </div>
                         </div>
 
                         {/* Col 2: Final scores (two rows) */}
-                        <div className="flex flex-col items-center gap-5 pr-1">
-                          <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">{homeVal != null ? homeVal : (isRevealed ? 'ND' : '–')}</div>
-                          <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">{awayVal != null ? awayVal : (isRevealed ? 'ND' : '–')}</div>
+                        <div className="grid grid-rows-2 pr-1.5">
+                          <div className="h-14 flex items-center justify-center">
+                            <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">{homeVal != null ? homeVal : (isRevealed ? 'ND' : '–')}</div>
+                          </div>
+                          <div className="h-14 flex items-center justify-center">
+                            <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">{awayVal != null ? awayVal : (isRevealed ? 'ND' : '–')}</div>
+                          </div>
                         </div>
 
                         {/* Col 3: Status button (centered) */}
-                        <div className="flex items-center justify-center">
+            <div className="flex items-center justify-center ml-1.5">
                           <button
                             onClick={() => onReveal(m.fixtureId)}
                             disabled={isRevealed}
-                            className={`px-3 py-2 rounded-md text-xs font-medium ${statusColor} ${isRevealed ? 'opacity-100 cursor-default' : 'hover:bg-opacity-100'}`}
+                            className={`min-w-[72px] px-2 py-2 rounded-md text-[11px] leading-tight text-center font-medium ${statusColor} ${isRevealed ? 'opacity-100 cursor-default' : 'hover:bg-opacity-100'}`}
                           >
-                            {statusLabel}
+                            {(() => {
+                              const parts = statusLabel.split(' ');
+                              if (parts.length >= 2) {
+                                return (
+                                  <>
+                                    <span className="block">{parts[0]}</span>
+                                    <span className="block">{parts.slice(1).join(' ')}</span>
+                                  </>
+                                );
+                              }
+                              return statusLabel;
+                            })()}
                           </button>
                         </div>
 
                         {/* Col 4: 1 / X / 2 vertical stack */}
-                        <div className="flex flex-col items-center gap-2">
+                        <div className="flex flex-col items-center gap-2 ml-1.5">
                           {(['1','X','2'] as Choice[]).map((c) => {
                             const chosen = pred?.prediction === c;
                             const actual = pred?.actual ?? scoreFallback?.actual;
                             const correct = actual === c && isRevealed;
                             const classes = correct
-                              ? 'bg-green-500 text-white'
+                              ? 'bg-[#ccffb3] text-[#2a8000]'
                               : chosen && isRevealed
-                                ? 'bg-indigo-500 text-white'
+                                ? 'bg-[#ffb3b3] text-[#cc0000]'
                                 : 'bg-gray-100 text-gray-700';
                             return (
-                              <div key={c} className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${classes}`}>{c}</div>
+                              <div key={c} className={`w-8 h-8 rounded-md flex items-center justify-center text-sm font-semibold ${classes}`}>{c}</div>
                             );
                           })}
                         </div>
@@ -1117,6 +1155,31 @@ function RisultatiPageContent() {
                 className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
               >
                 Vai a Gioca
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Final Completion Veil (after last reveal in Giornata 4) */}
+      {finalVeilOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
+            <h3 className="text-xl font-semibold text-black mb-2">Grazie per aver completato il gioco di prova</h3>
+            <p className="text-sm text-gray-700 mb-5">
+              Hai completato tutte le rivelazioni della Giornata 4. Puoi reimpostare la Modalità Test per ricominciare da capo.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setFinalVeilOpen(false)}
+                className="px-5 py-2 rounded-md border border-gray-300 text-black font-medium hover:bg-gray-50"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => performTestReset({ requireConfirm: false })}
+                className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
+              >
+                Reset
               </button>
             </div>
           </div>
