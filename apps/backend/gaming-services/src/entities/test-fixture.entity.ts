@@ -30,10 +30,12 @@ export class TestFixture {
   @Column({ length: 100 })
   awayTeam: string;
 
-  @Column({ nullable: true })
+  // DB column uses snake_case home_goals
+  @Column({ name: 'home_goals', nullable: true })
   homeScore: number;
 
-  @Column({ nullable: true })
+  // DB column uses snake_case away_goals
+  @Column({ name: 'away_goals', nullable: true })
   awayScore: number;
 
   @Column({
@@ -45,6 +47,10 @@ export class TestFixture {
 
   @Column({ nullable: true, length: 10 })
   result: string; // '1', 'X', '2'
+
+  // Some datasets include a raw score string like '1-3'
+  @Column({ name: 'result_raw', nullable: true, length: 16 })
+  resultRaw?: string;
 
   @OneToMany('TestSpec', 'fixture')
   testSpecs: any[];
@@ -62,6 +68,19 @@ export class TestFixture {
       if (this.homeScore > this.awayScore) return '1';
       if (this.homeScore < this.awayScore) return '2';
       return 'X';
+    }
+    // Try to compute from result_raw like '1-3'
+    if (this.resultRaw) {
+      const m = this.resultRaw.match(/(\d+)\s*[-–]\s*(\d+)/);
+      if (m) {
+        const hs = Number(m[1]);
+        const as = Number(m[2]);
+        if (!Number.isNaN(hs) && !Number.isNaN(as)) {
+          if (hs > as) return '1';
+          if (hs < as) return '2';
+          return 'X';
+        }
+      }
     }
     // Fallback to stored result (from imported historical data)
     if (this.result && ['1', 'X', '2'].includes(this.result)) {
@@ -94,6 +113,10 @@ export class TestFixture {
     if (!this.isCompleted()) {
       return 'TBD';
     }
-    return `${this.homeScore}-${this.awayScore}`;
+    if (this.homeScore != null && this.awayScore != null) {
+      return `${this.homeScore}-${this.awayScore}`;
+    }
+    if (this.resultRaw) return this.resultRaw;
+    return 'TBD';
   }
 }

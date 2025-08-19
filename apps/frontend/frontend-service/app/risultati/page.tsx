@@ -9,6 +9,24 @@ import { IoShareOutline } from 'react-icons/io5';
 import { AnimatePresence, motion } from 'framer-motion';
 // Gradient header is inlined; page background is white per design
 
+// Debug flag for targeted instrumentation on Risultati page (enable with NEXT_PUBLIC_DEBUG_RISULTATI=1)
+const DEBUG_RISULTATI = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_DEBUG_RISULTATI === '1';
+
+// Minimal type describing possible fixture row shapes from Test Fixtures endpoint
+type FixtureRow = {
+  id?: number | string;
+  fixture_id?: number | string;
+  fixtureId?: number | string;
+  homeScore?: number | null;
+  awayScore?: number | null;
+  home_goals?: number | null;
+  away_goals?: number | null;
+  homeGoals?: number | null;
+  awayGoals?: number | null;
+  result_raw?: string;
+  resultRaw?: string;
+};
+
 interface WeeklyStats {
   week: number;
   totalPredictions: number;
@@ -390,20 +408,49 @@ function RisultatiPageContent() {
     const run = async () => {
       if (mode !== 'test') { setFixtureScores(new Map()); return; }
       try {
-        const resp = await apiClient.getTestFixturesByWeek(selectedWeek) as unknown as { data?: Array<{ id: number | string; homeScore: number | null; awayScore: number | null }> } | Array<{ id: number | string; homeScore: number | null; awayScore: number | null }>;
-        const arr = Array.isArray(resp) ? resp : resp?.data ?? [];
+        const resp = await apiClient.getTestFixturesByWeek(selectedWeek) as unknown as { data?: Array<FixtureRow> } | Array<FixtureRow>;
+        const arr: FixtureRow[] = Array.isArray(resp) ? resp : (resp?.data ?? []);
         const map = new Map<number, { homeScore: number | null; awayScore: number | null; actual?: Choice }>();
-        for (const f of arr as Array<{ id: number | string; homeScore: number | null; awayScore: number | null }>) {
-          const fid = typeof f.id === 'string' ? Number(f.id) : f.id;
-          const hs = f.homeScore ?? null;
-          const as = f.awayScore ?? null;
+
+        const parseResultRaw = (val: unknown): { hs: number | null; as: number | null } => {
+          if (typeof val === 'string') {
+            const m = val.match(/(\d+)\s*[-–]\s*(\d+)/);
+            if (m) return { hs: Number(m[1]), as: Number(m[2]) };
+          }
+          return { hs: null, as: null };
+        };
+
+        for (const f of arr) {
+          // Accept several id shapes
+          const rawId = (f.id ?? f.fixture_id ?? f.fixtureId) as number | string | undefined;
+          const fid = typeof rawId === 'string' ? Number(rawId) : rawId;
+
+          // Accept several score shapes: homeScore/awayScore, home_goals/away_goals, homeGoals/awayGoals, result_raw
+          let hs: number | null = null;
+          let as: number | null = null;
+          if (typeof f.homeScore === 'number' && typeof f.awayScore === 'number') {
+            hs = f.homeScore; as = f.awayScore;
+          } else if (typeof f.home_goals === 'number' && typeof f.away_goals === 'number') {
+            hs = f.home_goals; as = f.away_goals;
+          } else if (typeof f.homeGoals === 'number' && typeof f.awayGoals === 'number') {
+            hs = f.homeGoals; as = f.awayGoals;
+          } else {
+            const parsed = parseResultRaw(f.result_raw ?? f.resultRaw);
+            hs = parsed.hs; as = parsed.as;
+          }
+
           let actual: Choice | undefined;
           if (typeof hs === 'number' && typeof as === 'number') {
             actual = hs > as ? '1' : hs < as ? '2' : 'X';
           }
-          if (Number.isFinite(fid)) {
-            map.set(fid, { homeScore: hs, awayScore: as, actual });
+          if (Number.isFinite(fid as number)) {
+            map.set(fid as number, { homeScore: hs, awayScore: as, actual });
           }
+        }
+        if (DEBUG_RISULTATI) {
+          try {
+            console.debug('[risultati] fixtures fallback built', { week: selectedWeek, count: map.size, keys: Array.from(map.keys()).slice(0, 12) });
+          } catch {}
         }
         setFixtureScores(map);
       } catch {
@@ -454,6 +501,14 @@ function RisultatiPageContent() {
     }
     return map;
   }, [weeklyStats]);
+
+  // Log weekly stats map composition for debugging
+  useEffect(() => {
+    if (!DEBUG_RISULTATI) return;
+    try {
+      console.debug('[risultati] weeklyStats map', { count: predByFixture.size, keys: Array.from(predByFixture.keys()).slice(0, 12) });
+    } catch {}
+  }, [predByFixture]);
 
   // Compute meter
   const meter = useMemo(() => {
@@ -521,6 +576,13 @@ function RisultatiPageContent() {
     // Ensure stats are present to show scores once reveal is allowed
     if (!weeklyStats) {
       await loadWeeklyStats(selectedWeek);
+    }
+    if (DEBUG_RISULTATI) {
+      try {
+        const joinPred = predByFixture.get(fixtureId);
+        const joinFx = fixtureScores.get(fixtureId);
+        console.debug('[risultati] onReveal join', { fixtureId, weeklyPresent: !!weeklyStats, pred: joinPred, fallback: joinFx });
+      } catch {}
     }
     setRevealed((prev) => ({ ...prev, [fixtureId]: true }));
   };
@@ -669,6 +731,11 @@ function RisultatiPageContent() {
                     // Minimal diagnostic to help trace missing scores in prod without spamming
                     console.warn('No score data found for fixture', fid, 'in week', selectedWeek);
                   }
+                  const homeVal = isRevealed ? (pred?.homeScore ?? scoreFallback?.homeScore) : undefined;
+                  const awayVal = isRevealed ? (pred?.awayScore ?? scoreFallback?.awayScore) : undefined;
+                  if (DEBUG_RISULTATI && isRevealed && homeVal == null && awayVal == null) {
+                    try { console.debug('[risultati] revealed but no scores', { fid, week: selectedWeek }); } catch {}
+                  }
                   return (
                     <div key={m.fixtureId} className="bg-white rounded-2xl p-4 shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-black/5">
                       <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-4 items-center">
@@ -694,8 +761,8 @@ function RisultatiPageContent() {
 
                         {/* Col 2: Final scores (two rows) */}
                         <div className="flex flex-col items-center gap-5 pr-1">
-                          <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">{isRevealed ? ((pred?.homeScore ?? scoreFallback?.homeScore) ?? '–') : '–'}</div>
-                          <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">{isRevealed ? ((pred?.awayScore ?? scoreFallback?.awayScore) ?? '–') : '–'}</div>
+                          <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">{homeVal != null ? homeVal : (isRevealed ? 'ND' : '–')}</div>
+                          <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">{awayVal != null ? awayVal : (isRevealed ? 'ND' : '–')}</div>
                         </div>
 
                         {/* Col 3: Status button (centered) */}
