@@ -761,23 +761,29 @@ function RisultatiPageContent() {
   return (
     <div className="min-h-screen bg-white pb-20">
       <div className="pb-4">
-        {/* Test Mode banner with Reset */}
-        {mode === 'test' && (
-          <div className="bg-orange-500 text-white py-2 px-3 font-semibold flex items-center justify-between">
-            <div>🧪 MODALITÀ TEST - Dati storici Serie A 2023-24</div>
-            <button
-              onClick={() => performTestReset({ requireConfirm: true })}
-              className="text-xs font-semibold border rounded-md px-2.5 py-1 border-white/70 hover:bg-white/10"
-            >
-              Reset
-            </button>
-          </div>
-        )}
         {/* Top Header Panel (modal-like) */}
         <div
           className="w-full mx-0 mt-0 mb-6 rounded-b-2xl rounded-t-none text-white"
           style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
         >
+          {mode === 'test' && (
+            <div className="pt-3 px-4 flex">
+              <div
+                className="inline-flex items-center gap-2 rounded-full px-3 py-1"
+                style={{ backgroundColor: '#A9BA9D', color: '#043927' }}
+              >
+                <span className="text-xs font-semibold">MODALITÀ TEST - Dati storici Serie A 2023-24</span>
+                <button
+                  onClick={() => performTestReset({ requireConfirm: true })}
+                  className="text-xs font-semibold rounded-full px-2 py-0.5"
+                  style={{ backgroundColor: '#780606', color: '#ffffff' }}
+                  title={'Reimposta Test Mode'}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          )}
           <div className="relative px-4 pt-10 pb-6">
             {/* Faded previous (left) - clickable */}
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-sm opacity-30">
@@ -1075,7 +1081,7 @@ function RisultatiPageContent() {
         )}
 
         {/* Bottom Navigation */}
-  <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
           <div className="flex">
             <button
               onClick={() => {

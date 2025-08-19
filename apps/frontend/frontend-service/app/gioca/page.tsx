@@ -1011,17 +1011,7 @@ function GiocaPageContent() {
     return (
       <div className="min-h-screen bg-white">
         {currentMode === 'test' && (
-          <div className="bg-orange-500 text-white py-2 px-3 font-semibold flex items-center justify-between">
-            <div>🧪 MODALITÀ TEST - Dati storici Serie A 2023-24</div>
-            <button
-              onClick={handleTestReset}
-              disabled={!userKey}
-              className={`text-xs font-semibold border rounded-md px-2.5 py-1 ${userKey ? 'border-white/70 hover:bg-white/10' : 'border-white/30 opacity-60 cursor-not-allowed'}`}
-              title={userKey ? 'Reimposta Test Mode' : 'Attendere il caricamento utente'}
-            >
-              Reset
-            </button>
-          </div>
+          <></>
         )}
 
         {/* Header with progress locked at 10/10 */}
@@ -1029,6 +1019,25 @@ function GiocaPageContent() {
           className="w-full mx-0 mt-0 mb-6 rounded-b-2xl rounded-t-none text-white"
           style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
         >
+          {currentMode === 'test' && (
+            <div className="pt-3 px-4 flex">
+              <div
+                className="inline-flex items-center gap-2 rounded-full px-3 py-1"
+                style={{ backgroundColor: '#A9BA9D', color: '#043927' }}
+              >
+                <span className="text-xs font-semibold">MODALITÀ TEST - Dati storici Serie A 2023-24</span>
+                <button
+                  onClick={handleTestReset}
+                  disabled={!userKey}
+                  className={`text-xs font-semibold rounded-full px-2 py-0.5 ${userKey ? '' : 'opacity-60 cursor-not-allowed'}`}
+                  style={{ backgroundColor: '#780606', color: '#ffffff' }}
+                  title={userKey ? 'Reimposta Test Mode' : 'Attendere il caricamento utente'}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          )}
           <div className="text-center pt-6 px-4">
             {(() => {
               const range = getWeekDateRange();
@@ -1115,7 +1124,7 @@ function GiocaPageContent() {
           })}
         </div>
 
-  {/* Bottom Nav (same as play view) */}
+        {/* Bottom Nav (same as play view) */}
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
           <div className="flex">
             <button onClick={() => {
@@ -1123,13 +1132,13 @@ function GiocaPageContent() {
               router.push(`/risultati?mode=${currentMode}${currentMode === 'test' ? `&week=${selectedWeek}` : ''}`);
             }} className="flex-1 text-center py-4">
               <div className="text-gray-500 mb-1">
-    <FaMedal className="w-6 h-6 mx-auto" />
+                <FaMedal className="w-6 h-6 mx-auto" />
               </div>
               <span className="text-xs text-black">Risultati</span>
             </button>
             <div className="flex-1 text-center py-4 border-b-2 border-purple-600">
               <div className="text-purple-600 mb-1">
-    <RiFootballLine className="w-6 h-6 mx-auto" />
+                <RiFootballLine className="w-6 h-6 mx-auto" />
               </div>
               <span className="text-xs text-purple-600 font-medium">Gioca</span>
             </div>
@@ -1147,20 +1156,8 @@ function GiocaPageContent() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Test Mode Indicator */}
-      {currentMode === 'test' && (
-        <div className="bg-orange-500 text-white py-2 px-3 font-semibold flex items-center justify-between">
-          <div>🧪 MODALITÀ TEST - Dati storici Serie A 2023-24</div>
-          <button
-            onClick={handleTestReset}
-            disabled={!userKey}
-            className={`text-xs font-semibold border rounded-md px-2.5 py-1 ${userKey ? 'border-white/70 hover:bg-white/10' : 'border-white/30 opacity-60 cursor-not-allowed'}`}
-            title={userKey ? 'Reimposta Test Mode' : 'Attendere il caricamento utente'}
-          >
-            Reset
-          </button>
-        </div>
-      )}
+  {/* Test Mode Indicator moved into header as a lozenge */}
+  {currentMode === 'test' && <></>}
       
       {/* Top Header Panel (match button gradient) */}
       <div
@@ -1171,6 +1168,25 @@ function GiocaPageContent() {
             '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
         }}
       >
+        {currentMode === 'test' && (
+          <div className="pt-3 px-4 flex">
+            <div
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1"
+              style={{ backgroundColor: '#A9BA9D', color: '#043927' }}
+            >
+              <span className="text-xs font-semibold">MODALITÀ TEST - Dati storici Serie A 2023-24</span>
+              <button
+                onClick={handleTestReset}
+                disabled={!userKey}
+                className={`text-xs font-semibold rounded-full px-2 py-0.5 ${userKey ? '' : 'opacity-60 cursor-not-allowed'}`}
+                style={{ backgroundColor: '#780606', color: '#ffffff' }}
+                title={userKey ? 'Reimposta Test Mode' : 'Attendere il caricamento utente'}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        )}
         <div className="text-center pt-6 px-4">
           {(() => {
             const range = getWeekDateRange();
