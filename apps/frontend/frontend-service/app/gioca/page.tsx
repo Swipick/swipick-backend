@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense, useCallback } from "react";
+import { useState, useEffect, Suspense, useCallback, useRef } from "react";
 import { motion, useAnimationControls, PanInfo } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
@@ -8,6 +8,9 @@ import { apiClient } from "@/lib/api-client";
 import { getLogoForTeam } from "@/lib/club-logos";
 import { useGameMode } from "@/src/contexts/GameModeContext";
 import { useAuthContext } from "@/src/contexts/AuthContext";
+
+// Debug flag (enable with NEXT_PUBLIC_DEBUG_GIOCA=1)
+const DEBUG_GIOCA = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_DEBUG_GIOCA === '1';
 
 interface Team {
   id: number;
@@ -118,6 +121,14 @@ function GiocaPageContent() {
   const [userMissingModal, setUserMissingModal] = useState<{ show: boolean; triedUid?: string }>(() => ({ show: false }));
   // Test Mode: if week already completed (10/10 predictions), disable gameplay and show veil
   const [weekComplete, setWeekComplete] = useState(false);
+  // Persisted rollover flag from Risultati once all 10 of week 1 are revealed
+  const [rolledWeek1Once, setRolledWeek1Once] = useState(false);
+  const didDefaultWeekRef = useRef(false);
+  const mismatchLogOnceRef = useRef(false);
+  // Local flag to avoid noisy 404 on week-2 stats before any picks exist
+  const hasWeekPredsKey = useCallback((week: number, u?: string | null) => {
+    return `swipick:gioca:hasPreds:test:week:${week}:user:${u ?? 'anon'}`;
+  }, []);
 
   // Update context if mode changed via URL
   useEffect(() => {
@@ -127,13 +138,50 @@ function GiocaPageContent() {
   }, [currentMode, mode, setMode]);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchFixtures = async () => {
       try {
         setLoading(true);
         setError(null);
-        let fixtureData: Fixture[] = [];
+  let fixtureData: Fixture[] = [];
+  let mcLenForLog = 0;
+  let cardsArrLocal: MatchCard[] = [];
 
     if (currentMode === 'test') {
+          // If we should be on week 2 due to rollover, avoid fetching week 1 and flip URL first
+      if (selectedWeek === 1) {
+            try {
+              let rolled = false;
+              if (typeof window !== 'undefined' && window.localStorage) {
+                for (let i = 0; i < localStorage.length; i++) {
+                  const k = localStorage.key(i) || '';
+                  if (k.startsWith('swipick:risultati:autoRoll:week1:user:') && localStorage.getItem(k) === '1') {
+                    rolled = true;
+                    break;
+                  }
+                }
+              }
+              if (rolled) {
+                if (DEBUG_GIOCA) { try { console.log('[gioca] suppress week1 fetch due to rollover flag; redirecting to week=2'); } catch {} }
+                // Flip URL to week=2 and exit early; next effect run will fetch week 2
+                const href = typeof window !== 'undefined' ? window.location.href : null;
+                if (href) {
+                  const url = new URL(href);
+                  url.searchParams.set('mode', 'test');
+                  url.searchParams.set('week', '2');
+                  router.replace(url.toString());
+                }
+        if (!cancelled) setLoading(false);
+        return; // don't fetch week 1
+              }
+            } catch {}
+          }
+          // In Test Mode, wait for backend user id to avoid double-fetch (w/o and with overlay)
+          if (!userKey) {
+            if (DEBUG_GIOCA) { try { console.log('[gioca] defer fetch until userKey is resolved'); } catch {} }
+      if (!cancelled) setLoading(false);
+      return;
+          }
           // Fetch enriched match-cards for card stats
           try {
       const userIdForOverlay = userKey ?? undefined;
@@ -144,12 +192,22 @@ function GiocaPageContent() {
             }
             if (Array.isArray(mcRaw)) {
               const arr = (mcRaw as MatchCard[]).slice().sort((a, b) => new Date(a.kickoff.iso).getTime() - new Date(b.kickoff.iso).getTime());
-              setMatchCards(arr);
+              cardsArrLocal = arr;
+              if (DEBUG_GIOCA) {
+                try { console.log('[gioca] match-cards loaded', { week: selectedWeek, count: arr.length, first: arr[0]?.fixtureId, userIdForOverlay }); } catch {}
+              }
+              mcLenForLog = arr.length;
             } else {
-              setMatchCards([]);
+              cardsArrLocal = [];
+              if (DEBUG_GIOCA) {
+                try { console.log('[gioca] match-cards empty-or-bad-shape', { week: selectedWeek, mcType: typeof mcRaw }); } catch {}
+              }
             }
           } catch {
-            setMatchCards([]);
+            cardsArrLocal = [];
+            if (DEBUG_GIOCA) {
+              try { console.log('[gioca] match-cards fetch failed'); } catch {}
+            }
           }
 
           // Existing fixtures for header/date-range and navigation
@@ -184,6 +242,9 @@ function GiocaPageContent() {
                 } as Fixture;
               });
             fixtureData = mapped.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 10);
+            if (DEBUG_GIOCA) {
+              try { console.log('[gioca] fixtures loaded', { week: selectedWeek, count: fixtureData.length, first: fixtureData[0]?.id }); } catch {}
+            }
           }
         } else {
           // Load live fixtures
@@ -194,20 +255,35 @@ function GiocaPageContent() {
           fixtureData = response.data || response;
         }
         
+        // Align arrays by position and trim to the same length to avoid UI overlap on first paint
+        if (currentMode === 'test') {
+          const minLen = Math.min(fixtureData.length, cardsArrLocal.length);
+          if (minLen > 0) {
+            fixtureData = fixtureData.slice(0, minLen);
+            cardsArrLocal = cardsArrLocal.slice(0, minLen);
+          }
+          if (cancelled) return;
+          setMatchCards(cardsArrLocal);
+        }
+        if (cancelled) return;
         setFixtures(fixtureData);
-        if (fixtureData.length > 0) {
-          setCurrentFixtureIndex(0);
+        setCurrentFixtureIndex(0);
+        if (DEBUG_GIOCA) {
+          try {
+            console.log('[gioca] fetch complete', { mode: currentMode, week: selectedWeek, fixtures: fixtureData.length, matchCards: mcLenForLog, alignedTo: currentMode === 'test' ? Math.min(fixtureData.length, cardsArrLocal.length) : fixtureData.length, userKey });
+          } catch {}
         }
       } catch (err) {
         console.error('Error fetching fixtures:', err);
         setError(err instanceof Error ? err.message : 'Errore nel caricamento delle partite');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchFixtures();
-  }, [currentMode, selectedWeek, firebaseUser?.uid, userKey]);
+    return () => { cancelled = true; };
+  }, [currentMode, selectedWeek, firebaseUser?.uid, userKey, router]);
 
   // Check if selected week is already fully predicted (Test Mode) and set veil
   useEffect(() => {
@@ -216,6 +292,20 @@ function GiocaPageContent() {
         setWeekComplete(false);
         return;
       }
+      // Avoid calling weekly-stats for Week 2 until the user has made at least one prediction (prevents 404 noise)
+      try {
+        if (selectedWeek === 2) {
+          const k = hasWeekPredsKey(2, userKey);
+          const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
+          if (DEBUG_GIOCA) {
+            try { console.debug('[gioca] week2 local flag', { key: k, hasAny }); } catch {}
+          }
+          if (!hasAny) {
+            setWeekComplete(false);
+            return;
+          }
+        }
+      } catch {}
       try {
         // Authoritative check: ping weekly stats (counts rows in test_specs)
         const weekly = await apiClient.getTestWeeklyStats(userKey, selectedWeek);
@@ -233,6 +323,9 @@ function GiocaPageContent() {
           }
           return 0;
         })();
+        if (DEBUG_GIOCA) {
+          try { console.debug('[gioca] weekly stats', { week: selectedWeek, totalPreds }); } catch {}
+        }
         setWeekComplete(totalPreds >= 10);
       } catch {
         // If weekly endpoint not available, fall back to no veil
@@ -240,7 +333,38 @@ function GiocaPageContent() {
       }
     };
     checkWeekCompletion();
-  }, [currentMode, selectedWeek, userKey]);
+  }, [currentMode, selectedWeek, userKey, hasWeekPredsKey]);
+
+  // Load persisted rollover flag (set by Risultati when all 10 matches of week 1 were revealed)
+  useEffect(() => {
+    if (!userKey) return;
+    try {
+      const k = `swipick:risultati:autoRoll:week1:user:${userKey}`;
+      setRolledWeek1Once(localStorage.getItem(k) === '1');
+  if (DEBUG_GIOCA) { try { console.debug('[gioca] rolledWeek1Once', { key: k, value: localStorage.getItem(k) }); } catch {} }
+    } catch {}
+  }, [userKey]);
+
+  // Default to week=2 in Test Mode after rollover when no explicit week is provided in the URL
+  useEffect(() => {
+    if (didDefaultWeekRef.current) return;
+    if (currentMode !== 'test') return;
+    if (!rolledWeek1Once) return;
+    try {
+      const qp = searchParams.get('week');
+      if (!qp) {
+        const href = typeof window !== 'undefined' ? window.location.href : null;
+        if (href) {
+          const url = new URL(href);
+          url.searchParams.set('mode', 'test');
+          url.searchParams.set('week', '2');
+          router.replace(url.toString());
+          didDefaultWeekRef.current = true;
+          if (DEBUG_GIOCA) { try { console.debug('[gioca] defaulted week to 2 via replace'); } catch {} }
+        }
+      }
+    } catch {}
+  }, [currentMode, rolledWeek1Once, searchParams, router]);
 
   // Resolve backend user id (UUID string) from Firebase UID for persistence in Test Mode
   useEffect(() => {
@@ -310,6 +434,7 @@ function GiocaPageContent() {
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
             .slice(0, 10);
           setFixtures(mapped);
+          if (DEBUG_GIOCA) { try { console.log('[gioca] poll fixtures updated', { week: selectedWeek, count: mapped.length }); } catch {} }
         }
       } catch {
         // ignore poll errors
@@ -317,6 +442,63 @@ function GiocaPageContent() {
     }, 60000); // 60s
     return () => clearInterval(interval);
   }, [currentMode, selectedWeek]);
+
+  // Ensure no veil appears for Week 2 until the user has at least one prediction there
+  useEffect(() => {
+    if (currentMode !== 'test') return;
+    if (selectedWeek !== 2) return;
+    try {
+      const k = hasWeekPredsKey(2, userKey);
+      const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
+      if (!hasAny) {
+        setWeekComplete(false);
+      }
+  if (DEBUG_GIOCA) { try { console.log('[gioca] ensure no veil pre-picks week2', { key: k, hasAny }); } catch {} }
+    } catch {
+      setWeekComplete(false);
+    }
+  }, [currentMode, selectedWeek, userKey, hasWeekPredsKey]);
+
+  // Reset completion flag when switching weeks to avoid stale overlays
+  useEffect(() => {
+    if (currentMode !== 'test') return;
+    setWeekComplete(false);
+  if (DEBUG_GIOCA) { try { console.log('[gioca] reset weekComplete due to week/mode change', { week: selectedWeek, mode: currentMode }); } catch {} }
+  }, [selectedWeek, currentMode]);
+
+  // Compare fixtures and matchCards alignment to detect overlap/mismatch
+  useEffect(() => {
+    if (!DEBUG_GIOCA) return;
+    if (!fixtures.length || !matchCards.length) return;
+    try {
+      const pairs = fixtures.slice(0, Math.min(fixtures.length, matchCards.length)).map((f, i) => ({ i, f: `${f.teams.home.name} vs ${f.teams.away.name}`, c: `${matchCards[i]?.home.name} vs ${matchCards[i]?.away.name}` }));
+      const mismatches = pairs.filter(p => p.f !== p.c);
+  console.log('[gioca] alignment check', { week: selectedWeek, fixtures: fixtures.length, cards: matchCards.length, mismatches });
+    } catch {}
+  }, [fixtures, matchCards, selectedWeek]);
+
+  // Log veil visibility changes
+  const prevVeilRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!DEBUG_GIOCA) return;
+    const canShowVeilNow = (() => {
+      if (currentMode !== 'test') return false;
+      if (weekComplete !== true) return false;
+      if (selectedWeek === 1 && rolledWeek1Once) return false;
+      if (selectedWeek === 2) {
+        try {
+          const k = hasWeekPredsKey(2, userKey);
+          const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
+          return hasAny;
+        } catch { return false; }
+      }
+      return true;
+    })();
+    if (prevVeilRef.current !== canShowVeilNow) {
+      prevVeilRef.current = canShowVeilNow;
+  try { console.log('[gioca] veil state', { canShowVeil: canShowVeilNow, weekComplete, selectedWeek, mode: currentMode }); } catch {}
+    }
+  }, [weekComplete, selectedWeek, currentMode, rolledWeek1Once, hasWeekPredsKey, userKey]);
 
   const handlePrediction = async (fixtureId: number, prediction: '1' | 'X' | '2') => {
     if (currentMode === 'test' && weekComplete) {
@@ -335,6 +517,11 @@ function GiocaPageContent() {
           fixtureId,
           choice: prediction,
         });
+        // Mark that the user has at least one prediction for this week (to enable weekly-stats checks later)
+        try {
+          const k = hasWeekPredsKey(selectedWeek, userKey);
+          localStorage.setItem(k, '1');
+        } catch {}
         // After posting, re-check completion via test weekly-stats to engage veil immediately after 10th pick
         try {
           const weekly = await apiClient.getTestWeeklyStats(userKey, selectedWeek);
@@ -568,10 +755,18 @@ function GiocaPageContent() {
     );
   }
 
-  const currentFixture = fixtures[currentFixtureIndex];
-  const currentCard = matchCards[currentFixtureIndex];
+  // Render-time alignment to avoid overlap when arrays update at different times
+  const minAligned = currentMode === 'test' ? Math.min(fixtures.length, matchCards.length) : fixtures.length;
+  const effectiveFixtures = currentMode === 'test' ? fixtures.slice(0, minAligned) : fixtures;
+  const effectiveCards = currentMode === 'test' ? matchCards.slice(0, minAligned) : matchCards;
+  if (!mismatchLogOnceRef.current && currentMode === 'test' && fixtures.length !== matchCards.length) {
+    try { console.warn('[gioca] arrays misaligned; trimming for render', { fixtures: fixtures.length, matchCards: matchCards.length, using: minAligned }); } catch {}
+    mismatchLogOnceRef.current = true;
+  }
+  const currentFixture = effectiveFixtures[currentFixtureIndex];
+  const currentCard = effectiveCards[currentFixtureIndex];
   const currentPrediction = currentFixture ? predictions[currentFixture.id] : undefined;
-  const predictionsCount = fixtures.reduce((acc, f) => acc + (predictions[f.id] ? 1 : 0), 0);
+  const predictionsCount = effectiveFixtures.reduce((acc, f) => acc + (predictions[f.id] ? 1 : 0), 0);
   const progressPct = Math.min(predictionsCount / 10, 1) * 100;
   const isComplete = predictionsCount >= 10;
 
@@ -584,6 +779,73 @@ function GiocaPageContent() {
     boxShadow: '0 8px 16px rgba(85, 64, 153, 0.2), 0 4px 8px rgba(0, 0, 0, 0.1)',
     border: '1px solid rgba(85, 64, 153, 0.2)',
   };
+
+  // Hard reset (Test Mode): drop user predictions server-side and clear client keys; return to week 1
+  const handleTestReset = async () => {
+    if (currentMode !== 'test') return;
+    if (!userKey) return;
+    try {
+      const confirmMsg = 'Questo reimposterà il gioco in modalità TEST: tutte le tue predizioni verranno eliminate e potrai rigiocare dalla Giornata 1. Procedere?';
+      if (typeof window !== 'undefined') {
+        const ok = window.confirm(confirmMsg);
+        if (!ok) return;
+      }
+      // Backend reset for this user
+      try { await apiClient.resetTestData(userKey); } catch (e) { console.warn('resetTestData failed (continuing local cleanup)', e); }
+
+      // Local cleanup of test-mode keys for this user
+      try {
+        if (typeof window !== 'undefined') {
+          const keysToRemove: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i) || '';
+            const isGioca = k.startsWith('swipick:gioca:hasPreds:test:week:') && k.includes(`:user:${userKey}`);
+            const isReveal = k.startsWith('swipick:risultati:reveal:test:week:') && k.includes(`:user:${userKey}`);
+            const isAutoRoll = k === `swipick:risultati:autoRoll:week1:user:${userKey}`;
+            if (isGioca || isReveal || isAutoRoll) keysToRemove.push(k);
+          }
+          keysToRemove.forEach((k) => localStorage.removeItem(k));
+        }
+      } catch {}
+
+      // Reset local state
+      setPredictions({});
+      setWeekComplete(false);
+      setCurrentFixtureIndex(0);
+
+      // Navigate to week 1 cleanly
+      const href = typeof window !== 'undefined' ? window.location.href : null;
+      if (href) {
+        const url = new URL(href);
+        url.searchParams.set('mode', 'test');
+        url.searchParams.set('week', '1');
+        router.replace(url.toString());
+        // Small delay to let route settle, then soft reload the page data
+        setTimeout(() => {
+          try { window.location.reload(); } catch {}
+        }, 60);
+      }
+    } catch (e) {
+      console.error('Test reset failed', e);
+    }
+  };
+
+  // Decide if the completion veil should be displayed for the current context
+  const canShowVeil = (() => {
+    if (currentMode !== 'test') return false;
+    if (weekComplete !== true) return false;
+    if (selectedWeek === 1 && rolledWeek1Once) return false;
+    if (selectedWeek === 2) {
+      try {
+        const k = hasWeekPredsKey(2, userKey);
+        const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
+        return hasAny;
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  })();
 
   // Helper to render last-5 bubbles
   const renderLastFive = (list: Array<'1' | 'X' | '2'>, side: 'home' | 'away', form?: Last5Item[]) => {
@@ -634,7 +896,17 @@ function GiocaPageContent() {
     return (
       <div className="min-h-screen bg-white">
         {currentMode === 'test' && (
-          <div className="bg-orange-500 text-white text-center py-3 font-semibold">🧪 MODALITÀ TEST - Dati storici Serie A 2023-24</div>
+          <div className="bg-orange-500 text-white py-2 px-3 font-semibold flex items-center justify-between">
+            <div>🧪 MODALITÀ TEST - Dati storici Serie A 2023-24</div>
+            <button
+              onClick={handleTestReset}
+              disabled={!userKey}
+              className={`text-xs font-semibold border rounded-md px-2.5 py-1 ${userKey ? 'border-white/70 hover:bg-white/10' : 'border-white/30 opacity-60 cursor-not-allowed'}`}
+              title={userKey ? 'Reimposta Test Mode' : 'Attendere il caricamento utente'}
+            >
+              Reset
+            </button>
+          </div>
         )}
 
         {/* Header with progress locked at 10/10 */}
@@ -731,7 +1003,10 @@ function GiocaPageContent() {
         {/* Bottom Nav (same as play view) */}
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
           <div className="flex">
-            <button onClick={() => router.push('/risultati')} className="flex-1 text-center py-4">
+            <button onClick={() => {
+              if (DEBUG_GIOCA) { try { console.log('[gioca] nav -> risultati', { mode: currentMode, week: selectedWeek }); } catch {} }
+              router.push(`/risultati?mode=${currentMode}${currentMode === 'test' ? `&week=${selectedWeek}` : ''}`);
+            }} className="flex-1 text-center py-4">
               <div className="text-gray-500 mb-1">
                 <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M9 11H7v6h2v-6zm4 0h-2v6h2v-6zm4 0h-2v6h2v-6zM4 22h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16V8H4v2zm0-6h16V2H4v2z"/>
@@ -765,8 +1040,16 @@ function GiocaPageContent() {
     <div className="min-h-screen bg-white">
       {/* Test Mode Indicator */}
       {currentMode === 'test' && (
-        <div className="bg-orange-500 text-white text-center py-3 font-semibold">
-          🧪 MODALITÀ TEST - Dati storici Serie A 2023-24
+        <div className="bg-orange-500 text-white py-2 px-3 font-semibold flex items-center justify-between">
+          <div>🧪 MODALITÀ TEST - Dati storici Serie A 2023-24</div>
+          <button
+            onClick={handleTestReset}
+            disabled={!userKey}
+            className={`text-xs font-semibold border rounded-md px-2.5 py-1 ${userKey ? 'border-white/70 hover:bg-white/10' : 'border-white/30 opacity-60 cursor-not-allowed'}`}
+            title={userKey ? 'Reimposta Test Mode' : 'Attendere il caricamento utente'}
+          >
+            Reset
+          </button>
         </div>
       )}
       
@@ -834,13 +1117,13 @@ function GiocaPageContent() {
       {/* Match Card Stack with Swipe */}
       <div className="mx-4 mb-8 relative">
         {/* Next card preview to be revealed */}
-        {fixtures[currentFixtureIndex + 1] && (
+  {effectiveFixtures[currentFixtureIndex + 1] && (
           <div className="absolute inset-0 scale-[0.97] opacity-95 pointer-events-none">
             <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
               {/* Next card content */}
               {(() => {
-                const nf = fixtures[currentFixtureIndex + 1];
-                const nc = matchCards[currentFixtureIndex + 1];
+    const nf = effectiveFixtures[currentFixtureIndex + 1];
+    const nc = effectiveCards[currentFixtureIndex + 1];
                 return (
                   <>
                     <div className="text-center mb-6">
@@ -1041,8 +1324,8 @@ function GiocaPageContent() {
         </div>
       )}
 
-      {/* Veil when week is completed (Test Mode) */}
-      {currentMode === 'test' && weekComplete && (
+        {/* Veil when week is completed (Test Mode). Hidden for Week 1 once rollover occurred, to avoid blocking UI when user navigates back. */}
+  {canShowVeil && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
             <h3 className="text-xl font-semibold text-black mb-2">Giornata completata</h3>
@@ -1063,7 +1346,10 @@ function GiocaPageContent() {
   <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
         <div className="flex">
           <button
-            onClick={() => router.push('/risultati')}
+            onClick={() => {
+              if (DEBUG_GIOCA) { try { console.log('[gioca] nav -> risultati', { mode: currentMode, week: selectedWeek }); } catch {} }
+              router.push(`/risultati?mode=${currentMode}${currentMode === 'test' ? `&week=${selectedWeek}` : ''}`);
+            }}
             className="flex-1 text-center py-4"
           >
     <div className="text-gray-500 mb-1">
