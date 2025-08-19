@@ -2,9 +2,6 @@
 
 import React, { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaMedal } from 'react-icons/fa';
-import { RiFootballLine } from 'react-icons/ri';
-import { BsFillFilePersonFill } from 'react-icons/bs';
 
 export default function ProfiloPage() {
   const router = useRouter();
@@ -104,19 +101,25 @@ export default function ProfiloPage() {
             className="flex-1 text-center py-4"
           >
             <div className="text-gray-500 mb-1">
-              <FaMedal className="w-6 h-6 mx-auto" />
+              <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M9 11H7v6h2v-6zm4 0h-2v6h2v-6zm4 0h-2v6h2v-6zM4 22h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16V8H4v2zm0-6h16V2H4v2z"/>
+              </svg>
             </div>
             <span className="text-xs text-black">Risultati</span>
           </button>
           <button onClick={() => router.push('/gioca')} className="flex-1 text-center py-4">
             <div className="text-gray-500 mb-1">
-              <RiFootballLine className="w-6 h-6 mx-auto" />
+              <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+              </svg>
             </div>
             <span className="text-xs text-black">Gioca</span>
           </button>
           <div className="flex-1 text-center py-4 border-b-2 border-purple-600">
             <div className="text-purple-600 mb-1">
-              <BsFillFilePersonFill className="w-6 h-6 mx-auto" />
+              <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2c1.1 0 2 .9 2 2 0 .74-.4 1.38-1 1.72v.78h-.5c-.83 0-1.5.67-1.5 1.5v.5c0 .28-.22.5-.5.5s-.5-.22-.5-.5v-.5c0-1.38 1.12-2.5 2.5-2.5H13V5.72c-.6-.34-1-.98-1-1.72 0-1.1.9-2 2-2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+              </svg>
             </div>
             <span className="text-xs text-purple-600 font-medium">Profilo</span>
           </div>
