@@ -13,6 +13,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
+import { NotificationPreferences } from '../../entities/notification-preferences.entity';
 import {
   CreateUserDto,
   GoogleSyncUserDto,
@@ -268,5 +269,56 @@ export class UsersController {
       timestamp: new Date().toISOString(),
       service: 'users-service',
     };
+  }
+
+  /**
+   * Profile KPIs aggregation (server-side)
+   * GET /api/users/:id/profile-kpis
+   */
+  @Get(':id/profile-kpis')
+  @HttpCode(HttpStatus.OK)
+  async getProfileKpis(@Param('id', ParseUUIDPipe) userId: string): Promise<{
+    success: boolean;
+    data: {
+      averageAccuracy: number;
+      weeksPlayed: number;
+      bestWeek: number;
+      bestWeekNumber: number;
+      worstWeek: number;
+      worstWeekNumber: number;
+    };
+  }> {
+    const data = await this.usersService.getProfileKpis(userId);
+    return { success: true, data };
+  }
+
+  /**
+   * Notification preferences
+   * GET /api/users/:id/preferences
+   */
+  @Get(':id/preferences')
+  @HttpCode(HttpStatus.OK)
+  async getPreferences(
+    @Param('id', ParseUUIDPipe) userId: string,
+  ): Promise<{ success: boolean; data: NotificationPreferences }> {
+    const data = await this.usersService.getPreferences(userId);
+    return { success: true, data };
+  }
+
+  /**
+   * Notification preferences
+   * PUT /api/users/:id/preferences
+   */
+  @Patch(':id/preferences')
+  @HttpCode(HttpStatus.OK)
+  async updatePreferences(
+    @Param('id', ParseUUIDPipe) userId: string,
+    @Body()
+    body: Partial<
+      Pick<NotificationPreferences, 'results' | 'matches' | 'goals'>
+    >,
+  ): Promise<{ success: boolean; data: NotificationPreferences }> {
+    const data = await this.usersService.updatePreferences(userId, body);
+    return { success: true, data };
   }
 }

@@ -1,22 +1,81 @@
+
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuthContext } from '@/src/contexts/AuthContext';
+import { apiClient } from '@/lib/api-client';
+import { Toast } from '@/src/components/Toast';
 
 export default function ImpostazioniPage() {
   const router = useRouter();
+  const { firebaseUser } = useAuthContext();
 
-  // Goal 0 placeholders
-  const user = useMemo(() => ({
-    name: 'Marco Magnocavallo',
-    nickname: 'Marco Magnocavallo',
-    email: 'marco@magno.me',
-  }), []);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [email, setEmail] = useState<string>('');
+  const [nickname, setNickname] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
-  // Notification toggles (local state only)
+  // Notification toggles (persisted)
   const [notifResults, setNotifResults] = useState(true);
   const [notifMatches, setNotifMatches] = useState(true);
   const [notifGoals, setNotifGoals] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!firebaseUser?.uid) return;
+    setLoading(true);
+    setError(null);
+    try {
+      // Resolve backend user by firebase uid
+      const resp = await apiClient.getUserByFirebaseUid(firebaseUser.uid) as { data: { id: string; email: string; nickname?: string } };
+      const u = resp.data;
+      setUserId(u.id);
+      setEmail(u.email || firebaseUser.email || '');
+      setNickname(u.nickname || '');
+      // Fetch preferences
+      const prefResp = await apiClient.getUserPreferences(u.id) as { data: { results: boolean; matches: boolean; goals: boolean } };
+      const p = prefResp.data;
+      setNotifResults(Boolean(p.results));
+      setNotifMatches(Boolean(p.matches));
+      setNotifGoals(Boolean(p.goals));
+    } catch (e) {
+      console.error('[impostazioni] load failed', e);
+      setError('Errore nel caricamento delle impostazioni');
+    } finally {
+      setLoading(false);
+    }
+  }, [firebaseUser]);
+
+  useEffect(() => {
+    if (!firebaseUser) {
+      router.push('/login');
+      return;
+    }
+    load();
+  }, [firebaseUser, load, router]);
+
+  const optimisticUpdate = async (patch: Partial<{ results: boolean; matches: boolean; goals: boolean }>) => {
+    if (!userId) return;
+    const prev = { results: notifResults, matches: notifMatches, goals: notifGoals };
+    // Apply optimistic state
+    if (patch.results !== undefined) setNotifResults(patch.results);
+    if (patch.matches !== undefined) setNotifMatches(patch.matches);
+    if (patch.goals !== undefined) setNotifGoals(patch.goals);
+    try {
+      await apiClient.updateUserPreferences(userId, patch);
+  setToast('Preferenze aggiornate');
+  setTimeout(() => setToast(null), 1800);
+    } catch (e) {
+      console.error('[impostazioni] update prefs failed', e);
+      // rollback
+      setNotifResults(prev.results);
+      setNotifMatches(prev.matches);
+      setNotifGoals(prev.goals);
+      alert('Impossibile aggiornare le preferenze');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white pb-8 pt-[calc(env(safe-area-inset-top)+120px)]">
@@ -38,6 +97,12 @@ export default function ImpostazioniPage() {
       </div>
 
       <div className="px-5">
+        {loading && (
+          <div className="text-sm text-gray-500 mb-3">Caricamento…</div>
+        )}
+        {error && (
+          <div className="text-sm text-red-600 mb-3">{error}</div>
+        )}
         {/* Subheader: Account */}
         <div className="text-sm font-semibold text-gray-800 mt-2 mb-1">Account</div>
 
@@ -46,14 +111,14 @@ export default function ImpostazioniPage() {
           {/* Email (read-only, no arrow) */}
           <div className="py-5.5 flex items-center justify-between">
             <div className="text-gray-800">email</div>
-            <div className="text-gray-500 text-sm">{user.email}</div>
+            <div className="text-gray-500 text-sm">{email}</div>
           </div>
 
           {/* Username (chevron) */}
-          <button className="w-full py-5.5 flex items-center justify-between">
+          <button disabled className="w-full py-5.5 flex items-center justify-between opacity-60 cursor-not-allowed">
             <div className="text-gray-800">username</div>
             <div className="flex items-center gap-2">
-              <div className="text-gray-500 text-sm truncate max-w-[60vw] text-right">{user.nickname}</div>
+              <div className="text-gray-500 text-sm truncate max-w-[60vw] text-right">{nickname || '—'}</div>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5 text-black" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 6l6 6-6 6" />
               </svg>
@@ -61,7 +126,7 @@ export default function ImpostazioniPage() {
           </button>
 
           {/* Password (chevron) */}
-          <button className="w-full py-5.5 flex items-center justify-between">
+          <button disabled className="w-full py-5.5 flex items-center justify-between opacity-60 cursor-not-allowed">
             <div className="text-gray-800">password</div>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5 text-black" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 6l6 6-6 6" />
@@ -69,7 +134,7 @@ export default function ImpostazioniPage() {
           </button>
 
           {/* Immagine profilo (chevron) */}
-          <button className="w-full py-5.5 flex items-center justify-between">
+          <button disabled className="w-full py-5.5 flex items-center justify-between opacity-60 cursor-not-allowed">
             <div className="text-gray-800">immagine profilo</div>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5 text-black" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 6l6 6-6 6" />
@@ -82,7 +147,7 @@ export default function ImpostazioniPage() {
 
         {/* Notification rows */}
         <div>
-          {/* Risultati */}
+      {/* Risultati */}
           <div className="py-3.5 flex items-center justify-between">
             <div>
               <div className="text-gray-800">Risultati</div>
@@ -91,8 +156,8 @@ export default function ImpostazioniPage() {
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
-                checked={notifResults}
-                onChange={(e) => setNotifResults(e.target.checked)}
+        checked={notifResults}
+        onChange={(e) => optimisticUpdate({ results: e.target.checked })}
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-purple-600 transition-colors"></div>
@@ -100,7 +165,7 @@ export default function ImpostazioniPage() {
             </label>
           </div>
 
-          {/* Partite */}
+      {/* Partite */}
           <div className="py-1.5 flex items-center justify-between">
             <div>
               <div className="text-gray-800">Partite</div>
@@ -109,8 +174,8 @@ export default function ImpostazioniPage() {
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
-                checked={notifMatches}
-                onChange={(e) => setNotifMatches(e.target.checked)}
+        checked={notifMatches}
+        onChange={(e) => optimisticUpdate({ matches: e.target.checked })}
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-purple-600 transition-colors"></div>
@@ -118,7 +183,7 @@ export default function ImpostazioniPage() {
             </label>
           </div>
 
-          {/* Gol */}
+      {/* Gol */}
           <div className="py-1.5 flex items-center justify-between">
             <div>
               <div className="text-gray-800">Gol</div>
@@ -127,8 +192,8 @@ export default function ImpostazioniPage() {
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
-                checked={notifGoals}
-                onChange={(e) => setNotifGoals(e.target.checked)}
+        checked={notifGoals}
+        onChange={(e) => optimisticUpdate({ goals: e.target.checked })}
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-purple-600 transition-colors"></div>
@@ -137,6 +202,7 @@ export default function ImpostazioniPage() {
           </div>
         </div>
       </div>
+  {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </div>
   );
 }

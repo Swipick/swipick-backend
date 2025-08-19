@@ -11,6 +11,10 @@ import * as bcrypt from 'bcrypt';
 import { User, AuthProvider } from '../../entities/user.entity';
 import { FirebaseConfigService } from '../../config/firebase.config';
 import { EmailService } from '../../services/email.service';
+import { NotificationPreferences } from '../../entities/notification-preferences.entity';
+import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
+import { firstValueFrom } from 'rxjs';
 import {
   CreateUserDto,
   GoogleSyncUserDto,
@@ -32,15 +36,24 @@ export class UsersService {
   private readonly logger = new Logger(UsersService.name);
   private readonly saltRounds = 12;
 
+  private readonly gamingServicesUrl: string;
+
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(NotificationPreferences)
+    private prefsRepository: Repository<NotificationPreferences>,
     private dataSource: DataSource,
     private firebaseConfig: FirebaseConfigService,
     private emailService: EmailService,
+    private httpService: HttpService,
+    private configService: ConfigService,
   ) {
     this.logger.log('🔧 UsersService initialized');
     this.logger.log(`📧 EmailService available: ${!!this.emailService}`);
+    this.gamingServicesUrl = (
+      this.configService.get<string>('GAMING_SERVICES_URL', '') || ''
+    ).replace(/\/+$/, '');
   }
 
   /**
@@ -318,6 +331,89 @@ export class UsersService {
     return plainToClass(UserResponseDto, user, {
       excludeExtraneousValues: true,
     });
+  }
+
+  /**
+   * Aggregate profile KPIs server-side using the existing summary endpoint.
+   */
+  async getProfileKpis(userId: string): Promise<{
+    averageAccuracy: number;
+    weeksPlayed: number;
+    bestWeek: number;
+    bestWeekNumber: number;
+    worstWeek: number;
+    worstWeekNumber: number;
+  }> {
+    // Fetch live summary from gaming services
+    const url = `${this.gamingServicesUrl}/api/predictions/user/${userId}/summary`;
+    const resp = await firstValueFrom(this.httpService.get(url));
+    const summary = resp.data;
+
+    const weekly: Array<{
+      week: number;
+      totalPredictions: number;
+      correctPredictions: number;
+      accuracy: number;
+      points?: number;
+    }> = Array.isArray(summary?.data?.weeklyStats)
+      ? summary.data.weeklyStats
+      : Array.isArray(summary?.weeklyStats)
+        ? summary.weeklyStats
+        : [];
+
+    const played = weekly.filter((w) => Number(w.totalPredictions) > 0);
+    const weeksPlayed = played.length;
+    const averageAccuracy = Number(
+      (summary?.data?.overallAccuracy ?? summary?.overallAccuracy ?? 0) || 0,
+    );
+    const best = played.reduce((a, b) => (b.accuracy > a.accuracy ? b : a), {
+      week: 1,
+      totalPredictions: 0,
+      correctPredictions: 0,
+      accuracy: 0,
+    });
+    const worst = played.reduce((a, b) => (b.accuracy < a.accuracy ? b : a), {
+      week: 1,
+      totalPredictions: 0,
+      correctPredictions: 0,
+      accuracy: 0,
+    });
+
+    return {
+      averageAccuracy,
+      weeksPlayed,
+      bestWeek: Number(best.accuracy || 0),
+      bestWeekNumber: Number(best.week || 1),
+      worstWeek: Number(worst.accuracy || 0),
+      worstWeekNumber: Number(worst.week || 1),
+    };
+  }
+
+  /** Preferences: get or create defaults */
+  async getPreferences(userId: string): Promise<NotificationPreferences> {
+    let prefs = await this.prefsRepository.findOne({ where: { userId } });
+    if (!prefs) {
+      prefs = this.prefsRepository.create({
+        userId,
+        results: true,
+        matches: true,
+        goals: true,
+      });
+      prefs = await this.prefsRepository.save(prefs);
+    }
+    return prefs;
+  }
+
+  /** Preferences: update */
+  async updatePreferences(
+    userId: string,
+    patch: Partial<
+      Pick<NotificationPreferences, 'results' | 'matches' | 'goals'>
+    >,
+  ): Promise<NotificationPreferences> {
+    const prefs = await this.getPreferences(userId);
+    const next = { ...prefs, ...patch };
+    return this.prefsRepository.save(next);
   }
 
   /**
