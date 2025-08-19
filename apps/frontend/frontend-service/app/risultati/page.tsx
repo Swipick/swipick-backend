@@ -107,9 +107,10 @@ function RisultatiPageContent() {
   const [userId, setUserId] = useState<string | null>(null);
   const [weekCards, setWeekCards] = useState<MatchCard[]>([]);
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
-  const [guardOpen, setGuardOpen] = useState(false);
   const [weeklyStats, setWeeklyStats] = useState<TestWeeklyStatsResp | null>(null);
-  const [week2Complete, setWeek2Complete] = useState<boolean | null>(null);
+  // Unified multi-week guard veil (weeks > 1) when predictions < 10 for that week
+  const [guardVeilOpen, setGuardVeilOpen] = useState(false);
+  const [guardTargetWeek, setGuardTargetWeek] = useState<number | null>(null);
   const [nextWeekRange, setNextWeekRange] = useState<{ from: string; to: string } | null>(null);
   const [navDir, setNavDir] = useState<1 | -1 | 0>(0);
   const [pendingWeekForUrl, setPendingWeekForUrl] = useState<number | null>(null);
@@ -173,7 +174,7 @@ function RisultatiPageContent() {
           disabled={!shareEnabled}
           aria-label="Condividi risultato"
           title={shareEnabled ? 'Condividi risultato' : 'Condivisione disponibile su mobile/PWA'}
-          className={`mt-2 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-medium w-[200px] shadow transition ${shareEnabled ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
+          className={`mt-2 inline-flex items-center justify-center gap-2 px-2 py-4 rounded-xl text-sm font-medium w-[200px] shadow transition ${shareEnabled ? 'bg-indigo-800 text-white hover:bg-indigo-700' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
         >
           <IoShareOutline size={18} />
           Condividi risultato
@@ -252,7 +253,19 @@ function RisultatiPageContent() {
     if (Number.isFinite(w) && w >= 1 && w <= 38) {
       setSelectedWeek(w);
     }
+    if (DEBUG_RISULTATI) {
+      try { console.log('[risultati] init from searchParams', { qMode, qWeek }); } catch {}
+    }
   }, [searchParams]);
+
+  // If no explicit tab was set via query, align the visible tab to the current mode
+  useEffect(() => {
+    if (mode === 'live' && activeTab !== 'overview') {
+      setActiveTab('overview');
+    } else if (mode === 'test' && activeTab !== 'week') {
+      setActiveTab('week');
+    }
+  }, [mode, activeTab]);
   // Share support and feedback toast
   const [shareSupported, setShareSupported] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
@@ -316,6 +329,14 @@ function RisultatiPageContent() {
   };
 
   // ---------- Week Tab Logic (Test Mode) ----------
+  // Whether reveals are allowed for the current selection based on weekly stats (Test Mode: weeks > 1 require 10 predictions)
+  const allowRevealThisWeek = useMemo(() => {
+    if (mode !== 'test') return true;
+    if (selectedWeek <= 1) return true;
+    const total = Number(weeklyStats?.totalPredictions ?? 0);
+    return total >= 10; // if unknown/missing stats, treat as not allowed until click-time check
+  }, [mode, selectedWeek, weeklyStats]);
+
   // LocalStorage key for reveal state
   const revealKey = useMemo(() => {
     return userId ? `swipick:risultati:reveal:test:week:${selectedWeek}:user:${userId}` : null;
@@ -324,6 +345,8 @@ function RisultatiPageContent() {
   // Load reveal state
   useEffect(() => {
     if (!revealKey) return;
+    // Strictly block any reveals for weeks > 1 until predictions for that week are complete
+    if (!allowRevealThisWeek) { setRevealed({}); return; }
     try {
       const raw = localStorage.getItem(revealKey);
       if (raw) {
@@ -337,18 +360,20 @@ function RisultatiPageContent() {
     } catch {
       setRevealed({});
     }
-  }, [revealKey]);
+  }, [revealKey, allowRevealThisWeek]);
 
   // Persist reveal state
   useEffect(() => {
     if (!revealKey) return;
+    // Don't persist reveals when not allowed yet (prevents stale unlocks)
+    if (!allowRevealThisWeek) return;
     try {
       const ids = Object.entries(revealed)
         .filter(([, v]) => v)
         .map(([k]) => Number(k));
       localStorage.setItem(revealKey, JSON.stringify(ids));
     } catch {}
-  }, [revealed, revealKey]);
+  }, [revealed, revealKey, allowRevealThisWeek]);
 
   // Load auto-rollover flag for week 1 (persisted) so we don't force week 2 when user navigates back
   useEffect(() => {
@@ -373,6 +398,9 @@ function RisultatiPageContent() {
         const data = Array.isArray(mcResponse) ? mcResponse : mcResponse?.data ?? [];
         const sorted = (data as MatchCard[]).slice().sort((a, b) => new Date(a.kickoff.iso).getTime() - new Date(b.kickoff.iso).getTime());
         setWeekCards(sorted.slice(0, 10));
+        if (DEBUG_RISULTATI) {
+          try { console.log('[risultati] weekCards loaded', { week: selectedWeek, count: sorted.length, first: sorted[0]?.fixtureId, userId }); } catch {}
+        }
       } catch (e) {
         console.warn('Failed to load match-cards for week', selectedWeek, e);
         setWeekCards([]);
@@ -469,18 +497,23 @@ function RisultatiPageContent() {
         ? (resp as { data: TestWeeklyStatsResp }).data
         : (resp as unknown as TestWeeklyStatsResp | null);
       setWeeklyStats(stats ?? null);
+      if (DEBUG_RISULTATI) {
+        try { console.log('[risultati] weeklyStats loaded', { week, total: Number(stats?.totalPredictions ?? 0) }); } catch {}
+      }
     } catch {
       // Quietly ignore (e.g., 404 when no predictions yet)
       setWeeklyStats(null);
+      if (DEBUG_RISULTATI) {
+        try { console.log('[risultati] weeklyStats not available', { week }); } catch {}
+      }
     }
   }, [mode, userId]);
 
-  // Fetch weekly stats for selected week (Test Mode) — skip week 2 until allowed
+  // Fetch weekly stats for selected week (Test Mode)
   useEffect(() => {
     if (mode !== 'test' || !userId) { setWeeklyStats(null); return; }
-    if (selectedWeek === 2 && week2Complete !== true) { setWeeklyStats(null); return; }
     loadWeeklyStats(selectedWeek);
-  }, [mode, selectedWeek, userId, week2Complete, loadWeeklyStats]);
+  }, [mode, selectedWeek, userId, loadWeeklyStats]);
 
   // (Removed) Preload week 2 completion to avoid noisy 404s in prod; check lazily on reveal instead.
 
@@ -546,33 +579,70 @@ function RisultatiPageContent() {
     }
   }, [selectedWeek, meter]);
 
-  // Week 2 guard: predictions completeness check (from weekly stats)
-  const hasWeek2Complete = week2Complete;
-
   const onReveal = async (fixtureId: number) => {
-    if (mode === 'test' && selectedWeek === 2) {
-      if (hasWeek2Complete === null && userId) {
-        try {
-          const resp = await apiClient.getTestWeeklyStats(userId, 2);
-          const stats: TestWeeklyStatsResp | null = (resp && typeof resp === 'object' && 'data' in (resp as Record<string, unknown>))
-            ? (resp as { data: TestWeeklyStatsResp }).data
-            : (resp as unknown as TestWeeklyStatsResp | null);
-          const total = Number(stats?.totalPredictions ?? 0);
-          const completed = total >= 10;
-          setWeek2Complete(completed);
-          if (!completed) {
-            setGuardOpen(true);
+    // Guard: in Test Mode, for weeks > 1, require at least 10 predictions to reveal
+    if (mode === 'test' && selectedWeek > 1) {
+      // Fast-path: if current stats show not allowed, block and try re-check to be safe
+      if (!allowRevealThisWeek) {
+        if (userId) {
+          try {
+            const resp = await apiClient.getTestWeeklyStats(userId, selectedWeek);
+            const stats: TestWeeklyStatsResp | null = (resp && typeof resp === 'object' && 'data' in (resp as Record<string, unknown>))
+              ? (resp as { data: TestWeeklyStatsResp }).data
+              : (resp as unknown as TestWeeklyStatsResp | null);
+            const total = Number(stats?.totalPredictions ?? 0);
+            if (DEBUG_RISULTATI) { try { console.log('[risultati] reveal recheck', { week: selectedWeek, totalPredictions: total }); } catch {} }
+            setWeeklyStats(stats ?? null);
+            if (total < 10) {
+              if (DEBUG_RISULTATI) { try { console.warn('[risultati] reveal blocked', { week: selectedWeek, fixtureId, reason: 'predictions<10' }); } catch {} }
+              // determine earliest incomplete prerequisite week (2..selectedWeek)
+              const determineTarget = async (): Promise<number> => {
+                const needsFor = async (w: number): Promise<number> => {
+                  // prefer summary if available
+                  const sum = (summary?.weeklyStats || []).find((s) => Number(s.week) === w);
+                  let total = typeof sum?.totalPredictions === 'number' ? Number(sum.totalPredictions) : NaN;
+                  if (!Number.isFinite(total)) {
+                    try {
+                      const r = await apiClient.getTestWeeklyStats(userId, w);
+                      const s = (r && typeof r === 'object' && 'data' in (r as Record<string, unknown>))
+                        ? (r as { data: TestWeeklyStatsResp }).data
+                        : (r as unknown as TestWeeklyStatsResp | null);
+                      total = Number(s?.totalPredictions ?? 0);
+                    } catch { total = 0; }
+                  }
+                  return total >= 10 ? 0 : w; // 0 means complete
+                };
+                // Check from week 2 up to selectedWeek-1
+                for (let w = 2; w < selectedWeek; w++) {
+                  const res = await needsFor(w);
+                  if (res !== 0) return res; // earliest incomplete prerequisite
+                }
+                return selectedWeek; // all prerequisites complete; send to current selected
+              };
+              try {
+                const tgt = await determineTarget();
+                setGuardTargetWeek(tgt);
+              } catch { setGuardTargetWeek(2); }
+              setGuardVeilOpen(true);
+              return;
+            }
+          } catch (e) {
+            // If stats unavailable, be safe and block reveals
+            if (DEBUG_RISULTATI) { try { console.warn('[risultati] reveal blocked (stats unavailable)', { week: selectedWeek, fixtureId }); } catch {} }
+            // Fallback target week logic when stats unavailable
+            setGuardTargetWeek(Math.min(2, selectedWeek));
+            setGuardVeilOpen(true);
             return;
           }
-        } catch {
-          // Endpoint missing in prod; allow reveal instead of blocking
-          setWeek2Complete(true);
+        } else {
+          // No userId yet, cannot verify — block
+          setGuardTargetWeek(2);
+          setGuardVeilOpen(true);
+          return;
         }
-      } else if (hasWeek2Complete === false) {
-        setGuardOpen(true);
-        return;
       }
     }
+    if (DEBUG_RISULTATI) { try { console.log('[risultati] reveal allowed', { week: selectedWeek, fixtureId }); } catch {} }
     // Ensure stats are present to show scores once reveal is allowed
     if (!weeklyStats) {
       await loadWeeklyStats(selectedWeek);
@@ -626,6 +696,57 @@ function RisultatiPageContent() {
   return (
     <div className="min-h-screen bg-white pb-20">
       <div className="pb-4">
+        {/* Test Mode banner with Reset */}
+        {mode === 'test' && (
+          <div className="bg-orange-500 text-white py-2 px-3 font-semibold flex items-center justify-between">
+            <div>🧪 MODALITÀ TEST - Dati storici Serie A 2023-24</div>
+            <button
+              onClick={async () => {
+                if (!firebaseUser) return;
+                try {
+                  const userResp = await apiClient.getUserByFirebaseUid(firebaseUser.uid);
+                  const uid = userResp?.data?.id as string | undefined;
+                  if (!uid) return;
+                  const ok = typeof window === 'undefined' ? true : window.confirm('Reimpostare la modalità TEST per questo utente? Tutte le predizioni verranno eliminate.');
+                  if (!ok) return;
+                  try { await apiClient.resetTestData(uid); } catch {}
+                  try {
+                    if (typeof window !== 'undefined') {
+                      const toRemove: string[] = [];
+                      for (let i = 0; i < localStorage.length; i++) {
+                        const k = localStorage.key(i) || '';
+                        const isGioca = k.startsWith('swipick:gioca:hasPreds:test:week:') && k.includes(`:user:${uid}`);
+                        const isReveal = k.startsWith('swipick:risultati:reveal:test:week:') && k.includes(`:user:${uid}`);
+                        const isAutoRoll = k === `swipick:risultati:autoRoll:week1:user:${uid}`;
+                        if (isGioca || isReveal || isAutoRoll) toRemove.push(k);
+                      }
+                      toRemove.forEach((k) => localStorage.removeItem(k));
+                    }
+                  } catch {}
+                  // Refresh summary and go back to week 1
+                  setSummary((prev) => prev ? { ...prev, weeklyStats: [] } : prev);
+                  setSelectedWeek(1);
+                  setWeekCards([]);
+                  setWeeklyStats(null);
+                  setRevealed({});
+                  const href = typeof window !== 'undefined' ? window.location.href : null;
+                  if (href) {
+                    const url = new URL(href);
+                    url.searchParams.set('mode', 'test');
+                    url.searchParams.set('week', '1');
+                    window.history.replaceState({}, '', url.toString());
+                    setTimeout(() => { try { window.location.reload(); } catch {} }, 60);
+                  }
+                } catch (e) {
+                  console.error('reset test (risultati) failed', e);
+                }
+              }}
+              className="text-xs font-semibold border rounded-md px-2.5 py-1 border-white/70 hover:bg-white/10"
+            >
+              Reset
+            </button>
+          </div>
+        )}
         {/* Top Header Panel (modal-like) */}
         <div
           className="w-full mx-0 mt-0 mb-6 rounded-b-2xl rounded-t-none text-white"
@@ -711,8 +832,8 @@ function RisultatiPageContent() {
               <div className="px-4 space-y-6">
             {/* Small helper row under meter */}
             <div className="flex items-center justify-between text-black text-sm px-1">
-              <div className="opacity-70">Mostra i risultati una partita alla volta</div>
-              <div className="opacity-80">{meter.correct}/{meter.revealed} corrette</div>
+              {/* <div className="opacity-70">Mostra i risultati una partita alla volta</div> */}
+              {/* <div className="opacity-80">{meter.correct}/{meter.revealed} corrette</div> */}
             </div>
 
             {/* Matches list */}
@@ -916,7 +1037,10 @@ function RisultatiPageContent() {
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
           <div className="flex">
             <button
-              onClick={() => router.push('/risultati')}
+              onClick={() => {
+                if (DEBUG_RISULTATI) { try { console.log('[risultati] nav -> risultati (self)'); } catch {} }
+                router.push(`/risultati?mode=${mode}${mode === 'test' ? `&week=${selectedWeek}` : ''}`);
+              }}
               className="flex-1 text-center py-4 border-b-2 border-purple-600"
             >
               <div className="text-purple-600 mb-1">
@@ -927,7 +1051,10 @@ function RisultatiPageContent() {
               <span className="text-xs text-purple-600 font-medium">Risultati</span>
             </button>
             <button
-              onClick={() => router.push('/gioca')}
+              onClick={() => {
+                if (DEBUG_RISULTATI) { try { console.log('[risultati] nav -> gioca', { mode, week: selectedWeek }); } catch {} }
+                router.push(`/gioca?mode=${mode}${mode === 'test' ? `&week=${selectedWeek}` : ''}`);
+              }}
               className="flex-1 text-center py-4"
             >
               <div className="text-gray-400 mb-1">
@@ -951,22 +1078,43 @@ function RisultatiPageContent() {
           </div>
         </div>
       </div>
-      {/* Week 2 Guard Modal */}
-      {guardOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-2xl p-6 w-11/12 max-w-md">
-            <h3 className="text-lg font-bold mb-2">Completa prima le tue giocate</h3>
-            <p className="text-gray-700 mb-4">Prima gioca le tue speculazioni nella pagina Gioca per la Giornata 2.</p>
-            <div className="flex space-x-3">
+      {/* Multi-week Guard Veil (Test Mode): weeks > 1 require 10 predictions to reveal */}
+      {guardVeilOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
+            <h3 className="text-xl font-semibold text-black mb-2">Completa prima le tue giocate</h3>
+            <p className="text-sm text-gray-700 mb-5">
+              {(() => {
+                const tgt = guardTargetWeek ?? selectedWeek;
+                if (tgt !== selectedWeek) {
+                  return (
+                    <span>
+                      Per poter vedere i risultati della Giornata {selectedWeek}, completa prima le giocate delle giornate precedenti.
+                      Vai a Gioca per la Giornata {tgt}.
+                    </span>
+                  );
+                }
+                return (
+                  <span>
+                    Prima gioca le tue speculazioni nella pagina Gioca per la Giornata {selectedWeek}.
+                  </span>
+                );
+              })()}
+            </p>
+            <div className="flex gap-3 justify-center">
               <button
-                onClick={() => setGuardOpen(false)}
-                className="flex-1 px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300"
+                onClick={() => setGuardVeilOpen(false)}
+                className="px-5 py-2 rounded-md border border-gray-300 text-black font-medium hover:bg-gray-50"
               >
-                Annulla
+                Chiudi
               </button>
               <button
-                onClick={() => router.push('/gioca?mode=test&week=2')}
-                className="flex-1 px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                onClick={() => {
+                  const tgt = guardTargetWeek ?? selectedWeek;
+                  if (DEBUG_RISULTATI) { try { console.log('[risultati] guard CTA -> gioca', { selectedWeek, target: tgt }); } catch {} }
+                  router.push(`/gioca?mode=test&week=${tgt}`);
+                }}
+                className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
               >
                 Vai a Gioca
               </button>
