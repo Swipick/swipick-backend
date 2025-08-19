@@ -1009,7 +1009,7 @@ function GiocaPageContent() {
   // Completed view: summary list of the 10 selections with indigo highlight on chosen 1/X/2
   if (isComplete) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-white pb-[max(env(safe-area-inset-bottom),96px)]">
         {currentMode === 'test' && (
           <></>
         )}
@@ -1020,12 +1020,12 @@ function GiocaPageContent() {
           style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
         >
           {currentMode === 'test' && (
-            <div className="pt-3 px-4 flex">
+            <div className="pt-3 px-4 flex justify-center">
               <div
-                className="inline-flex items-center gap-2 rounded-full px-3 py-1"
+                className="inline-flex items-center gap-2 rounded-full px-3 py-1 max-w-full min-w-0 overflow-hidden mx-auto"
                 style={{ backgroundColor: '#A9BA9D', color: '#043927' }}
               >
-                <span className="text-xs font-semibold">MODALITÀ TEST - Dati storici Serie A 2023-24</span>
+                <span className="text-[11px] font-semibold truncate">MODALITÀ TEST - Dati storici Serie A 2023-24</span>
                 <button
                   onClick={handleTestReset}
                   disabled={!userKey}
@@ -1038,7 +1038,7 @@ function GiocaPageContent() {
               </div>
             </div>
           )}
-          <div className="text-center pt-6 px-4">
+          <div className="text-center px-4 pt-[max(env(safe-area-inset-top),24px)]">
             {(() => {
               const range = getWeekDateRange();
               const from = range?.start?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
@@ -1125,7 +1125,7 @@ function GiocaPageContent() {
         </div>
 
         {/* Bottom Nav (same as play view) */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
+  <div className="fixed bottom-0 left-0 right-0 bg-white border-t pb-[max(env(safe-area-inset-bottom),0px)]">
           <div className="flex">
             <button onClick={() => {
               if (DEBUG_GIOCA) { try { console.log('[gioca] nav -> risultati', { mode: currentMode, week: selectedWeek }); } catch {} }
@@ -1155,7 +1155,7 @@ function GiocaPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+  <div className="min-h-screen bg-white pb-[max(env(safe-area-inset-bottom),96px)]">
   {/* Test Mode Indicator moved into header as a lozenge */}
   {currentMode === 'test' && <></>}
       
@@ -1169,12 +1169,12 @@ function GiocaPageContent() {
         }}
       >
         {currentMode === 'test' && (
-          <div className="pt-3 px-4 flex">
+          <div className="pt-3 px-4 flex justify-center">
             <div
-              className="inline-flex items-center gap-2 rounded-full px-3 py-1"
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1 max-w-full min-w-0 overflow-hidden mx-auto"
               style={{ backgroundColor: '#A9BA9D', color: '#043927' }}
             >
-              <span className="text-xs font-semibold">MODALITÀ TEST - Dati storici Serie A 2023-24</span>
+              <span className="text-[11px] font-semibold truncate">MODALITÀ TEST - Dati storici Serie A 2023-24</span>
               <button
                 onClick={handleTestReset}
                 disabled={!userKey}
@@ -1222,8 +1222,8 @@ function GiocaPageContent() {
             </div>
           </div>
         </div>
-        <div className="px-6 pb-6">
-          <div className="relative mx-auto" style={{ width: 'calc(100% - 115px)' }}>
+        <div className="px-4 pb-6">
+          <div className="relative w-full max-w-xs mx-auto">
             <div className="bg-white bg-opacity-30 rounded-sm overflow-hidden" style={{ height: '18px' }}>
               <div
                 className="bg-indigo-300 h-full rounded-sm transition-all duration-300"
@@ -1240,25 +1240,25 @@ function GiocaPageContent() {
       </div>
 
       {/* Match Card Stack with Swipe */}
-      <div className="mx-4 mb-8 relative">
-        {/* Next card preview to be revealed */}
+  <div className="px-3 mb-8 relative max-w-[390px] mx-auto w-full">
+  {/* Next card preview to be revealed (hidden on very small screens to avoid visual spill) */}
   {effectiveFixtures[currentFixtureIndex + 1] && (
-          <div className={`absolute inset-0 scale-[0.97] opacity-95 pointer-events-none ${previewOnTop ? 'z-20' : 'z-0'}`}>
-            <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
+  <div className={`absolute inset-0 scale-[0.97] opacity-95 pointer-events-none ${previewOnTop ? 'z-20' : 'z-0'} hidden sm:block`}>
+      <div className="match-card bg-white rounded-2xl p-3 shadow-lg border border-gray-200">
               {/* Next card content */}
               {(() => {
     const nf = effectiveFixtures[currentFixtureIndex + 1];
     const nc = effectiveCards[currentFixtureIndex + 1];
                 return (
                   <>
-                    <div className="text-center mb-6">
+                    <div className="top-info text-center mb-4">
                       <p className="text-black text-sm mb-1">{nc ? nc.kickoff.display : formatMatchDateTime(nf.date)}</p>
                       <p className="text-black text-xs">{nc?.stadium || nf.venue.name}</p>
                     </div>
-                    <div className="flex items-center justify-between gap-8 mb-8">
+                    <div className="teams flex items-center justify-between gap-5 mb-6">
                       <div className="flex-1 text-center opacity-95">
                         {(nc?.home.logo || nf.teams.home.logo) ? (
-                          <Image src={(nc?.home.logo || nf.teams.home.logo) as string} alt={nc?.home.name || nf.teams.home.name} width={120} height={120} className="mx-auto mb-3 w-[120px] h-[120px] object-contain" />
+                          <Image src={(nc?.home.logo || nf.teams.home.logo) as string} alt={nc?.home.name || nf.teams.home.name} width={96} height={96} className="team-logo mx-auto mb-3 w-24 h-24 object-contain" />
                         ) : (
                           <div className="w-12 h-12 mx-auto mb-24 bg-purple-100 rounded-full" />
                         )}
@@ -1273,7 +1273,7 @@ function GiocaPageContent() {
                       {/* VS removed for cleaner layout per design */}
                       <div className="flex-1 text-center opacity-95">
                         {(nc?.away.logo || nf.teams.away.logo) ? (
-                          <Image src={(nc?.away.logo || nf.teams.away.logo) as string} alt={nc?.away.name || nf.teams.away.name} width={120} height={120} className="mx-auto mb-3 w-[120px] h-[120px] object-contain" />
+                          <Image src={(nc?.away.logo || nf.teams.away.logo) as string} alt={nc?.away.name || nf.teams.away.name} width={96} height={96} className="team-logo mx-auto mb-3 w-24 h-24 object-contain" />
                         ) : (
                           <div className="w-12 h-12 mx-auto mb-3 bg-blue-100 rounded-full" />
                         )}
@@ -1311,24 +1311,24 @@ function GiocaPageContent() {
           style={{ x: cardX, y: cardY, rotate: cardRotate, touchAction: 'none', cursor: 'grab' }}
           className={`relative ${previewOnTop ? 'z-0' : 'z-10'}`}
         >
-          <div className={`bg-white rounded-2xl p-6 shadow-lg border border-gray-200 ${weekComplete ? 'opacity-60 pointer-events-none' : ''}`}>
+            <div className={`match-card bg-white rounded-2xl p-3 shadow-lg border border-gray-200 ${weekComplete ? 'opacity-60 pointer-events-none' : ''}`}>
             {/* Match Info */}
-            <div className="text-center mb-6">
+            <div className="top-info text-center mb-4">
               <p className="text-black text-sm mb-1">{currentCard ? currentCard.kickoff.display : formatMatchDateTime(currentFixture.date)}</p>
               <p className="text-black text-xs">{currentCard?.stadium || currentFixture.venue.name}</p>
             </div>
 
             {/* Teams */}
-            <div className="flex items-center justify-between gap-8 mb-8">
+            <div className="teams flex items-center justify-between gap-5 mb-6">
               {/* Home Team */}
               <div className="flex-1 text-center">
         {(currentCard?.home.logo || currentFixture.teams.home.logo) ? (
                   <Image
                     src={(currentCard?.home.logo || currentFixture.teams.home.logo) as string}
                     alt={currentCard?.home.name || currentFixture.teams.home.name}
-          width={120}
-          height={120}
-          className="mx-auto mb-3 w-[120px] h-[120px] object-contain"
+          width={96}
+          height={96}
+          className="team-logo mx-auto mb-3 w-24 h-24 object-contain"
                     priority
                   />
                 ) : (
@@ -1355,9 +1355,9 @@ function GiocaPageContent() {
                   <Image
                     src={(currentCard?.away.logo || currentFixture.teams.away.logo) as string}
                     alt={currentCard?.away.name || currentFixture.teams.away.name}
-          width={120}
-          height={120}
-          className="mx-auto mb-3 w-[120px] h-[120px] object-contain"
+          width={96}
+          height={96}
+          className="team-logo mx-auto mb-3 w-24 h-24 object-contain"
                     priority
                   />
                 ) : (
@@ -1380,15 +1380,19 @@ function GiocaPageContent() {
         </motion.div>
       </div>
 
-      {/* Prediction Buttons - Diamond Layout */}
-      <div className="flex justify-center  ">
-        <div className="grid grid-cols-3 gap-x-10 gap-y-0 justify-items-center items-center ">
+      {/* Prediction Buttons - Diamond Layout (fixed above bottom nav) */}
+      <div
+        className="fixed left-0 right-0 z-30"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 96px)' }}
+      >
+        <div className="flex justify-center">
+          <div className="grid grid-cols-3 gap-x-4 gap-y-0 justify-items-center items-center max-w-[340px] w-full mx-auto">
           {/* Top: X */}
           <div className="col-start-2">
   <button
       onClick={() => animateAndCommit('up')}
   disabled={(currentMode === 'test' && (!userKey || weekComplete))}
-  className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-md shadow-lg transition-all duration-200 hover:scale-105 ${
+  className={`relative w-16 text-center text-white text-sm font-bold py-2.5 px-4 rounded-md shadow-lg transition-all duration-200 hover:scale-105 ${
     currentPrediction === 'X' ? 'scale-105' : ''
               }`}
               style={buttonStyle}
@@ -1401,7 +1405,7 @@ function GiocaPageContent() {
   <button
       onClick={() => animateAndCommit('left')}
   disabled={(currentMode === 'test' && (!userKey || weekComplete))}
-  className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-md shadow-lg transition-all duration-200 hover:scale-105 ${
+  className={`relative w-16 text-center text-white text-sm font-bold py-2.5 px-4 rounded-md shadow-lg transition-all duration-200 hover:scale-105 ${
                 currentPrediction === '1' ? 'scale-105' : ''
               }`}
               style={buttonStyle}
@@ -1414,7 +1418,7 @@ function GiocaPageContent() {
   <button
       onClick={() => animateAndCommit('right')}
   disabled={(currentMode === 'test' && (!userKey || weekComplete))}
-  className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-md shadow-lg transition-all duration-200 hover:scale-105 ${
+  className={`relative w-16 text-center text-white text-sm font-bold py-2.5 px-4 rounded-md shadow-lg transition-all duration-200 hover:scale-105 ${
                 currentPrediction === '2' ? 'scale-105' : ''
               }`}
               style={buttonStyle}
@@ -1423,18 +1427,22 @@ function GiocaPageContent() {
             </button>
           </div>
           {/* Bottom: Skip */}
-  <div className="col-start-2 row-start-3 -mt-[15px]">
+  <div className="col-start-2 row-start-3 -mt-2">
             <button
               onClick={() => animateAndCommit('down')}
      disabled={(currentMode === 'test' && weekComplete)}
-  className="relative w-24 text-center bg-white text-[#3d2d73] font-bold py-3 px-8 rounded-md shadow-lg transition-all duration-200 hover:scale-105 disabled:opacity-60"
+  className="relative w-16 text-center bg-white text-[#3d2d73] text-sm font-bold py-2.5 px-4 rounded-md shadow-lg transition-all duration-200 hover:scale-105 disabled:opacity-60"
         style={skipStyle}
             >
               skip
             </button>
           </div>
+          </div>
         </div>
       </div>
+
+      {/* spacer to allow scroll behind fixed controls */}
+      <div aria-hidden className="w-full" style={{ height: 'calc(env(safe-area-inset-bottom) + 160px)' }} />
 
       {/* Modal: User not found */}
       {currentMode === 'test' && userMissingModal.show && (
@@ -1481,7 +1489,7 @@ function GiocaPageContent() {
       )}
 
   {/* Bottom Navigation */}
-  <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
+  <div className="fixed bottom-0 left-0 right-0 bg-white border-t pb-[max(env(safe-area-inset-bottom),0px)]">
         <div className="flex">
           <button
             onClick={() => {
@@ -1524,6 +1532,15 @@ export default function GiocaPage() {
       </div>
     }>
       <GiocaPageContent />
+        <style jsx global>{`
+          /* Target iPhone 14 Pro Max / 13 Pro Max style screens (~430x932), with a little tolerance */
+          @media (min-width: 420px) and (max-width: 440px) and (min-height: 922px) and (max-height: 942px) {
+            .match-card { padding: 18px !important; }
+            .match-card .top-info { margin-bottom: 50px !important; }
+            .match-card .teams { gap: 82px !important; margin-bottom: 22px !important; }
+            .match-card .team-logo { width: 112px !important; height: 112px !important; }
+          }
+        `}</style>
     </Suspense>
   );
 }
