@@ -1,0 +1,208 @@
+
+'use client';
+
+import React, { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuthContext } from '@/src/contexts/AuthContext';
+import { apiClient } from '@/lib/api-client';
+import { Toast } from '@/src/components/Toast';
+
+export default function ImpostazioniPage() {
+  const router = useRouter();
+  const { firebaseUser } = useAuthContext();
+
+  const [userId, setUserId] = useState<string | null>(null);
+  const [email, setEmail] = useState<string>('');
+  const [nickname, setNickname] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  // Notification toggles (persisted)
+  const [notifResults, setNotifResults] = useState(true);
+  const [notifMatches, setNotifMatches] = useState(true);
+  const [notifGoals, setNotifGoals] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!firebaseUser?.uid) return;
+    setLoading(true);
+    setError(null);
+    try {
+      // Resolve backend user by firebase uid
+      const resp = await apiClient.getUserByFirebaseUid(firebaseUser.uid) as { data: { id: string; email: string; nickname?: string } };
+      const u = resp.data;
+      setUserId(u.id);
+      setEmail(u.email || firebaseUser.email || '');
+      setNickname(u.nickname || '');
+      // Fetch preferences
+      const prefResp = await apiClient.getUserPreferences(u.id) as { data: { results: boolean; matches: boolean; goals: boolean } };
+      const p = prefResp.data;
+      setNotifResults(Boolean(p.results));
+      setNotifMatches(Boolean(p.matches));
+      setNotifGoals(Boolean(p.goals));
+    } catch (e) {
+      console.error('[impostazioni] load failed', e);
+      setError('Errore nel caricamento delle impostazioni');
+    } finally {
+      setLoading(false);
+    }
+  }, [firebaseUser]);
+
+  useEffect(() => {
+    if (!firebaseUser) {
+      router.push('/login');
+      return;
+    }
+    load();
+  }, [firebaseUser, load, router]);
+
+  const optimisticUpdate = async (patch: Partial<{ results: boolean; matches: boolean; goals: boolean }>) => {
+    if (!userId) return;
+    const prev = { results: notifResults, matches: notifMatches, goals: notifGoals };
+    // Apply optimistic state
+    if (patch.results !== undefined) setNotifResults(patch.results);
+    if (patch.matches !== undefined) setNotifMatches(patch.matches);
+    if (patch.goals !== undefined) setNotifGoals(patch.goals);
+    try {
+      await apiClient.updateUserPreferences(userId, patch);
+  setToast('Preferenze aggiornate');
+  setTimeout(() => setToast(null), 1800);
+    } catch (e) {
+      console.error('[impostazioni] update prefs failed', e);
+      // rollback
+      setNotifResults(prev.results);
+      setNotifMatches(prev.matches);
+      setNotifGoals(prev.goals);
+      alert('Impossibile aggiornare le preferenze');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-white pb-8 pt-[calc(env(safe-area-inset-top)+120px)]">
+      {/* Fixed header: centered bold title, bold back arrow */}
+      <div className="fixed top-0 left-0 right-0 bg-white">
+        <div className="relative h-[165px] flex items-center justify-center px-4">
+          <button
+            aria-label="Indietro"
+            onClick={() => router.back()}
+            className="absolute left-4 p-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 text-black"
+            title="Indietro"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 6 9 12l6 6" />
+            </svg>
+          </button>
+          <h1 className="text-lg font-bold text-black">Impostazioni</h1>
+        </div>
+      </div>
+
+      <div className="px-5">
+        {loading && (
+          <div className="text-sm text-gray-500 mb-3">Caricamento…</div>
+        )}
+        {error && (
+          <div className="text-sm text-red-600 mb-3">{error}</div>
+        )}
+        {/* Subheader: Account */}
+        <div className="text-sm font-semibold text-gray-800 mt-2 mb-1">Account</div>
+
+        {/* Account rows */}
+        <div>
+          {/* Email (read-only, no arrow) */}
+          <div className="py-5.5 flex items-center justify-between">
+            <div className="text-gray-800">email</div>
+            <div className="text-gray-500 text-sm">{email}</div>
+          </div>
+
+          {/* Username (chevron) */}
+          <button disabled className="w-full py-5.5 flex items-center justify-between opacity-60 cursor-not-allowed">
+            <div className="text-gray-800">username</div>
+            <div className="flex items-center gap-2">
+              <div className="text-gray-500 text-sm truncate max-w-[60vw] text-right">{nickname || '—'}</div>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5 text-black" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+            </div>
+          </button>
+
+          {/* Password (chevron) */}
+          <button disabled className="w-full py-5.5 flex items-center justify-between opacity-60 cursor-not-allowed">
+            <div className="text-gray-800">password</div>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5 text-black" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </button>
+
+          {/* Immagine profilo (chevron) */}
+          <button disabled className="w-full py-5.5 flex items-center justify-between opacity-60 cursor-not-allowed">
+            <div className="text-gray-800">immagine profilo</div>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5 text-black" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Subheader: Notifiche */}
+        <div className="text-sm font-semibold text-gray-800 mt-6 mb-1">Notifiche</div>
+
+        {/* Notification rows */}
+        <div>
+      {/* Risultati */}
+          <div className="py-3.5 flex items-center justify-between">
+            <div>
+              <div className="text-gray-800">Risultati</div>
+              <div className="text-xs text-gray-500">Scopri il tuo punteggio a fine giornata</div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+        checked={notifResults}
+        onChange={(e) => optimisticUpdate({ results: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-purple-600 transition-colors"></div>
+              <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform peer-checked:translate-x-5"></div>
+            </label>
+          </div>
+
+      {/* Partite */}
+          <div className="py-1.5 flex items-center justify-between">
+            <div>
+              <div className="text-gray-800">Partite</div>
+              <div className="text-xs text-gray-500">Ti avvisiamo al 90°</div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+        checked={notifMatches}
+        onChange={(e) => optimisticUpdate({ matches: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-purple-600 transition-colors"></div>
+              <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform peer-checked:translate-x-5"></div>
+            </label>
+          </div>
+
+      {/* Gol */}
+          <div className="py-1.5 flex items-center justify-between">
+            <div>
+              <div className="text-gray-800">Gol</div>
+              <div className="text-xs text-gray-500">Ad ogni marcatura sarai il primo a saperlo</div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+        checked={notifGoals}
+        onChange={(e) => optimisticUpdate({ goals: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-purple-600 transition-colors"></div>
+              <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform peer-checked:translate-x-5"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+  {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+    </div>
+  );
+}

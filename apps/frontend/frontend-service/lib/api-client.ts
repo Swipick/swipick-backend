@@ -154,6 +154,26 @@ class ApiClient {
     return this.request(`/predictions/user/${userId}/summary?mode=${mode}`);
   }
 
+  // User KPIs (server-side aggregation)
+  async getUserProfileKpis(userId: string) {
+    return this.request(`/users/${userId}/profile-kpis`);
+  }
+
+  // Notification preferences
+  async getUserPreferences(userId: string) {
+    return this.request(`/users/${userId}/preferences`);
+  }
+
+  async updateUserPreferences(
+    userId: string,
+    patch: { results?: boolean; matches?: boolean; goals?: boolean },
+  ) {
+    return this.request(`/users/${userId}/preferences`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  }
+
   async getUserWeeklyPredictions(userId: string, mode: 'live' | 'test' = 'live') {
     return this.request(`/predictions/weekly/${userId}?mode=${mode}`);
   }
