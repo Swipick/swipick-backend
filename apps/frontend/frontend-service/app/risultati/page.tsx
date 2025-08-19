@@ -116,6 +116,8 @@ function RisultatiPageContent() {
   const [pendingWeekForUrl, setPendingWeekForUrl] = useState<number | null>(null);
   const [rolledWeek1Once, setRolledWeek1Once] = useState(false);
   const [fixtureScores, setFixtureScores] = useState<Map<number, { homeScore: number | null; awayScore: number | null; actual?: Choice }>>(new Map());
+  // Final completion veil (after last reveal in Giornata 4)
+  const [finalVeilOpen, setFinalVeilOpen] = useState(false);
 
   // Semi-circular success meter (SVG half-donut) sized to match the share button width
   const CircularMeter: React.FC<{ percent: number; onShare?: () => void; shareEnabled?: boolean }> = ({ percent, onShare, shareEnabled = true }) => {
@@ -313,6 +315,52 @@ function RisultatiPageContent() {
       setError('Errore nel reset dei dati di test');
     }
   };
+
+  // Unified reset flow used by banner reset and final completion veil
+  const performTestReset = useCallback(async (opts?: { requireConfirm?: boolean }) => {
+    if (!firebaseUser) return;
+    try {
+      const userResp = await apiClient.getUserByFirebaseUid(firebaseUser.uid);
+      const uid = userResp?.data?.id as string | undefined;
+      if (!uid) return;
+      if (opts?.requireConfirm) {
+        const ok = typeof window === 'undefined' ? true : window.confirm('Reimpostare la modalità TEST per questo utente? Tutte le predizioni verranno eliminate.');
+        if (!ok) return;
+      }
+      try { await apiClient.resetTestData(uid); } catch {}
+      try {
+        if (typeof window !== 'undefined') {
+          const toRemove: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i) || '';
+            const isGioca = k.startsWith('swipick:gioca:hasPreds:test:week:') && k.includes(`:user:${uid}`);
+            const isReveal = k.startsWith('swipick:risultati:reveal:test:week:') && k.includes(`:user:${uid}`);
+            const isAutoRoll = k === `swipick:risultati:autoRoll:week1:user:${uid}`;
+            if (isGioca || isReveal || isAutoRoll) toRemove.push(k);
+          }
+          toRemove.forEach((k) => localStorage.removeItem(k));
+        }
+      } catch {}
+      // Refresh summary and go back to week 1
+      setSummary((prev) => (prev ? { ...prev, weeklyStats: [] } : prev));
+      setSelectedWeek(1);
+      setWeekCards([]);
+      setWeeklyStats(null);
+      setRevealed({});
+      const href = typeof window !== 'undefined' ? window.location.href : null;
+      if (href) {
+        const url = new URL(href);
+        url.searchParams.set('mode', 'test');
+        url.searchParams.set('week', '1');
+        window.history.replaceState({}, '', url.toString());
+        setTimeout(() => {
+          try { window.location.reload(); } catch {}
+        }, 60);
+      }
+    } catch (e) {
+      console.error('performTestReset failed', e);
+    }
+  }, [firebaseUser]);
 
   const formatPrediction = (prediction: string) => {
     switch (prediction) {
@@ -654,7 +702,21 @@ function RisultatiPageContent() {
         console.debug('[risultati] onReveal join', { fixtureId, weeklyPresent: !!weeklyStats, pred: joinPred, fallback: joinFx });
       } catch {}
     }
+    // Determine if this click completes all reveals for Giornata 4 (Test Mode)
+    const completesWeek4 = (() => {
+      if (mode !== 'test') return false;
+      if (selectedWeek !== 4) return false;
+      if (weekCards.length !== 10) return false;
+      const wasRevealed = !!revealed[fixtureId];
+      if (wasRevealed) return false;
+      const already = Object.values(revealed).filter(Boolean).length;
+      return already + 1 === 10;
+    })();
+
     setRevealed((prev) => ({ ...prev, [fixtureId]: true }));
+    if (completesWeek4) {
+      setTimeout(() => setFinalVeilOpen(true), 80); // allow UI to update first
+    }
   };
 
   // Auto-rollover to week 2 when all 10 revealed in week 1 (only once)
@@ -701,46 +763,7 @@ function RisultatiPageContent() {
           <div className="bg-orange-500 text-white py-2 px-3 font-semibold flex items-center justify-between">
             <div>🧪 MODALITÀ TEST - Dati storici Serie A 2023-24</div>
             <button
-              onClick={async () => {
-                if (!firebaseUser) return;
-                try {
-                  const userResp = await apiClient.getUserByFirebaseUid(firebaseUser.uid);
-                  const uid = userResp?.data?.id as string | undefined;
-                  if (!uid) return;
-                  const ok = typeof window === 'undefined' ? true : window.confirm('Reimpostare la modalità TEST per questo utente? Tutte le predizioni verranno eliminate.');
-                  if (!ok) return;
-                  try { await apiClient.resetTestData(uid); } catch {}
-                  try {
-                    if (typeof window !== 'undefined') {
-                      const toRemove: string[] = [];
-                      for (let i = 0; i < localStorage.length; i++) {
-                        const k = localStorage.key(i) || '';
-                        const isGioca = k.startsWith('swipick:gioca:hasPreds:test:week:') && k.includes(`:user:${uid}`);
-                        const isReveal = k.startsWith('swipick:risultati:reveal:test:week:') && k.includes(`:user:${uid}`);
-                        const isAutoRoll = k === `swipick:risultati:autoRoll:week1:user:${uid}`;
-                        if (isGioca || isReveal || isAutoRoll) toRemove.push(k);
-                      }
-                      toRemove.forEach((k) => localStorage.removeItem(k));
-                    }
-                  } catch {}
-                  // Refresh summary and go back to week 1
-                  setSummary((prev) => prev ? { ...prev, weeklyStats: [] } : prev);
-                  setSelectedWeek(1);
-                  setWeekCards([]);
-                  setWeeklyStats(null);
-                  setRevealed({});
-                  const href = typeof window !== 'undefined' ? window.location.href : null;
-                  if (href) {
-                    const url = new URL(href);
-                    url.searchParams.set('mode', 'test');
-                    url.searchParams.set('week', '1');
-                    window.history.replaceState({}, '', url.toString());
-                    setTimeout(() => { try { window.location.reload(); } catch {} }, 60);
-                  }
-                } catch (e) {
-                  console.error('reset test (risultati) failed', e);
-                }
-              }}
+              onClick={() => performTestReset({ requireConfirm: true })}
               className="text-xs font-semibold border rounded-md px-2.5 py-1 border-white/70 hover:bg-white/10"
             >
               Reset
@@ -1117,6 +1140,31 @@ function RisultatiPageContent() {
                 className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
               >
                 Vai a Gioca
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Final Completion Veil (after last reveal in Giornata 4) */}
+      {finalVeilOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
+            <h3 className="text-xl font-semibold text-black mb-2">Grazie per aver completato il gioco di prova</h3>
+            <p className="text-sm text-gray-700 mb-5">
+              Hai completato tutte le rivelazioni della Giornata 4. Puoi reimpostare la Modalità Test per ricominciare da capo.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setFinalVeilOpen(false)}
+                className="px-5 py-2 rounded-md border border-gray-300 text-black font-medium hover:bg-gray-50"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => performTestReset({ requireConfirm: false })}
+                className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
+              >
+                Reset
               </button>
             </div>
           </div>

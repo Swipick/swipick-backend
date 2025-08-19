@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense, useCallback, useRef } from "react";
-import { motion, useAnimationControls, PanInfo } from 'framer-motion';
+import { motion, useAnimationControls, PanInfo, useMotionValue, useTransform } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { apiClient } from "@/lib/api-client";
@@ -116,6 +116,19 @@ function GiocaPageContent() {
   const [predictions, setPredictions] = useState<Record<number, '1' | 'X' | '2'>>({});
   const [matchCards, setMatchCards] = useState<MatchCard[]>([]);
   const controls = useAnimationControls();
+  // Framer Motion values for angled swipe path
+  const cardX = useMotionValue(0);
+  // Map horizontal drag to a slight vertical offset to create a diagonal trajectory
+  const cardY = useTransform(cardX, [-320, 0, 320], [-24, 0, 24]);
+  // Map horizontal drag to a mild rotation for a more natural card tilt
+  const cardRotate = useTransform(cardX, [-320, 0, 320], [-10, 0, 10]);
+  // Skip animation control & z-index swap with preview card
+  const [isSkipAnimating, setIsSkipAnimating] = useState(false);
+  const [previewOnTop, setPreviewOnTop] = useState(false);
+  // Tuning constants for gesture feel
+  const DOWN_EXIT_DURATION = 0.46; // time to travel to bottom before snap-back
+  const SNAP_BACK_STIFFNESS = 190;  // lower = slower spring
+  const SNAP_BACK_DAMPING = 36;     // higher = more damped/less bouncy
   // Backend user id (UUID string) for Test Mode persistence/overlays
   const [userKey, setUserKey] = useState<string | null>(null);
   const [userMissingModal, setUserMissingModal] = useState<{ show: boolean; triedUid?: string }>(() => ({ show: false }));
@@ -597,6 +610,7 @@ function GiocaPageContent() {
     if (currentMode === 'test' && weekComplete) {
       return; // Block interactions under veil
     }
+    if (isSkipAnimating) return;
     const dx = info.offset.x ?? 0;
     const dy = info.offset.y ?? 0;
     const ax = Math.abs(dx);
@@ -606,17 +620,40 @@ function GiocaPageContent() {
 
     // Animate out in chosen direction, then commit
     const distance = 900; // off-screen
+    const threshold = 60; // minimum swipe
+    // If the movement is too small in both axes, snap back
+    if (ax < threshold && ay < threshold) {
+      await controls.start({ x: 0, transition: { type: 'spring', stiffness: 400, damping: 30 } });
+      return;
+    }
     const target = {
       x: dir === 'left' ? -distance : dir === 'right' ? distance : 0,
-      y: dir === 'up' ? -distance : dir === 'down' ? distance : 0,
-      rotate: dir === 'left' ? -8 : dir === 'right' ? 8 : 0,
-      transition: { type: 'tween', ease: 'easeOut', duration: 0.25 },
+      // y follows x via cardY during drag; for vertical gestures still allow a direct vertical exit
+      y: dir === 'up' ? -distance : undefined,
+      // rotation is derived from x via cardRotate; don't override here to keep it natural
+      transition: { type: 'tween', ease: 'easeOut', duration: 0.28 },
     } as const;
     try {
-      await controls.start(target);
+      if (dir === 'down') {
+        // Full exit downwards, then snap back behind and reorder
+        setIsSkipAnimating(true);
+        setPreviewOnTop(true);
+        const yBottom = (() => {
+          try { return Math.min(900, (typeof window !== 'undefined' ? window.innerHeight : 800) - 40); } catch { return 820; }
+        })();
+        // Animate the card fully towards the bottom
+  await controls.start({ y: yBottom, transition: { type: 'tween', ease: 'easeOut', duration: DOWN_EXIT_DURATION } });
+  // Snap back to center while remaining visually under the preview card (slowed spring)
+  await controls.start({ x: 0, y: 0, transition: { type: 'spring', stiffness: SNAP_BACK_STIFFNESS, damping: SNAP_BACK_DAMPING } });
+      } else {
+        await controls.start(target);
+      }
     } finally {
       if (dir === 'down') {
+        // Move card to end of deck and restore flags
         skipFixture();
+        setPreviewOnTop(false);
+        setIsSkipAnimating(false);
       } else if (dir === 'up') {
         await handlePrediction(currentFixture.id, 'X');
       } else if (dir === 'left') {
@@ -625,7 +662,7 @@ function GiocaPageContent() {
         await handlePrediction(currentFixture.id, '2');
       }
       // Reset for next card
-      controls.set({ x: 0, y: 0, rotate: 0 });
+      controls.set({ x: 0 });
     }
   };
 
@@ -1118,7 +1155,7 @@ function GiocaPageContent() {
       <div className="mx-4 mb-8 relative">
         {/* Next card preview to be revealed */}
   {effectiveFixtures[currentFixtureIndex + 1] && (
-          <div className="absolute inset-0 scale-[0.97] opacity-95 pointer-events-none">
+          <div className={`absolute inset-0 scale-[0.97] opacity-95 pointer-events-none ${previewOnTop ? 'z-20' : 'z-0'}`}>
             <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
               {/* Next card content */}
               {(() => {
@@ -1161,14 +1198,20 @@ function GiocaPageContent() {
         {/* Top (current) card - draggable */}
         <motion.div
           key={currentFixture?.id}
-          drag={currentMode === 'test' ? Boolean(userKey) && !weekComplete : true}
-          dragElastic={0}
+          drag={currentMode === 'test' ? Boolean(userKey) && !weekComplete && !isSkipAnimating : true}
+          dragElastic={0.15}
           dragMomentum={false}
+          dragDirectionLock
+          onDragStart={() => {
+            // Ensure no residual animation conflicts when user begins dragging
+            try { controls.stop(); } catch {}
+          }}
           onDragEnd={onDragEndCommit}
           animate={controls}
-          initial={{ x: 0, y: 0, rotate: 0 }}
-          whileDrag={{ scale: 1.02 }}
-          className="relative z-10"
+          initial={false}
+          whileDrag={{ scale: 1.01, boxShadow: '0 12px 28px rgba(0,0,0,0.12)', transition: { type: 'spring', stiffness: 360, damping: 28 } }}
+          style={{ x: cardX, y: cardY, rotate: cardRotate, touchAction: 'none', cursor: 'grab' }}
+          className={`relative ${previewOnTop ? 'z-0' : 'z-10'}`}
         >
           <div className={`bg-white rounded-2xl p-6 shadow-lg border border-gray-200 ${weekComplete ? 'opacity-60 pointer-events-none' : ''}`}>
             {/* Match Info */}
