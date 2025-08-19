@@ -36,8 +36,11 @@ export default function ModeSelectionPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 via-purple-700 to-purple-800">
-        <div className="text-white text-xl">Caricamento...</div>
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#554099] mx-auto mb-4"></div>
+          <p className="text-gray-600">Caricamento...</p>
+        </div>
       </div>
     );
   }
@@ -47,13 +50,13 @@ export default function ModeSelectionPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-purple-600 via-purple-700 to-purple-800 px-6">
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6">
       {/* Welcome Section */}
       <div className="text-center mb-12">
-        <h1 className="text-white text-3xl md:text-4xl font-bold mb-4">
+        <h1 className="text-3xl md:text-4xl font-bold mb-4 text-[#554099]">
           Ciao {userName}!
         </h1>
-        <p className="text-white/90 text-lg md:text-xl font-light">
+        <p className="text-lg md:text-xl text-[#554099]">
           Cosa vorresti fare oggi?
         </p>
       </div>
@@ -63,23 +66,23 @@ export default function ModeSelectionPage() {
         {/* Live Mode Button */}
         <button
           onClick={handleLiveMode}
-          className="bg-white text-purple-700 font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 text-lg"
+          className="w-full bg-[#554099] hover:bg-[#443077] text-white font-semibold py-4 text-lg rounded-lg transition-colors shadow-sm"
         >
-          🔴 Modalità Live
+          Modalità Live
         </button>
 
         {/* Test Mode Button */}
         <button
           onClick={handleTestMode}
-          className="bg-white text-purple-700 font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 text-lg"
+          className="w-full bg-[#554099] hover:bg-[#443077] text-white font-semibold py-4 text-lg rounded-lg transition-colors shadow-sm"
         >
-          🧪 Modalità Test
+          Modalità Test
         </button>
       </div>
 
-      {/* Optional Footer Note */}
+      {/* Footer Note */}
       <div className="mt-12 text-center">
-        <p className="text-white/70 text-sm">
+        <p className="text-sm text-[#554099]">
           Seleziona la modalità per iniziare a giocare
         </p>
       </div>
