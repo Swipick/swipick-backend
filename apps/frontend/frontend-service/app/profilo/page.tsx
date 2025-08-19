@@ -1,498 +1,130 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthContext } from '@/src/contexts/AuthContext';
-import { apiClient } from '@/lib/api-client';
-import GradientBackground from '@/components/ui/GradientBackground';
-import FormInput from '@/components/ui/FormInput';
-import Button from '@/components/ui/Button';
 
-interface UserProfile {
-  id: string;
-  firebaseUid: string;
-  name: string;
-  nickname: string;
-  email: string;
-  createdAt: string;
-  updatedAt: string;
-  isActive: boolean;
-  emailVerified: boolean;
-  profileCompleted: boolean;
-}
-
-interface UserStats {
-  totalPredictions: number;
-  correctPredictions: number;
-  overallAccuracy: number;
-  totalPoints: number;
-  currentWeek: number;
-  ranking?: number;
-  weeklyStats?: Array<{
-    week: number;
-    totalPredictions: number;
-    correctPredictions: number;
-    accuracy: number;
-    points: number;
-  }>;
-}
-
-const ProfiloPage: React.FC = () => {
+export default function ProfiloPage() {
   const router = useRouter();
-  const { firebaseUser, logout } = useAuthContext();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [liveStats, setLiveStats] = useState<UserStats | null>(null);
-  const [testStats, setTestStats] = useState<UserStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [editMode, setEditMode] = useState(false);
-  const [editData, setEditData] = useState({ name: '', nickname: '' });
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
-  const fetchUserProfile = useCallback(async () => {
-    if (!firebaseUser) return;
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      // Get user profile
-      const userResponse = await apiClient.getUserByFirebaseUid(firebaseUser.uid);
-      const userProfile = userResponse.data;
-      setProfile(userProfile);
-      setEditData({ name: userProfile.name, nickname: userProfile.nickname });
+  // Goal 0 placeholders (UI only)
+  const user = useMemo(() => ({
+    name: 'Marco Magnocavallo',
+    nickname: 'marco',
+    email: 'marco@example.com', // email will be read-only later
+  }), []);
 
-      // Fetch stats for both modes in parallel
-      const [liveStatsResponse, testStatsResponse] = await Promise.all([
-        apiClient.getUserSummary(userProfile.id, 'live').catch(() => null),
-        apiClient.getUserSummary(userProfile.id, 'test').catch(() => null)
-      ]);
-
-      setLiveStats(liveStatsResponse);
-      setTestStats(testStatsResponse);
-    } catch (err) {
-      console.error('Error fetching user profile:', err);
-      setError('Errore nel caricamento del profilo');
-    } finally {
-      setLoading(false);
-    }
-  }, [firebaseUser]);
-
-  useEffect(() => {
-    if (!firebaseUser) {
-      router.push('/login');
-      return;
-    }
-    
-    fetchUserProfile();
-  }, [firebaseUser, fetchUserProfile, router]);
-
-  const handleEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!profile) return;
-
-    setError(null);
-    setSuccess(null);
-
-    try {
-      // Here you would call an update profile API
-      // For now, we'll just update the local state
-      setProfile({ ...profile, ...editData });
-      setEditMode(false);
-      setSuccess('Profilo aggiornato con successo');
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      console.error('Error updating profile:', err);
-      setError('Errore nell\'aggiornamento del profilo');
-    }
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await logout();
-      router.push('/login');
-    } catch (err) {
-      console.error('Error signing out:', err);
-      setError('Errore durante la disconnessione');
-    }
-  };
-
-  const resetTestData = async () => {
-    if (!profile) return;
-    
-    try {
-      await apiClient.resetTestData(profile.id);
-      setSuccess('Dati di test resettati con successo');
-      
-      // Refresh test stats
-      const testStatsResponse = await apiClient.getUserSummary(profile.id, 'test').catch(() => null);
-      setTestStats(testStatsResponse);
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      console.error('Error resetting test data:', err);
-      setError('Errore nel reset dei dati di test');
-    }
-  };
-
-  // ---- Computed summaries for weekly stats ----
-  const summarizeMode = useCallback((stats: UserStats | null) => {
-    if (!stats || !Array.isArray(stats.weeklyStats)) {
-      return { played: 0, best: null as null | { week: number; accuracy: number; points: number }, worst: null as null | { week: number; accuracy: number; points: number } };
-    }
-    const weeks = stats.weeklyStats.filter(w => (w.totalPredictions ?? 0) > 0);
-    const played = weeks.length;
-    if (played === 0) return { played: 0, best: null, worst: null };
-    // tie-breakers: best → higher accuracy, then higher points, then most recent week
-    let best = weeks[0];
-    for (const w of weeks.slice(1)) {
-      if (w.accuracy > best.accuracy) { best = w; continue; }
-      if (w.accuracy === best.accuracy && w.points > best.points) { best = w; continue; }
-      if (w.accuracy === best.accuracy && w.points === best.points && w.week > best.week) { best = w; continue; }
-    }
-    // worst → lower accuracy, then lower points, then most recent week
-    let worst = weeks[0];
-    for (const w of weeks.slice(1)) {
-      if (w.accuracy < worst.accuracy) { worst = w; continue; }
-      if (w.accuracy === worst.accuracy && w.points < worst.points) { worst = w; continue; }
-      if (w.accuracy === worst.accuracy && w.points === worst.points && w.week > worst.week) { worst = w; continue; }
-    }
-    return { played, best: { week: best.week, accuracy: best.accuracy, points: best.points }, worst: { week: worst.week, accuracy: worst.accuracy, points: worst.points } };
-  }, []);
-
-  const liveSummary = useMemo(() => summarizeMode(liveStats), [liveStats, summarizeMode]);
-  const testSummary = useMemo(() => summarizeMode(testStats), [testStats, summarizeMode]);
-
-  const shareProfile = useCallback((mode: 'live' | 'test') => {
-    const s = mode === 'live' ? liveStats : testStats;
-    if (!s) return;
-    const text = `Profilo: precisione ${s.overallAccuracy?.toFixed?.(0) ?? 0}%, punti ${s.totalPoints ?? 0}. #Swipick`;
-    // Stub: log, could use Web Share API
-    console.log(text);
-  }, [liveStats, testStats]);
-
-  if (loading) {
-    return (
-      <GradientBackground>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-white text-xl">Caricamento...</div>
-        </div>
-      </GradientBackground>
-    );
-  }
-
-  if (error && !profile) {
-    return (
-      <GradientBackground>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-white text-xl">{error}</div>
-        </div>
-      </GradientBackground>
-    );
-  }
+  const kpi = useMemo(() => ({
+    average: '62,4%',
+    weeksPlayed: 6,
+    best: { pct: '80%', week: 4 },
+    worst: { pct: '40%', week: 2 },
+  }), []);
 
   return (
-    <GradientBackground>
-      <div className="min-h-screen pb-20 p-4">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6 pt-12">
-          <h1 className="text-white text-2xl font-bold">Profilo</h1>
-          <button
-            onClick={() => setEditMode(!editMode)}
-            className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-xl font-medium hover:bg-opacity-30 transition-colors"
-          >
-            {editMode ? 'Annulla' : 'Modifica'}
-          </button>
-        </div>
-
-        {/* Success/Error Messages */}
-        {success && (
-          <div className="bg-green-500 bg-opacity-20 border border-green-500 text-white p-4 rounded-xl mb-6">
-            {success}
-          </div>
-        )}
-        {error && (
-          <div className="bg-red-500 bg-opacity-20 border border-red-500 text-white p-4 rounded-xl mb-6">
-            {error}
-          </div>
-        )}
-
-        {/* Profile Info */}
-        {profile && (
-          <div className="bg-white bg-opacity-20 rounded-xl p-6 mb-6">
-            {editMode ? (
-              <form onSubmit={handleEditSubmit} className="space-y-4">
-                <FormInput
-                  id="name"
-                  name="name"
-                  type="text"
-                  placeholder="Nome"
-                  value={editData.name}
-                  onChange={(value) => setEditData({ ...editData, name: value })}
-                  required
-                />
-                <FormInput
-                  id="nickname"
-                  name="nickname"
-                  type="text"
-                  placeholder="Nickname"
-                  value={editData.nickname}
-                  onChange={(value) => setEditData({ ...editData, nickname: value })}
-                  required
-                />
-                <div className="flex space-x-4">
-                  <Button type="submit" className="flex-1">
-                    Salva
-                  </Button>
-                  <Button 
-                    type="button" 
-                    onClick={() => setEditMode(false)}
-                    className="flex-1 bg-gray-500 hover:bg-gray-600"
-                  >
-                    Annulla
-                  </Button>
-                </div>
-              </form>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center space-x-4">
-                  <div className="w-16 h-16 bg-white bg-opacity-30 rounded-full flex items-center justify-center">
-                    <span className="text-white text-2xl font-bold">
-                      {profile.nickname.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div>
-                    <h2 className="text-white text-xl font-bold">{profile.nickname}</h2>
-                    <p className="text-white text-opacity-80">{profile.name}</p>
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-white text-opacity-80">Email:</span>
-                    <span className="text-white">{profile.email}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-white text-opacity-80">Membro dal:</span>
-                    <span className="text-white">
-                      {new Date(profile.createdAt).toLocaleDateString('it-IT')}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-white text-opacity-80">Email verificata:</span>
-                    <span className={`${profile.emailVerified ? 'text-green-400' : 'text-red-400'}`}>
-                      {profile.emailVerified ? '✓ Verificata' : '✗ Non verificata'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Statistics */}
-        <div className="space-y-6">
-          {/* Live Mode Stats */}
-          <div className="bg-white bg-opacity-20 rounded-xl p-6">
-            <h3 className="text-white text-lg font-bold mb-4 flex items-center">
-              <span className="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
-              Modalità Live
-            </h3>
-            {liveStats ? (
-              <div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-white">{liveStats.overallAccuracy.toFixed(1)}%</div>
-                    <div className="text-white text-opacity-80 text-sm">Precisione</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-white">{liveStats.totalPoints}</div>
-                    <div className="text-white text-opacity-80 text-sm">Punti</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-white">{liveStats.correctPredictions}</div>
-                    <div className="text-white text-opacity-80 text-sm">Corrette</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-white">{liveStats.totalPredictions}</div>
-                    <div className="text-white text-opacity-80 text-sm">Totali</div>
-                  </div>
-                </div>
-                {/* Weekly summary */}
-                <div className="mt-4 p-3 rounded-lg bg-white bg-opacity-10">
-                  <div className="flex justify-between text-white text-sm mb-2">
-                    <span>Giornate giocate</span>
-                    <span>{liveSummary.played}</span>
-                  </div>
-                  <div className="flex justify-between text-white text-sm mb-1">
-                    <span>Migliore settimana</span>
-                    <span>{liveSummary.best ? `#${liveSummary.best.week} • ${liveSummary.best.accuracy.toFixed(1)}%` : '-'}</span>
-                  </div>
-                  <div className="flex justify-between text-white text-sm">
-                    <span>Peggiore settimana</span>
-                    <span>{liveSummary.worst ? `#${liveSummary.worst.week} • ${liveSummary.worst.accuracy.toFixed(1)}%` : '-'}</span>
-                  </div>
-                  <div className="mt-3 text-right">
-                    <button
-                      onClick={() => shareProfile('live')}
-                      className="bg-white bg-opacity-20 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-opacity-30 transition-all"
-                    >
-                      Condividi profilo
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-white text-opacity-60 text-center py-4">
-                Nessuna statistica disponibile
-              </div>
-            )}
-          </div>
-
-          {/* Test Mode Stats */}
-          <div className="bg-white bg-opacity-20 rounded-xl p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-white text-lg font-bold flex items-center">
-                <span className="w-3 h-3 bg-blue-500 rounded-full mr-2"></span>
-                Modalità Test
-              </h3>
-              <button
-                onClick={resetTestData}
-                className="bg-red-500 bg-opacity-80 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-opacity-100 transition-all"
-              >
-                Reset
-              </button>
+    <div className="min-h-screen bg-white pb-24">
+      {/* Gradient header */}
+      <div
+        className="w-full mx-0 mt-0 mb-6 rounded-b-2xl rounded-t-none text-white"
+        style={{
+          background: 'radial-gradient(circle at center, #554099, #3d2d73)',
+          boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
+        }}
+      >
+        <div className="px-5 pt-9 pb-7">
+          <div className="flex items-center gap-4">
+            {/* Avatar placeholder */}
+            <div className="w-16 h-16 rounded-xl bg-white/20 grid place-items-center text-2xl font-bold">
+              {user.name.charAt(0)}
             </div>
-            {testStats ? (
-              <div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-white">{testStats.overallAccuracy.toFixed(1)}%</div>
-                    <div className="text-white text-opacity-80 text-sm">Precisione</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-white">{testStats.totalPoints}</div>
-                    <div className="text-white text-opacity-80 text-sm">Punti</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-white">{testStats.correctPredictions}</div>
-                    <div className="text-white text-opacity-80 text-sm">Corrette</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-white">{testStats.totalPredictions}</div>
-                    <div className="text-white text-opacity-80 text-sm">Totali</div>
-                  </div>
-                </div>
-                {/* Weekly summary */}
-                <div className="mt-4 p-3 rounded-lg bg-white bg-opacity-10">
-                  <div className="flex justify-between text-white text-sm mb-2">
-                    <span>Giornate giocate</span>
-                    <span>{testSummary.played}</span>
-                  </div>
-                  <div className="flex justify-between text-white text-sm mb-1">
-                    <span>Migliore settimana</span>
-                    <span>{testSummary.best ? `#${testSummary.best.week} • ${testSummary.best.accuracy.toFixed(1)}%` : '-'}</span>
-                  </div>
-                  <div className="flex justify-between text-white text-sm">
-                    <span>Peggiore settimana</span>
-                    <span>{testSummary.worst ? `#${testSummary.worst.week} • ${testSummary.worst.accuracy.toFixed(1)}%` : '-'}</span>
-                  </div>
-                  <div className="mt-3 text-right">
-                    <button
-                      onClick={() => shareProfile('test')}
-                      className="bg-white bg-opacity-20 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-opacity-30 transition-all"
-                    >
-                      Condividi profilo
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-white text-opacity-60 text-center py-4">
-                Nessuna statistica disponibile
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Settings */}
-        <div className="bg-white bg-opacity-20 rounded-xl p-6 mt-6">
-          <h3 className="text-white text-lg font-bold mb-4">Impostazioni</h3>
-          <div className="space-y-3">
+            <div className="flex-1 min-w-0">
+              <div className="text-lg font-semibold truncate">{user.name}</div>
+              <div className="text-white/80 text-sm">@{user.nickname}</div>
+            </div>
             <button
-              onClick={() => router.push('/terms')}
-              className="w-full text-left text-white hover:text-white hover:bg-white hover:bg-opacity-10 p-3 rounded-lg transition-colors"
+              aria-label="Impostazioni"
+              onClick={() => router.push('/impostazioni')}
+              className="p-2 rounded-lg hover:bg-white/10 active:bg-white/15"
+              title="Impostazioni"
             >
-              <div className="flex justify-between items-center">
-                <span>Termini e Condizioni</span>
-                <span>→</span>
-              </div>
-            </button>
-            <button
-              onClick={() => router.push('/privacy')}
-              className="w-full text-left text-white hover:text-white hover:bg-white hover:bg-opacity-10 p-3 rounded-lg transition-colors"
-            >
-              <div className="flex justify-between items-center">
-                <span>Privacy Policy</span>
-                <span>→</span>
-              </div>
-            </button>
-            <button
-              onClick={handleSignOut}
-              className="w-full text-left text-red-400 hover:text-red-300 hover:bg-red-500 hover:bg-opacity-10 p-3 rounded-lg transition-colors"
-            >
-              <div className="flex justify-between items-center">
-                <span>Disconnetti</span>
-                <span>→</span>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* Bottom Navigation */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
-          <div className="flex">
-            <button
-              onClick={() => router.push('/risultati')}
-              className="flex-1 text-center py-4"
-            >
-              <div className="text-gray-400 mb-1">
-                <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M9 11H7v6h2v-6zm4 0h-2v6h2v-6zm4 0h-2v6h2v-6zM4 22h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16V8H4v2zm0-6h16V2H4v2z"/>
-                </svg>
-              </div>
-              <span className="text-xs text-gray-500">Risultati</span>
-            </button>
-            <button
-              onClick={() => router.push('/gioca')}
-              className="flex-1 text-center py-4"
-            >
-              <div className="text-gray-400 mb-1">
-                <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                </svg>
-              </div>
-              <span className="text-xs text-gray-500">Gioca</span>
-            </button>
-            <button
-              onClick={() => router.push('/profilo')}
-              className="flex-1 text-center py-4 border-b-2 border-purple-600"
-            >
-              <div className="text-purple-600 mb-1">
-                <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2c1.1 0 2 .9 2 2 0 .74-.4 1.38-1 1.72v.78h-.5c-.83 0-1.5.67-1.5 1.5v.5c0 .28-.22.5-.5.5s-.5-.22-.5-.5v-.5c0-1.38 1.12-2.5 2.5-2.5H13V5.72c-.6-.34-1-.98-1-1.72 0-1.1.9-2 2-2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
-                </svg>
-              </div>
-              <span className="text-xs text-purple-600 font-medium">Profilo</span>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                <path d="M19.14,12.94a7.43,7.43,0,0,0,.05-.94,7.43,7.43,0,0,0-.05-.94l2.11-1.65a.5.5,0,0,0,.12-.64l-2-3.46a.5.5,0,0,0-.6-.22l-2.49,1a7.63,7.63,0,0,0-1.63-.94l-.38-2.65A.5.5,0,0,0,13.72,2H10.28a.5.5,0,0,0-.5.42L9.4,5.07a7.63,7.63,0,0,0-1.63.94l-2.49-1a.5.5,0,0,0-.6.22l-2,3.46a.5.5,0,0,0,.12.64L4.86,11.06a7.43,7.43,0,0,0-.05.94,7.43,7.43,0,0,0,.05.94L2.75,14.59a.5.5,0,0,0-.12.64l2,3.46a.5.5,0,0,0,.6.22l2.49-1a7.63,7.63,0,0,0,1.63.94l.38,2.65a.5.5,0,0,0,.5.42h3.44a.5.5,0,0,0,.5-.42l.38-2.65a7.63,7.63,0,0,0,1.63-.94l2.49,1a.5.5,0,0,0,.6-.22l2-3.46a.5.5,0,0,0-.12-.64ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z" />
+              </svg>
             </button>
           </div>
         </div>
       </div>
-    </GradientBackground>
-  );
-};
 
-export default ProfiloPage;
+      {/* Cards */}
+      <div className="px-4 space-y-4">
+        <div className="grid grid-cols-1 gap-4">
+          <div className="bg-gradient-to-br from-white to-purple-50 rounded-2xl p-4 shadow-sm border border-purple-100/40">
+            <div className="text-sm text-gray-700 mb-2">Punteggio medio</div>
+            <div className="flex items-end justify-between">
+              <div className="text-4xl font-extrabold text-[#1f1147]">{kpi.average}</div>
+              <div className="text-xs text-gray-500">{kpi.weeksPlayed} giornate giocate</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="rounded-2xl p-4 shadow-sm border border-green-100/50" style={{ background: 'linear-gradient(180deg, #f4fff1, #ffffff)' }}>
+            <div className="text-sm text-gray-700 mb-3">Risultato migliore</div>
+            <div className="text-3xl font-extrabold text-[#1f1147]">{kpi.best.pct}</div>
+            <div className="text-xs text-gray-500 mt-1">giornata {kpi.best.week}</div>
+          </div>
+          <div className="rounded-2xl p-4 shadow-sm border border-orange-100/50" style={{ background: 'linear-gradient(180deg, #ffeef2, #ffffff)' }}>
+            <div className="text-sm text-gray-700 mb-3">Risultato peggiore</div>
+            <div className="text-3xl font-extrabold text-[#1f1147]">{kpi.worst.pct}</div>
+            <div className="text-xs text-gray-500 mt-1">giornata {kpi.worst.week}</div>
+          </div>
+        </div>
+
+        <div className="pt-2 pb-2">
+          <button
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium shadow bg-indigo-600 text-white hover:bg-indigo-700"
+            onClick={() => { /* placeholder */ }}
+            title="Condividi profilo"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+              <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.02-4.11A2.99 2.99 0 0 0 18 7.91c1.66 0 3-1.35 3-3.01s-1.34-3-3-3a3 3 0 0 0-2.82 4.01L8.16 9.83A3 3 0 0 0 6 9c-1.66 0-3 1.34-3 3s1.34 3.01 3 3.01c1.02 0 1.92-.5 2.46-1.26l7.05 4.12c-.05.21-.08.43-.08.66 0 1.66 1.34 3.01 3 3.01s3-1.35 3-3.01-1.34-3-3-3Z" />
+            </svg>
+            Condividi profilo
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
+        <div className="flex">
+          <button
+            onClick={() => router.push('/risultati')}
+            className="flex-1 text-center py-4"
+          >
+            <div className="text-gray-500 mb-1">
+              <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M9 11H7v6h2v-6zm4 0h-2v6h2v-6zm4 0h-2v6h2v-6zM4 22h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16V8H4v2zm0-6h16V2H4v2z"/>
+              </svg>
+            </div>
+            <span className="text-xs text-black">Risultati</span>
+          </button>
+          <button onClick={() => router.push('/gioca')} className="flex-1 text-center py-4">
+            <div className="text-gray-500 mb-1">
+              <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+              </svg>
+            </div>
+            <span className="text-xs text-black">Gioca</span>
+          </button>
+          <div className="flex-1 text-center py-4 border-b-2 border-purple-600">
+            <div className="text-purple-600 mb-1">
+              <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2c1.1 0 2 .9 2 2 0 .74-.4 1.38-1 1.72v.78h-.5c-.83 0-1.5.67-1.5 1.5v.5c0 .28-.22.5-.5.5s-.5-.22-.5-.5v-.5c0-1.38 1.12-2.5 2.5-2.5H13V5.72c-.6-.34-1-.98-1-1.72 0-1.1.9-2 2-2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+              </svg>
+            </div>
+            <span className="text-xs text-purple-600 font-medium">Profilo</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
