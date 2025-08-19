@@ -513,13 +513,27 @@ function GiocaPageContent() {
     }
   }, [weekComplete, selectedWeek, currentMode, rolledWeek1Once, hasWeekPredsKey, userKey]);
 
+  const [localComplete, setLocalComplete] = useState(false);
+
   const handlePrediction = async (fixtureId: number, prediction: '1' | 'X' | '2') => {
     if (currentMode === 'test' && weekComplete) {
       // Prevent further plays when week is complete
       return;
     }
     // Optimistic UI update
-    setPredictions(prev => ({ ...prev, [fixtureId]: prediction }));
+    let nowComplete = false;
+    setPredictions(prev => {
+      const next = { ...prev, [fixtureId]: prediction } as typeof prev;
+      // Compute count across current fixtures to decide if we've reached 10 locally
+      try {
+        const count = fixtures.reduce((acc, f) => acc + (next[f.id] ? 1 : 0), 0);
+        nowComplete = count >= 10;
+      } catch {}
+      return next;
+    });
+    if (nowComplete) {
+      setLocalComplete(true);
+    }
 
     // Persist to backend in Test Mode only
     try {
@@ -556,8 +570,15 @@ function GiocaPageContent() {
             setWeekComplete(true);
           }
         } catch {}
-        // Optionally refresh match-cards to show overlay correctness if any prior fixtures are involved
+        // Optionally refresh match-cards to show overlay correctness if any prior fixtures are involved.
+        // IMPORTANT: Preserve the current deck order (which may have been rotated by Skip) by
+        // reordering the incoming cards to match the current fixtures array by fixtureId.
+        // Skip this refresh if we've just completed all 10 locally to avoid unnecessary churn.
         try {
+          if (nowComplete) {
+            // Optimistically mark as complete; weekly stats check below will confirm and set veil where applicable.
+            // No need to refresh match-cards anymore.
+          } else {
           const userIdForOverlay = userKey ?? undefined;
           const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, userIdForOverlay) as unknown as { success?: boolean; data?: MatchCard[] } | MatchCard[];
           const mcRaw: MatchCard[] | undefined = Array.isArray(mcResponse)
@@ -565,7 +586,21 @@ function GiocaPageContent() {
             : (mcResponse as { data?: MatchCard[] })?.data;
           if (Array.isArray(mcRaw)) {
             const arr = mcRaw.slice().sort((a, b) => new Date(a.kickoff.iso).getTime() - new Date(b.kickoff.iso).getTime());
-            setMatchCards(arr);
+            // Reorder to fixtures order
+            const orderMap = new Map<number, number>();
+            fixtures.forEach((f, i) => orderMap.set(f.id, i));
+            const byId = new Map<number, MatchCard>();
+            arr.forEach((c) => byId.set(c.fixtureId, c));
+            const reordered: MatchCard[] = fixtures.map((f) => byId.get(f.id)).filter(Boolean) as MatchCard[];
+            // Fallback: if any missing, append remaining in original sorted order
+            if (reordered.length < arr.length) {
+              const seen = new Set(reordered.map((c) => c.fixtureId));
+              for (const c of arr) {
+                if (!seen.has(c.fixtureId)) reordered.push(c);
+              }
+            }
+            setMatchCards(reordered);
+          }
           }
         } catch {}
       }
@@ -584,20 +619,20 @@ function GiocaPageContent() {
 
   const skipFixture = () => {
     // Skip advances navigation but does not consume a turn
-    // Rotate current card to the end of the list for both fixtures and matchCards
+    // Rotate current card to the end of the list for both fixtures and matchCards atomically using the same index
+    const idx = Math.min(Math.max(currentFixtureIndex, 0), Math.min(fixtures.length, matchCards.length) - 1);
+    if (idx < 0) return;
     setFixtures((prev) => {
       if (!prev.length) return prev;
       const copy = prev.slice();
-      const idx = Math.min(Math.max(currentFixtureIndex, 0), copy.length - 1);
-      const [curr] = copy.splice(idx, 1);
+      const [curr] = copy.splice(Math.min(idx, copy.length - 1), 1);
       copy.push(curr);
       return copy;
     });
     setMatchCards((prev) => {
       if (!prev.length) return prev;
       const copy = prev.slice();
-      const idx = Math.min(Math.max(currentFixtureIndex, 0), copy.length - 1);
-      const [curr] = copy.splice(idx, 1);
+      const [curr] = copy.splice(Math.min(idx, copy.length - 1), 1);
       copy.push(curr);
       return copy;
     });
@@ -665,6 +700,8 @@ function GiocaPageContent() {
       controls.set({ x: 0 });
     }
   };
+
+  // Programmatic swipe will be defined after currentFixture for proper dependencies
 
   const formatMatchDateTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -805,7 +842,45 @@ function GiocaPageContent() {
   const currentPrediction = currentFixture ? predictions[currentFixture.id] : undefined;
   const predictionsCount = effectiveFixtures.reduce((acc, f) => acc + (predictions[f.id] ? 1 : 0), 0);
   const progressPct = Math.min(predictionsCount / 10, 1) * 100;
-  const isComplete = predictionsCount >= 10;
+  const isComplete = localComplete || predictionsCount >= 10;
+
+  // Programmatic swipe used by buttons to mirror the same animations and commits
+  const animateAndCommit = async (dir: 'left' | 'right' | 'up' | 'down') => {
+    if (!currentFixture) return;
+    if (currentMode === 'test' && weekComplete) return;
+    if (isSkipAnimating) return;
+    const distance = 900;
+    if (dir === 'down') {
+      try {
+        setIsSkipAnimating(true);
+        setPreviewOnTop(true);
+        const yBottom = (() => {
+          try { return Math.min(900, (typeof window !== 'undefined' ? window.innerHeight : 800) - 40); } catch { return 820; }
+        })();
+        await controls.start({ y: yBottom, transition: { type: 'tween', ease: 'easeOut', duration: DOWN_EXIT_DURATION } });
+        await controls.start({ x: 0, y: 0, transition: { type: 'spring', stiffness: SNAP_BACK_STIFFNESS, damping: SNAP_BACK_DAMPING } });
+      } finally {
+        skipFixture();
+        setPreviewOnTop(false);
+        setIsSkipAnimating(false);
+      }
+      return;
+    }
+    const target = {
+      x: dir === 'left' ? -distance : dir === 'right' ? distance : 0,
+      y: dir === 'up' ? -distance : undefined,
+      transition: { type: 'tween', ease: 'easeOut', duration: 0.28 },
+    } as const;
+    await controls.start(target);
+    if (dir === 'up') {
+      await handlePrediction(currentFixture.id, 'X');
+    } else if (dir === 'left') {
+      await handlePrediction(currentFixture.id, '1');
+    } else if (dir === 'right') {
+      await handlePrediction(currentFixture.id, '2');
+    }
+    controls.set({ x: 0, y: 0 });
+  };
 
   const buttonStyle: React.CSSProperties = {
     background: 'radial-gradient(circle at center, #554099, #3d2d73)',
@@ -894,23 +969,23 @@ function GiocaPageContent() {
     while (filled.length < 5) filled.push(null);
 
     return (
-      <div className="flex justify-center gap-1 mt-1">
+  <div className="flex justify-center gap-1 mt-1">
         {filled.map((it, idx) => {
           if (it === null) {
             return (
               <div
                 key={idx}
-                className="w-5 h-5 rounded-full text-[10px] leading-none flex items-center justify-center bg-gray-300 text-gray-500"
+        className="w-5 h-5 rounded-md text-[10px] leading-none flex items-center justify-center bg-gray-100 text-gray-700"
               >
                 —
               </div>
             );
           }
-          const color = it.correct == null
-            ? 'bg-gray-300 text-gray-700'
-            : it.correct ? 'bg-green-500 text-white' : 'bg-red-500 text-white';
+      const color = it.correct == null
+    ? 'bg-gray-100 text-gray-700'
+    : it.correct ? 'bg-[#ccffb3] text-[#2a8000]' : 'bg-[#ffb3b3] text-[#cc0000]';
           return (
-            <div key={idx} className={`w-5 h-5 rounded-full text-[10px] leading-none flex items-center justify-center ${color}`}>
+    <div key={idx} className={`w-5 h-5 rounded-md text-[10px] leading-none flex items-center justify-center ${color}`}>
               {it.code}
             </div>
           );
@@ -966,7 +1041,7 @@ function GiocaPageContent() {
           <div className="px-6 pb-6">
             <div className="relative mx-auto" style={{ width: 'calc(100% - 115px)' }}>
               <div className="bg-white bg-opacity-30 rounded-sm overflow-hidden" style={{ height: '18px' }}>
-                <div className="bg-white h-full rounded-sm" style={{ width: '100%' }} />
+                <div className="bg-indigo-300 h-full rounded-sm" style={{ width: '100%' }} />
               </div>
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="text-xs font-medium text-[#3d2d73]">10/10</span>
@@ -1138,7 +1213,7 @@ function GiocaPageContent() {
           <div className="relative mx-auto" style={{ width: 'calc(100% - 115px)' }}>
             <div className="bg-white bg-opacity-30 rounded-sm overflow-hidden" style={{ height: '18px' }}>
               <div
-                className="bg-white h-full rounded-sm transition-all duration-300"
+                className="bg-indigo-300 h-full rounded-sm transition-all duration-300"
                 style={{ width: `${progressPct}%` }}
               />
             </div>
@@ -1167,25 +1242,35 @@ function GiocaPageContent() {
                       <p className="text-black text-sm mb-1">{nc ? nc.kickoff.display : formatMatchDateTime(nf.date)}</p>
                       <p className="text-black text-xs">{nc?.stadium || nf.venue.name}</p>
                     </div>
-                    <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center justify-between gap-8 mb-8">
                       <div className="flex-1 text-center opacity-95">
                         {(nc?.home.logo || nf.teams.home.logo) ? (
-                          <Image src={(nc?.home.logo || nf.teams.home.logo) as string} alt={nc?.home.name || nf.teams.home.name} width={80} height={80} className="mx-auto mb-3 w-20 h-20 object-contain" />
+                          <Image src={(nc?.home.logo || nf.teams.home.logo) as string} alt={nc?.home.name || nf.teams.home.name} width={120} height={120} className="mx-auto mb-3 w-[120px] h-[120px] object-contain" />
                         ) : (
                           <div className="w-12 h-12 mx-auto mb-24 bg-purple-100 rounded-full" />
                         )}
                         <h3 className="font-bold text-lg mb-1 text-black">{nc?.home.name || nf.teams.home.name}</h3>
+                        <p className="text-[11px] text-black">Posizione in classifica</p>
+                        <p className="text-sm font-bold text-black">{nc?.home.standingsPosition ?? '—'}</p>
+                        <p className="text-[11px] text-black mt-1">Vittorie in casa</p>
+                        <p className="text-sm font-bold text-black">{nc?.home.winRateHome != null ? `${nc.home.winRateHome}%` : '—'}</p>
+                        <p className="text-[11px] text-black mt-1">Ultimi 5 risultati</p>
+                        {nc ? renderLastFive(nc.home.last5, 'home', nc.home.form) : renderLastFive([], 'home')}
                       </div>
-                      <div className="px-4">
-                        <div className="text-2xl font-bold text-gray-300">VS</div>
-                      </div>
+                      {/* VS removed for cleaner layout per design */}
                       <div className="flex-1 text-center opacity-95">
                         {(nc?.away.logo || nf.teams.away.logo) ? (
-                          <Image src={(nc?.away.logo || nf.teams.away.logo) as string} alt={nc?.away.name || nf.teams.away.name} width={80} height={80} className="mx-auto mb-3 w-20 h-20 object-contain" />
+                          <Image src={(nc?.away.logo || nf.teams.away.logo) as string} alt={nc?.away.name || nf.teams.away.name} width={120} height={120} className="mx-auto mb-3 w-[120px] h-[120px] object-contain" />
                         ) : (
                           <div className="w-12 h-12 mx-auto mb-3 bg-blue-100 rounded-full" />
                         )}
                         <h3 className="font-bold text-lg mb-1 text-black">{nc?.away.name || nf.teams.away.name}</h3>
+                        <p className="text-[11px] text-black">Posizione in classifica</p>
+                        <p className="text-sm font-bold text-black">{nc?.away.standingsPosition ?? '—'}</p>
+                        <p className="text-[11px] text-black mt-1">Vittorie in trasferta</p>
+                        <p className="text-sm font-bold text-black">{nc?.away.winRateAway != null ? `${nc.away.winRateAway}%` : '—'}</p>
+                        <p className="text-[11px] text-black mt-1">Ultimi 5 risultati</p>
+                        {nc ? renderLastFive(nc.away.last5, 'away', nc.away.form) : renderLastFive([], 'away')}
                       </div>
                     </div>
                   </>
@@ -1221,16 +1306,16 @@ function GiocaPageContent() {
             </div>
 
             {/* Teams */}
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between gap-8 mb-8">
               {/* Home Team */}
               <div className="flex-1 text-center">
-                {(currentCard?.home.logo || currentFixture.teams.home.logo) ? (
+        {(currentCard?.home.logo || currentFixture.teams.home.logo) ? (
                   <Image
                     src={(currentCard?.home.logo || currentFixture.teams.home.logo) as string}
                     alt={currentCard?.home.name || currentFixture.teams.home.name}
-                    width={80}
-                    height={80}
-                    className="mx-auto mb-3 w-20 h-20 object-contain"
+          width={120}
+          height={120}
+          className="mx-auto mb-3 w-[120px] h-[120px] object-contain"
                     priority
                   />
                 ) : (
@@ -1249,20 +1334,17 @@ function GiocaPageContent() {
                 {currentCard ? renderLastFive(currentCard.home.last5, 'home', currentCard.home.form) : renderLastFive([], 'home')}
               </div>
 
-              {/* VS */}
-              <div className="px-4">
-                <div className="text-2xl font-bold text-gray-400">VS</div>
-              </div>
+              {/* VS removed for cleaner layout per design */}
 
               {/* Away Team */}
               <div className="flex-1 text-center">
-                {(currentCard?.away.logo || currentFixture.teams.away.logo) ? (
+        {(currentCard?.away.logo || currentFixture.teams.away.logo) ? (
                   <Image
                     src={(currentCard?.away.logo || currentFixture.teams.away.logo) as string}
                     alt={currentCard?.away.name || currentFixture.teams.away.name}
-                    width={80}
-                    height={80}
-                    className="mx-auto mb-3 w-20 h-20 object-contain"
+          width={120}
+          height={120}
+          className="mx-auto mb-3 w-[120px] h-[120px] object-contain"
                     priority
                   />
                 ) : (
@@ -1290,10 +1372,10 @@ function GiocaPageContent() {
         <div className="grid grid-cols-3 gap-x-10 gap-y-0 justify-items-center items-center ">
           {/* Top: X */}
           <div className="col-start-2">
-      <button
-              onClick={() => handlePrediction(currentFixture.id, 'X')}
+  <button
+      onClick={() => animateAndCommit('up')}
   disabled={(currentMode === 'test' && (!userKey || weekComplete))}
-        className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
+  className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-md shadow-lg transition-all duration-200 hover:scale-105 ${
     currentPrediction === 'X' ? 'scale-105' : ''
               }`}
               style={buttonStyle}
@@ -1303,10 +1385,10 @@ function GiocaPageContent() {
           </div>
           {/* Middle Left: 1 */}
           <div className="col-start-1 row-start-2">
-      <button
-              onClick={() => handlePrediction(currentFixture.id, '1')}
+  <button
+      onClick={() => animateAndCommit('left')}
   disabled={(currentMode === 'test' && (!userKey || weekComplete))}
-        className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
+  className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-md shadow-lg transition-all duration-200 hover:scale-105 ${
                 currentPrediction === '1' ? 'scale-105' : ''
               }`}
               style={buttonStyle}
@@ -1316,10 +1398,10 @@ function GiocaPageContent() {
           </div>
           {/* Middle Right: 2 */}
           <div className="col-start-3 row-start-2">
-      <button
-              onClick={() => handlePrediction(currentFixture.id, '2')}
+  <button
+      onClick={() => animateAndCommit('right')}
   disabled={(currentMode === 'test' && (!userKey || weekComplete))}
-        className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 ${
+  className={`relative w-24 text-center text-white font-bold py-3 px-8 rounded-md shadow-lg transition-all duration-200 hover:scale-105 ${
                 currentPrediction === '2' ? 'scale-105' : ''
               }`}
               style={buttonStyle}
@@ -1330,9 +1412,9 @@ function GiocaPageContent() {
           {/* Bottom: Skip */}
   <div className="col-start-2 row-start-3 -mt-[15px]">
             <button
-              onClick={skipFixture}
+              onClick={() => animateAndCommit('down')}
      disabled={(currentMode === 'test' && weekComplete)}
-     className="relative w-24 text-center bg-white text-[#3d2d73] font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-200 hover:scale-105 disabled:opacity-60"
+  className="relative w-24 text-center bg-white text-[#3d2d73] font-bold py-3 px-8 rounded-md shadow-lg transition-all duration-200 hover:scale-105 disabled:opacity-60"
         style={skipStyle}
             >
               skip

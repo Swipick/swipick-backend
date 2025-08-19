@@ -869,7 +869,7 @@ function RisultatiPageContent() {
                   const pred = predByFixture.get(fid);
                   const scoreFallback = fixtureScores.get(fid);
                   const isRevealed = !!revealed[m.fixtureId];
-                  const statusLabel = isRevealed ? 'FINE PARTITA' : 'Mostra risultato';
+                  const statusLabel = isRevealed ? 'FINE PARTITA' : 'MOSTRA RISULTATO';
                   const statusColor = isRevealed ? 'bg-gray-200 text-gray-700' : 'bg-indigo-500 bg-opacity-90 text-white';
                   if (isRevealed && !pred && !scoreFallback) {
                     // Minimal diagnostic to help trace missing scores in prod without spamming
@@ -885,54 +885,69 @@ function RisultatiPageContent() {
                       <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-4 items-center">
                         {/* Col 1: Teams (no date) */}
                         <div className="flex flex-col gap-3">
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 h-12">
                             {m.home.logo ? (
-                              <Image src={m.home.logo} alt={m.home.name} width={28} height={28} className="rounded" />
+                              <Image src={m.home.logo} alt={m.home.name} width={48} height={48} className="rounded" />
                             ) : (
-                              <div className="w-7 h-7 rounded bg-gray-100" />
+                              <div className="w-12 h-12 rounded bg-gray-100" />
                             )}
-                            <div className="text-black font-medium truncate">{m.home.name}</div>
+              <div className="text-black font-bold truncate">{m.home.name}</div>
                           </div>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 h-12">
                             {m.away.logo ? (
-                              <Image src={m.away.logo} alt={m.away.name} width={28} height={28} className="rounded" />
+                              <Image src={m.away.logo} alt={m.away.name} width={48} height={48} className="rounded" />
                             ) : (
-                              <div className="w-7 h-7 rounded bg-gray-100" />
+                              <div className="w-12 h-12 rounded bg-gray-100" />
                             )}
-                            <div className="text-black font-medium truncate">{m.away.name}</div>
+              <div className="text-black font-bold truncate">{m.away.name}</div>
                           </div>
                         </div>
 
                         {/* Col 2: Final scores (two rows) */}
-                        <div className="flex flex-col items-center gap-5 pr-1">
-                          <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">{homeVal != null ? homeVal : (isRevealed ? 'ND' : '–')}</div>
-                          <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">{awayVal != null ? awayVal : (isRevealed ? 'ND' : '–')}</div>
+                        <div className="grid grid-rows-2 pr-1.5">
+                          <div className="h-14 flex items-center justify-center">
+                            <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">{homeVal != null ? homeVal : (isRevealed ? 'ND' : '–')}</div>
+                          </div>
+                          <div className="h-14 flex items-center justify-center">
+                            <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">{awayVal != null ? awayVal : (isRevealed ? 'ND' : '–')}</div>
+                          </div>
                         </div>
 
                         {/* Col 3: Status button (centered) */}
-                        <div className="flex items-center justify-center">
+            <div className="flex items-center justify-center ml-1.5">
                           <button
                             onClick={() => onReveal(m.fixtureId)}
                             disabled={isRevealed}
-                            className={`px-3 py-2 rounded-md text-xs font-medium ${statusColor} ${isRevealed ? 'opacity-100 cursor-default' : 'hover:bg-opacity-100'}`}
+                            className={`min-w-[72px] px-2 py-2 rounded-md text-[11px] leading-tight text-center font-medium ${statusColor} ${isRevealed ? 'opacity-100 cursor-default' : 'hover:bg-opacity-100'}`}
                           >
-                            {statusLabel}
+                            {(() => {
+                              const parts = statusLabel.split(' ');
+                              if (parts.length >= 2) {
+                                return (
+                                  <>
+                                    <span className="block">{parts[0]}</span>
+                                    <span className="block">{parts.slice(1).join(' ')}</span>
+                                  </>
+                                );
+                              }
+                              return statusLabel;
+                            })()}
                           </button>
                         </div>
 
                         {/* Col 4: 1 / X / 2 vertical stack */}
-                        <div className="flex flex-col items-center gap-2">
+                        <div className="flex flex-col items-center gap-2 ml-1.5">
                           {(['1','X','2'] as Choice[]).map((c) => {
                             const chosen = pred?.prediction === c;
                             const actual = pred?.actual ?? scoreFallback?.actual;
                             const correct = actual === c && isRevealed;
                             const classes = correct
-                              ? 'bg-green-500 text-white'
+                              ? 'bg-[#ccffb3] text-[#2a8000]'
                               : chosen && isRevealed
-                                ? 'bg-indigo-500 text-white'
+                                ? 'bg-[#ffb3b3] text-[#cc0000]'
                                 : 'bg-gray-100 text-gray-700';
                             return (
-                              <div key={c} className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${classes}`}>{c}</div>
+                              <div key={c} className={`w-8 h-8 rounded-md flex items-center justify-center text-sm font-semibold ${classes}`}>{c}</div>
                             );
                           })}
                         </div>
