@@ -174,6 +174,50 @@ class ApiClient {
     });
   }
 
+  // Update avatar URL (after uploading to storage)
+  async updateUserAvatar(userId: string, url: string) {
+    return this.request(`/users/${userId}/avatar`, {
+      method: 'PATCH',
+      body: JSON.stringify({ url }),
+    });
+  }
+
+  // Upload avatar bytes (multipart) to Neon-backed endpoint
+  async uploadUserAvatarBytes(userId: string, file: File) {
+    const form = new FormData();
+    form.append('file', file);
+    const url = `${this.apiUrl}/users/${userId}/avatar/upload`;
+    const res = await fetch(url, { method: 'POST', body: form });
+    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+    return res.json();
+  }
+
+  // Get stored avatar (base64) and return JSON
+  async getUserAvatar(userId: string) {
+    return this.request(`/users/${userId}/avatar`);
+  }
+
+  // Delete account (requires Firebase ID token)
+  async deleteAccount(userId: string, firebaseIdToken: string) {
+    const url = `${this.apiUrl}/users/${userId}`;
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${firebaseIdToken}`,
+      },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      try {
+        const j = JSON.parse(text);
+        throw new Error(j.message || `HTTP ${res.status}`);
+      } catch {
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+    }
+    return res.json();
+  }
+
   async getUserWeeklyPredictions(userId: string, mode: 'live' | 'test' = 'live') {
     return this.request(`/predictions/weekly/${userId}?mode=${mode}`);
   }

@@ -6,14 +6,21 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthContext } from '@/src/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
 import { IoShareOutline } from 'react-icons/io5';
+import { AnimatePresence, motion } from 'framer-motion';
 import { FaMedal } from 'react-icons/fa';
 import { RiFootballLine } from 'react-icons/ri';
 import { BsFillFilePersonFill } from 'react-icons/bs';
-import { AnimatePresence, motion } from 'framer-motion';
+import { Toast } from '@/src/components/Toast';
+import confetti from 'canvas-confetti';
 // Gradient header is inlined; page background is white per design
 
 // Debug flag for targeted instrumentation on Risultati page (enable with NEXT_PUBLIC_DEBUG_RISULTATI=1)
 const DEBUG_RISULTATI = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_DEBUG_RISULTATI === '1';
+const MISSED_WEEK_GATING = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MISSED_WEEK_GATING === '1';
+const TERMINAL_WEEK = (() => {
+  const v = typeof process !== 'undefined' ? parseInt(String(process.env.NEXT_PUBLIC_TEST_TERMINAL_WEEK || '4'), 10) : 4;
+  return Number.isFinite(v) ? v : 4;
+})();
 
 // Minimal type describing possible fixture row shapes from Test Fixtures endpoint
 type FixtureRow = {
@@ -66,8 +73,20 @@ interface PredictionHistory {
 
 // Match-cards API types for Test Mode
 interface MatchCardKickoff { iso: string; display: string; }
-interface MatchCardTeamHome { name: string; logo: string | null; winRateHome: number | null; last5: Array<'1' | 'X' | '2'>; }
-interface MatchCardTeamAway { name: string; logo: string | null; winRateAway: number | null; last5: Array<'1' | 'X' | '2'>; }
+// Last-5 item shape (optional richer data from backend)
+interface Last5Item {
+  fixtureId: number;
+  code: '1'|'X'|'2';
+  predicted?: '1'|'X'|'2'|null;
+  correct?: boolean|null;
+  // Optional team-perspective outcome: 'W' win, 'D' draw, 'L' loss
+  outcome?: 'W'|'D'|'L' | null;
+  // Whether this team was home in the historical match (for deriving W/L from code)
+  teamWasHome?: boolean | null;
+}
+
+interface MatchCardTeamHome { name: string; logo: string | null; winRateHome: number | null; last5: Array<'1' | 'X' | '2'>; form?: Last5Item[] }
+interface MatchCardTeamAway { name: string; logo: string | null; winRateAway: number | null; last5: Array<'1' | 'X' | '2'>; form?: Last5Item[] }
 interface MatchCard { week: number; fixtureId: number; kickoff: MatchCardKickoff; stadium: string | null; home: MatchCardTeamHome; away: MatchCardTeamAway; }
 
 type Choice = '1' | 'X' | '2';
@@ -117,10 +136,33 @@ function RisultatiPageContent() {
   const [nextWeekRange, setNextWeekRange] = useState<{ from: string; to: string } | null>(null);
   const [navDir, setNavDir] = useState<1 | -1 | 0>(0);
   const [pendingWeekForUrl, setPendingWeekForUrl] = useState<number | null>(null);
-  const [rolledWeek1Once, setRolledWeek1Once] = useState(false);
   const [fixtureScores, setFixtureScores] = useState<Map<number, { homeScore: number | null; awayScore: number | null; actual?: Choice }>>(new Map());
   // Final completion veil (after last reveal in Giornata 4)
   const [finalVeilOpen, setFinalVeilOpen] = useState(false);
+  // New: completion veil for non-terminal weeks (1..TERMINAL_WEEK-1)
+  const [advanceVeilOpen, setAdvanceVeilOpen] = useState(false);
+  // Track the most recently revealed fixture and where to fire confetti
+  const [recentlyRevealed, setRecentlyRevealed] = useState<{ id: number; origin?: { x: number; y: number } } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  // Fire indigo/white confetti burst (non-blocking), optionally anchored to a viewport origin
+  const fireConfetti = useCallback((origin?: { x: number; y: number }) => {
+    try {
+      const colors = ['#6366f1', '#ffffff']; // indigo-500 and white
+      if (origin) {
+        // Centered burst from the button
+        confetti({ particleCount: 90, spread: 80, startVelocity: 45, gravity: 0.9, decay: 0.9, scalar: 0.9, colors, origin });
+      } else {
+        // Fallback: two symmetric bursts if no origin provided
+        confetti({ particleCount: 50, spread: 70, startVelocity: 45, gravity: 0.9, decay: 0.9, scalar: 0.9, colors, origin: { x: 0.15, y: 0.2 } });
+        confetti({ particleCount: 50, spread: 70, startVelocity: 45, gravity: 0.9, decay: 0.9, scalar: 0.9, colors, origin: { x: 0.85, y: 0.2 } });
+      }
+    } catch (e) {
+      if (DEBUG_RISULTATI) {
+        try { console.warn('[risultati] confetti failed', e); } catch {}
+      }
+    }
+  }, []);
 
   // Semi-circular success meter (SVG half-donut) sized to match the share button width
   const CircularMeter: React.FC<{ percent: number; onShare?: () => void; shareEnabled?: boolean }> = ({ percent, onShare, shareEnabled = true }) => {
@@ -250,6 +292,7 @@ function RisultatiPageContent() {
     if (!searchParams) return;
     const qMode = searchParams.get('mode');
     const qWeek = searchParams.get('week');
+    const qMissed = searchParams.get('missed');
     if (qMode === 'test' || qMode === 'live') {
       setMode(qMode);
       setActiveTab(qMode === 'test' ? 'week' : 'overview');
@@ -259,9 +302,11 @@ function RisultatiPageContent() {
       setSelectedWeek(w);
     }
     if (DEBUG_RISULTATI) {
-      try { console.log('[risultati] init from searchParams', { qMode, qWeek }); } catch {}
+      try { console.log('[risultati] init from searchParams', { qMode, qWeek, qMissed }); } catch {}
     }
   }, [searchParams]);
+
+  // (moved below revealKey)
 
   // If no explicit tab was set via query, align the visible tab to the current mode
   useEffect(() => {
@@ -374,6 +419,7 @@ function RisultatiPageContent() {
     }
   };
 
+
   const getResultColor = (isCorrect?: boolean) => {
     if (isCorrect === undefined) return 'text-gray-500';
     return isCorrect ? 'text-green-500' : 'text-red-500';
@@ -392,6 +438,60 @@ function RisultatiPageContent() {
   const revealKey = useMemo(() => {
     return userId ? `swipick:risultati:reveal:test:week:${selectedWeek}:user:${userId}` : null;
   }, [userId, selectedWeek]);
+
+  // If redirected due to a missed first match (missed=1) in Test Mode (week gating),
+  // auto-reveal all fixtures, disable buttons, and persist the reveal state.
+  useEffect(() => {
+    try {
+      if (!searchParams) return;
+      const missed = searchParams.get('missed') === '1';
+      if (!missed) return;
+      if (mode !== 'test') return;
+      const gatingApplies = MISSED_WEEK_GATING ? (selectedWeek >= 1 && selectedWeek <= TERMINAL_WEEK) : (selectedWeek === 1);
+      if (!gatingApplies) return;
+      if (weekCards.length === 0) return;
+      // Build reveal map and ids
+      const map: Record<number, boolean> = {};
+      const ids: number[] = [];
+      weekCards.forEach((m) => { map[m.fixtureId] = true; ids.push(Number(m.fixtureId)); });
+      setRevealed(map);
+      // Prevent auto-rollover from triggering due to all 10 being revealed via missed flow
+      try {
+        if (selectedWeek === 1) {
+          const k = `swipick:risultati:autoRoll:week1:user:${userId ?? 'anon'}`;
+          localStorage.setItem(k, '1');
+          // legacy rollover flag removed
+        }
+      } catch {}
+      // Persist to localStorage once revealKey is available
+      if (revealKey) {
+        try { localStorage.setItem(revealKey, JSON.stringify(ids)); } catch {}
+      }
+      // Clean URL param to avoid repeat
+      if (typeof window !== 'undefined') {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('missed');
+          window.history.replaceState({}, '', url.toString());
+          // Show toast now and also store a session marker to avoid duplicates on reload
+          setToast('Risultati mostrati automaticamente. Questo non ha effetto sulle statistiche.');
+          try { sessionStorage.setItem('swipick:risultati:missedToast', '1'); } catch {}
+        } catch {}
+      }
+    } catch {}
+  }, [searchParams, mode, selectedWeek, weekCards, revealKey, userId]);
+
+  // Show one-time toast explaining missed auto-reveal
+  useEffect(() => {
+    try {
+      const key = 'swipick:risultati:missedToast';
+      const msg = typeof window !== 'undefined' ? sessionStorage.getItem(key) : null;
+      if (msg) {
+        setToast(msg);
+        sessionStorage.removeItem(key);
+      }
+    } catch {}
+  }, []);
 
   // Load reveal state
   useEffect(() => {
@@ -426,14 +526,7 @@ function RisultatiPageContent() {
     } catch {}
   }, [revealed, revealKey, allowRevealThisWeek]);
 
-  // Load auto-rollover flag for week 1 (persisted) so we don't force week 2 when user navigates back
-  useEffect(() => {
-    if (!userId) return;
-    try {
-      const k = `swipick:risultati:autoRoll:week1:user:${userId}`;
-      setRolledWeek1Once(localStorage.getItem(k) === '1');
-    } catch {}
-  }, [userId]);
+  // Legacy auto-rollover flag removed
 
   // Fetch week match-cards when in Test Mode
   useEffect(() => {
@@ -445,7 +538,7 @@ function RisultatiPageContent() {
         return;
       }
       try {
-        const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, userId ?? undefined) as unknown as { data?: MatchCard[] } | MatchCard[];
+  const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, userId ?? undefined) as unknown as { data?: MatchCard[] } | MatchCard[];
         const data = Array.isArray(mcResponse) ? mcResponse : mcResponse?.data ?? [];
         const sorted = (data as MatchCard[]).slice().sort((a, b) => new Date(a.kickoff.iso).getTime() - new Date(b.kickoff.iso).getTime());
         setWeekCards(sorted.slice(0, 10));
@@ -466,6 +559,7 @@ function RisultatiPageContent() {
       if (mode !== 'test') { setNextWeekRange(null); return; }
       const nxt = selectedWeek + 1;
       try {
+
         const resp = await apiClient.getTestMatchCardsByWeek(nxt, userId ?? undefined) as unknown as { data?: MatchCard[] } | MatchCard[];
         const arr = Array.isArray(resp) ? resp : resp?.data ?? [];
         if (Array.isArray(arr) && arr.length) {
@@ -487,7 +581,7 @@ function RisultatiPageContent() {
     const run = async () => {
       if (mode !== 'test') { setFixtureScores(new Map()); return; }
       try {
-        const resp = await apiClient.getTestFixturesByWeek(selectedWeek) as unknown as { data?: Array<FixtureRow> } | Array<FixtureRow>;
+  const resp = await apiClient.getTestFixturesByWeek(selectedWeek) as unknown as { data?: Array<FixtureRow> } | Array<FixtureRow>;
         const arr: FixtureRow[] = Array.isArray(resp) ? resp : (resp?.data ?? []);
         const map = new Map<number, { homeScore: number | null; awayScore: number | null; actual?: Choice }>();
 
@@ -543,7 +637,8 @@ function RisultatiPageContent() {
   const loadWeeklyStats = useCallback(async (week: number) => {
     if (mode !== 'test' || !userId) { setWeeklyStats(null); return; }
     try {
-      const resp = await apiClient.getTestWeeklyStats(userId, week);
+  const resp = await apiClient.getTestWeeklyStats(userId, week);
+
       const stats: TestWeeklyStatsResp | null = (resp && typeof resp === 'object' && 'data' in (resp as Record<string, unknown>))
         ? (resp as { data: TestWeeklyStatsResp }).data
         : (resp as unknown as TestWeeklyStatsResp | null);
@@ -630,13 +725,14 @@ function RisultatiPageContent() {
     }
   }, [selectedWeek, meter]);
 
-  const onReveal = async (fixtureId: number) => {
+  const onReveal = async (fixtureId: number, anchorEl?: HTMLElement) => {
     // Guard: in Test Mode, for weeks > 1, require at least 10 predictions to reveal
     if (mode === 'test' && selectedWeek > 1) {
       // Fast-path: if current stats show not allowed, block and try re-check to be safe
       if (!allowRevealThisWeek) {
         if (userId) {
           try {
+
             const resp = await apiClient.getTestWeeklyStats(userId, selectedWeek);
             const stats: TestWeeklyStatsResp | null = (resp && typeof resp === 'object' && 'data' in (resp as Record<string, unknown>))
               ? (resp as { data: TestWeeklyStatsResp }).data
@@ -694,10 +790,6 @@ function RisultatiPageContent() {
       }
     }
     if (DEBUG_RISULTATI) { try { console.log('[risultati] reveal allowed', { week: selectedWeek, fixtureId }); } catch {} }
-    // Ensure stats are present to show scores once reveal is allowed
-    if (!weeklyStats) {
-      await loadWeeklyStats(selectedWeek);
-    }
     if (DEBUG_RISULTATI) {
       try {
         const joinPred = predByFixture.get(fixtureId);
@@ -705,10 +797,10 @@ function RisultatiPageContent() {
         console.debug('[risultati] onReveal join', { fixtureId, weeklyPresent: !!weeklyStats, pred: joinPred, fallback: joinFx });
       } catch {}
     }
-    // Determine if this click completes all reveals for Giornata 4 (Test Mode)
-    const completesWeek4 = (() => {
+    // Determine if this click completes all reveals for the terminal test week (Test Mode)
+    const completesTerminal = (() => {
       if (mode !== 'test') return false;
-      if (selectedWeek !== 4) return false;
+      if (selectedWeek !== TERMINAL_WEEK) return false;
       if (weekCards.length !== 10) return false;
       const wasRevealed = !!revealed[fixtureId];
       if (wasRevealed) return false;
@@ -716,31 +808,71 @@ function RisultatiPageContent() {
       return already + 1 === 10;
     })();
 
+    // Determine if this click completes all reveals for a non-terminal week (1..TERMINAL_WEEK-1)
+    const completesAdvancable = (() => {
+      if (mode !== 'test') return false;
+      if (selectedWeek >= TERMINAL_WEEK) return false;
+      if (weekCards.length !== 10) return false;
+      const wasRevealed = !!revealed[fixtureId];
+      if (wasRevealed) return false;
+      const already = Object.values(revealed).filter(Boolean).length;
+      return already + 1 === 10;
+    })();
+
+    // Mark revealed
     setRevealed((prev) => ({ ...prev, [fixtureId]: true }));
-    if (completesWeek4) {
+
+    // Compute viewport-based origin from the clicked button (if provided) and store context
+    let origin: { x: number; y: number } | undefined = undefined;
+    try {
+      if (anchorEl && typeof window !== 'undefined') {
+        const rect = anchorEl.getBoundingClientRect();
+        origin = {
+          x: (rect.left + rect.width / 2) / window.innerWidth,
+          y: (rect.top + rect.height / 2) / window.innerHeight,
+        };
+      }
+    } catch {}
+    setRecentlyRevealed({ id: fixtureId, origin });
+
+    if (completesTerminal) {
       setTimeout(() => setFinalVeilOpen(true), 80); // allow UI to update first
+    } else if (completesAdvancable) {
+      setTimeout(() => setAdvanceVeilOpen(true), 80);
     }
   };
 
-  // Auto-rollover to week 2 when all 10 revealed in week 1 (only once)
+  // When a reveal occurs, check correctness and fire confetti if correct
+  useEffect(() => {
+    const ctx = recentlyRevealed;
+    if (!ctx) return;
+    const fid = ctx.id;
+    // Ensure it's marked revealed in state first
+    if (!revealed[fid]) return;
+    // Try to compute correctness from available data
+    const pred = predByFixture.get(fid);
+    const actual = pred?.actual ?? fixtureScores.get(fid)?.actual;
+    const userPick = pred?.prediction ?? null;
+    if (!actual || !userPick) {
+      // Wait until data arrives (effect will re-run when predByFixture/fixtureScores change)
+      return;
+    }
+    const isCorrect = userPick === actual;
+    if (isCorrect) fireConfetti(ctx.origin);
+    // Clear to avoid duplicate firing
+    setRecentlyRevealed(null);
+  }, [recentlyRevealed, predByFixture, fixtureScores, revealed, fireConfetti]);
+
+  // When returning to a week with all 10 already revealed, show advance veil (weeks < terminal)
   useEffect(() => {
     if (mode !== 'test') return;
-    if (selectedWeek !== 1) return;
-    if (rolledWeek1Once) return; // don't auto-roll again when user returns to week 1
-    if (weekCards.length === 10) {
-      const allRevealed = weekCards.every((m) => revealed[m.fixtureId]);
-      if (allRevealed) {
-        // Reset and go to week 2
-        try {
-          const k = `swipick:risultati:autoRoll:week1:user:${userId ?? 'anon'}`;
-          localStorage.setItem(k, '1');
-        } catch {}
-        setRolledWeek1Once(true);
-        updateWeek(2);
-        setRevealed({});
-      }
+    if (selectedWeek >= TERMINAL_WEEK) return; // terminal handled by its own veil
+    if (weekCards.length !== 10) return;
+    const allRevealed = weekCards.every((m) => revealed[m.fixtureId]);
+    if (allRevealed) {
+      setAdvanceVeilOpen(true);
     }
-  }, [mode, selectedWeek, weekCards, revealed, updateWeek, rolledWeek1Once, userId]);
+  }, [mode, selectedWeek, weekCards, revealed]);
 
   if (loading) {
     return (
@@ -759,73 +891,91 @@ function RisultatiPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-white pb-20">
+    <div className="h-[100svh] bg-white pb-20 overflow-y-auto touch-pan-y">
       <div className="pb-4">
-        {/* Top Header Panel (modal-like) */}
-  <div
-          className="w-full mx-0 mt-0 mb-6 rounded-b-2xl rounded-t-none text-white"
-          style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
-        >
-          {mode === 'test' && (
-            <div className="pt-3 px-4 flex justify-center">
-              <div
-                className="inline-flex items-center gap-2 rounded-full px-3 py-1 mx-auto"
-                style={{ backgroundColor: '#A9BA9D', color: '#043927' }}
-              >
-                <span className="text-xs font-semibold">MODALITÀ TEST - Dati storici Serie A 2023-24</span>
-                <button
-                  onClick={() => performTestReset({ requireConfirm: true })}
-                  className="text-xs font-semibold rounded-full px-2 py-0.5"
-                  style={{ backgroundColor: '#780606', color: '#ffffff' }}
-                  title={'Reimposta Test Mode'}
+        {toast && (
+          <Toast
+            message={`${toast}\n• Le rivelazioni sono locali e non influiscono sulle statistiche.`}
+            onClose={() => setToast(null)}
+            variant="lozenge"
+          />
+        )}
+        {/* Sticky: Header + Meter + Share */}
+        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70 pointer-events-none">
+          {/* Top Header Panel (modal-like) */}
+          <div
+            className="w-full mx-0 mt-0 mb-2 rounded-b-2xl rounded-t-none text-white pointer-events-auto"
+            style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
+          >
+            {/* Test Mode lozenge (matches Gioca page) */}
+            {mode === 'test' && (
+              <div className="pt-3 px-4 flex justify-center">
+                <div
+                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 max-w-full min-w-0 overflow-hidden mx-auto"
+                  style={{ backgroundColor: '#A9BA9D', color: '#043927' }}
                 >
-                  Reset
+                  <span className="text-[11px] font-semibold truncate">MODALITÀ TEST - Dati storici Serie A 2023-24</span>
+                  <button
+                    onClick={() => performTestReset({ requireConfirm: true })}
+                    className="text-xs font-semibold rounded-full px-2 py-0.5"
+                    style={{ backgroundColor: '#780606', color: '#ffffff' }}
+                    title="Reimposta Test Mode"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="relative px-4 pt-10 pb-6">
+              {/* Faded previous (left) - clickable */}
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-sm opacity-30">
+                {selectedWeek > 1 ? (
+                  <button
+                    onClick={() => updateWeek(selectedWeek - 1)}
+                    className="font-medium hover:opacity-60 transition-opacity cursor-pointer"
+                  >
+                    <div>Giornata {selectedWeek - 1}</div>
+                    <div className="text-xs">{/* prev range optional */}</div>
+                  </button>
+                ) : (
+                  <div className="h-6 select-none" />
+                )}
+              </div>
+
+              {/* Center current week */}
+              <div className="text-center">
+                <div className="text-2xl font-bold">Giornata {selectedWeek}</div>
+                <div className="mt-2 text-white text-opacity-90">
+                  {(() => {
+                    if (weekCards.length === 0) return null;
+                    const times = weekCards.map((m) => new Date(m.kickoff.iso).getTime());
+                    const min = new Date(Math.min(...times));
+                    const max = new Date(Math.max(...times));
+                    const toIt = (d: Date) => d.toLocaleDateString('it-IT', { day: '2-digit', month: 'numeric' });
+                    return <span>dal {toIt(min)} al {toIt(max)}</span>;
+                  })()}
+                </div>
+              </div>
+
+              {/* Faded next (right) - clickable */}
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-white text-sm opacity-60 text-right">
+                <button
+                  onClick={() => updateWeek(selectedWeek + 1)}
+                  className="font-medium hover:opacity-80 transition-opacity cursor-pointer"
+                >
+                  <div>Giornata {selectedWeek + 1}</div>
+                  <div className="text-xs">{nextWeekRange ? `dal ${nextWeekRange.from} al ${nextWeekRange.to}` : ''}</div>
                 </button>
               </div>
-            </div>
-          )}
-          <div className="relative px-4 pt-[max(env(safe-area-inset-top),24px)] pb-6 max-w-[420px] mx-auto w-full">
-            {/* Faded previous (left) - clickable */}
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-sm opacity-30">
-              {selectedWeek > 1 ? (
-                <button
-                  onClick={() => updateWeek(selectedWeek - 1)}
-                  className="font-medium hover:opacity-60 transition-opacity cursor-pointer"
-                >
-                  <div>Giornata {selectedWeek - 1}</div>
-                  <div className="text-xs">{/* prev range optional */}</div>
-                </button>
-              ) : (
-                <div className="h-6 select-none" />
-              )}
-            </div>
-
-            {/* Center current week */}
-            <div className="text-center">
-              <div className="text-2xl font-bold">Giornata {selectedWeek}</div>
-              <div className="mt-2 text-white text-opacity-90">
-                {(() => {
-                  if (weekCards.length === 0) return null;
-                  const times = weekCards.map((m) => new Date(m.kickoff.iso).getTime());
-                  const min = new Date(Math.min(...times));
-                  const max = new Date(Math.max(...times));
-                  const toIt = (d: Date) => d.toLocaleDateString('it-IT', { day: '2-digit', month: 'numeric' });
-                  return <span>dal {toIt(min)} al {toIt(max)}</span>;
-                })()}
-              </div>
-            </div>
-
-            {/* Faded next (right) - clickable */}
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-white text-sm opacity-60 text-right">
-              <button
-                onClick={() => updateWeek(selectedWeek + 1)}
-                className="font-medium hover:opacity-80 transition-opacity cursor-pointer"
-              >
-                <div>Giornata {selectedWeek + 1}</div>
-                <div className="text-xs">{nextWeekRange ? `dal ${nextWeekRange.from} al ${nextWeekRange.to}` : ''}</div>
-              </button>
             </div>
           </div>
+
+          {/* Success Meter area (sticky along with header) */}
+          {mode === 'test' && (
+            <div className="px-4 pb-2 pointer-events-auto">
+              <CircularMeter percent={meter.percent} onShare={handleShare} shareEnabled={shareSupported} />
+            </div>
+          )}
         </div>
 
   {/* No secondary header; mode toggle stays if needed in future */}
@@ -852,12 +1002,7 @@ function RisultatiPageContent() {
             exit={{ x: navDir === 0 ? 0 : -navDir * 80, opacity: 0 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
           >
-            {/* Success Meter area (replaces tabs row per design for Test Mode) */}
-      {mode === 'test' && (
-              <div className="px-4 mb-2">
-        <CircularMeter percent={meter.percent} onShare={handleShare} shareEnabled={shareSupported} />
-              </div>
-            )}
+            {/* Meter moved to sticky header above */}
 
             {/* Week Tab (Test Mode) */}
             {(mode === 'test') && (
@@ -902,6 +1047,7 @@ function RisultatiPageContent() {
                             )}
               <div className="text-black font-bold truncate">{m.home.name}</div>
                           </div>
+                          {/* last-5 removed as requested */}
                           <div className="flex items-center gap-3 h-12">
                             {m.away.logo ? (
                               <Image src={m.away.logo} alt={m.away.name} width={48} height={48} className="rounded" />
@@ -910,6 +1056,7 @@ function RisultatiPageContent() {
                             )}
               <div className="text-black font-bold truncate">{m.away.name}</div>
                           </div>
+                          {/* last-5 removed as requested */}
                         </div>
 
                         {/* Col 2: Final scores (two rows) */}
@@ -925,7 +1072,7 @@ function RisultatiPageContent() {
                         {/* Col 3: Status button (centered) */}
             <div className="flex items-center justify-center ml-1.5">
                           <button
-                            onClick={() => onReveal(m.fixtureId)}
+                            onClick={(e) => onReveal(m.fixtureId, e.currentTarget)}
                             disabled={isRevealed}
                             className={`min-w-[72px] px-2 py-2 rounded-md text-[11px] leading-tight text-center font-medium ${statusColor} ${isRevealed ? 'opacity-100 cursor-default' : 'hover:bg-opacity-100'}`}
                           >
@@ -1080,21 +1227,15 @@ function RisultatiPageContent() {
           </div>
         )}
 
-        {/* Bottom Navigation */}
-  <div className="fixed bottom-0 left-0 right-0 bg-white border-t pb-[max(env(safe-area-inset-bottom),0px)]">
+        {/* Bottom Navigation (icons and styles match Gioca/Profilo) */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t pb-[max(env(safe-area-inset-bottom),0px)]">
           <div className="flex">
-            <button
-              onClick={() => {
-                if (DEBUG_RISULTATI) { try { console.log('[risultati] nav -> risultati (self)'); } catch {} }
-                router.push(`/risultati?mode=${mode}${mode === 'test' ? `&week=${selectedWeek}` : ''}`);
-              }}
-              className="flex-1 text-center py-4 border-b-2 border-purple-600"
-            >
+            <div className="flex-1 text-center py-4 border-b-2 border-purple-600">
               <div className="text-purple-600 mb-1">
                 <FaMedal className="w-6 h-6 mx-auto" />
               </div>
               <span className="text-xs text-purple-600 font-medium">Risultati</span>
-            </button>
+            </div>
             <button
               onClick={() => {
                 if (DEBUG_RISULTATI) { try { console.log('[risultati] nav -> gioca', { mode, week: selectedWeek }); } catch {} }
@@ -1102,19 +1243,23 @@ function RisultatiPageContent() {
               }}
               className="flex-1 text-center py-4"
             >
-              <div className="text-gray-400 mb-1">
+              <div className="text-gray-500 mb-1">
                 <RiFootballLine className="w-6 h-6 mx-auto" />
               </div>
-              <span className="text-xs text-gray-500">Gioca</span>
+              <span className="text-xs text-black">Gioca</span>
             </button>
             <button
-              onClick={() => router.push('/profilo')}
+              onClick={() => {
+                const params = new URLSearchParams({ mode });
+                if (mode === 'test') params.set('week', String(selectedWeek));
+                router.push(`/profilo?${params.toString()}`);
+              }}
               className="flex-1 text-center py-4"
             >
-              <div className="text-gray-400 mb-1">
+              <div className="text-gray-500 mb-1">
                 <BsFillFilePersonFill className="w-6 h-6 mx-auto" />
               </div>
-              <span className="text-xs text-gray-500">Profilo</span>
+              <span className="text-xs text-black">Profilo</span>
             </button>
           </div>
         </div>
@@ -1164,12 +1309,12 @@ function RisultatiPageContent() {
         </div>
       )}
       {/* Final Completion Veil (after last reveal in Giornata 4) */}
-      {finalVeilOpen && (
+  {finalVeilOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
-            <h3 className="text-xl font-semibold text-black mb-2">Grazie per aver completato il gioco di prova</h3>
+    <h3 className="text-xl font-semibold text-black mb-2">Grazie per aver completato il gioco di prova</h3>
             <p className="text-sm text-gray-700 mb-5">
-              Hai completato tutte le rivelazioni della Giornata 4. Puoi reimpostare la Modalità Test per ricominciare da capo.
+      Hai completato tutte le rivelazioni della Giornata {selectedWeek}. Puoi reimpostare la Modalità Test per ricominciare da capo.
             </p>
             <div className="flex gap-3 justify-center">
               <button
@@ -1183,6 +1328,36 @@ function RisultatiPageContent() {
                 className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
               >
                 Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Advance Veil for non-terminal weeks (1..TERMINAL_WEEK-1) */}
+      {advanceVeilOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
+            <h3 className="text-xl font-semibold text-black mb-2">Giornata completata</h3>
+            <p className="text-sm text-gray-700 mb-5">
+              Hai rivelato tutte le 10 partite della Giornata {selectedWeek}.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setAdvanceVeilOpen(false)}
+                className="px-5 py-2 rounded-md border border-gray-300 text-black font-medium hover:bg-gray-50"
+              >
+                Chiudi
+              </button>
+              <button
+                onClick={() => {
+                  setAdvanceVeilOpen(false);
+                  const next = Math.min(selectedWeek + 1, TERMINAL_WEEK);
+                  // Redirect to Gioca for the following week
+                  router.push(`/gioca?mode=${mode}&week=${next}`);
+                }}
+                className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
+              >
+                go to next week
               </button>
             </div>
           </div>

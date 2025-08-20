@@ -206,4 +206,10 @@ export class SpecsService {
       choice_display: spec.getChoiceDisplay(),
     };
   }
+
+  /** Delete all live predictions for a user (hard delete) */
+  async deleteUserPredictions(userId: string): Promise<number> {
+    const res = await this.specRepository.delete({ user_id: userId });
+    return res.affected || 0;
+  }
 }

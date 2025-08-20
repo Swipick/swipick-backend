@@ -8,12 +8,19 @@ import { apiClient } from "@/lib/api-client";
 import { getLogoForTeam } from "@/lib/club-logos";
 import { useGameMode } from "@/src/contexts/GameModeContext";
 import { useAuthContext } from "@/src/contexts/AuthContext";
+import { Toast } from '@/src/components/Toast';
 import { FaMedal } from 'react-icons/fa';
 import { RiFootballLine } from 'react-icons/ri';
 import { BsFillFilePersonFill } from 'react-icons/bs';
 
 // Debug flag (enable with NEXT_PUBLIC_DEBUG_GIOCA=1)
 const DEBUG_GIOCA = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_DEBUG_GIOCA === '1';
+// Config flags for gating and terminal week in Test Mode
+const MISSED_WEEK_GATING = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MISSED_WEEK_GATING === '1';
+const TERMINAL_WEEK = (() => {
+  const v = typeof process !== 'undefined' ? parseInt(String(process.env.NEXT_PUBLIC_TEST_TERMINAL_WEEK || '4'), 10) : 4;
+  return Number.isFinite(v) ? v : 4;
+})();
 
 interface Team {
   id: number;
@@ -79,7 +86,18 @@ interface TestFixtureAPI {
 
 // Match-cards API types
 interface MatchCardKickoff { iso: string; display: string; }
-interface Last5Item { fixtureId: number; code: '1'|'X'|'2'; predicted: '1'|'X'|'2'|null; correct: boolean|null; }
+interface Last5Item {
+  fixtureId: number;
+  code: '1'|'X'|'2';
+  // Optional: user prediction metadata (when applicable)
+  predicted: '1'|'X'|'2'|null;
+  correct: boolean|null;
+  // Optional: backend-provided, team-perspective outcome for this historical item
+  // 'W' = team won, 'D' = draw, 'L' = team lost
+  outcome?: 'W'|'D'|'L' | null;
+  // Optional: whether this team was the home side in that specific historical match
+  teamWasHome?: boolean | null;
+}
 interface MatchCardTeamHome { name: string; logo: string | null; winRateHome: number | null; last5: Array<'1' | 'X' | '2'>; standingsPosition?: number|null; form?: Last5Item[]; }
 interface MatchCardTeamAway { name: string; logo: string | null; winRateAway: number | null; last5: Array<'1' | 'X' | '2'>; standingsPosition?: number|null; form?: Last5Item[]; }
 interface MatchCard { week: number; fixtureId: number; kickoff: MatchCardKickoff; stadium: string | null; home: MatchCardTeamHome; away: MatchCardTeamAway; }
@@ -105,10 +123,10 @@ function GiocaPageContent() {
   const { firebaseUser } = useAuthContext();
   
   // Get mode from URL parameters or context
-  const currentMode = (searchParams.get('mode') as 'live' | 'test') || mode;
+  const currentMode = ((searchParams?.get('mode') as 'live' | 'test' | null) ?? null) || mode;
   // Selected week for test mode (defaults to 1)
   const selectedWeek = (() => {
-    const w = Number(searchParams.get('week'));
+    const w = Number(searchParams?.get('week') ?? NaN);
     return Number.isFinite(w) && w >= 1 && w <= 38 ? w : 1;
   })();
   
@@ -117,6 +135,8 @@ function GiocaPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [currentFixtureIndex, setCurrentFixtureIndex] = useState(0);
   const [predictions, setPredictions] = useState<Record<number, '1' | 'X' | '2'>>({});
+  // Modal gating when Week 1 has already started (Test Mode)
+  const [missedWeekModalOpen, setMissedWeekModalOpen] = useState(false);
   const [matchCards, setMatchCards] = useState<MatchCard[]>([]);
   const controls = useAnimationControls();
   // Framer Motion values for angled swipe path
@@ -128,6 +148,8 @@ function GiocaPageContent() {
   // Skip animation control & z-index swap with preview card
   const [isSkipAnimating, setIsSkipAnimating] = useState(false);
   const [previewOnTop, setPreviewOnTop] = useState(false);
+  // Lightweight toast for UX messages
+  const [toast, setToast] = useState<string | null>(null);
   // Tuning constants for gesture feel
   const DOWN_EXIT_DURATION = 0.46; // time to travel to bottom before snap-back
   const SNAP_BACK_STIFFNESS = 190;  // lower = slower spring
@@ -145,6 +167,59 @@ function GiocaPageContent() {
   const hasWeekPredsKey = useCallback((week: number, u?: string | null) => {
     return `swipick:gioca:hasPreds:test:week:${week}:user:${u ?? 'anon'}`;
   }, []);
+  // Track reconciliation to avoid redundant merges per (user,week)
+  const reconciledRef = useRef<string | null>(null);
+  // Completed summary header (fixed) height measurement for spacer
+  const completeHeaderRef = useRef<HTMLDivElement | null>(null);
+  const [completeHeaderH, setCompleteHeaderH] = useState<number>(160);
+  useEffect(() => {
+    const measure = () => {
+      if (completeHeaderRef.current) {
+        setCompleteHeaderH(completeHeaderRef.current.getBoundingClientRect().height);
+      }
+    };
+    // Measure asap and on resize
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [currentMode]);
+
+  // -------- Persisted UI State (deck order, current index, predictions) --------
+  type GiocaPersistState = {
+    v: 1;
+    lastIndex: number;
+    predictions: Record<number, '1'|'X'|'2'>;
+    deck: number[]; // fixtureId order
+  };
+  const persistKey = useCallback(() => {
+    const modeKey = currentMode ?? 'live';
+    const weekKey = Number.isFinite(selectedWeek) ? selectedWeek : 1;
+    const user = userKey ?? 'anon';
+    return `swipick:gioca:state:v1:mode:${modeKey}:week:${weekKey}:user:${user}`;
+  }, [currentMode, selectedWeek, userKey]);
+
+  const readyToPersistRef = useRef<boolean>(false);
+
+  const safeReadState = useCallback((): GiocaPersistState | null => {
+    try {
+      if (typeof window === 'undefined') return null;
+      const raw = localStorage.getItem(persistKey());
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as Partial<GiocaPersistState> | null;
+      if (!parsed || parsed.v !== 1) return null;
+      if (!Array.isArray(parsed.deck)) return null;
+      if (typeof parsed.lastIndex !== 'number') return null;
+      if (!parsed.predictions || typeof parsed.predictions !== 'object') return null;
+      return { v: 1, lastIndex: parsed.lastIndex, predictions: parsed.predictions as Record<number,'1'|'X'|'2'>, deck: parsed.deck as number[] };
+    } catch { return null; }
+  }, [persistKey]);
+
+  const safeWriteState = useCallback((state: GiocaPersistState) => {
+    try {
+      if (typeof window === 'undefined') return;
+      localStorage.setItem(persistKey(), JSON.stringify(state));
+    } catch {}
+  }, [persistKey]);
 
   // Update context if mode changed via URL
   useEffect(() => {
@@ -160,7 +235,6 @@ function GiocaPageContent() {
         setLoading(true);
         setError(null);
   let fixtureData: Fixture[] = [];
-  let mcLenForLog = 0;
   let cardsArrLocal: MatchCard[] = [];
 
     if (currentMode === 'test') {
@@ -185,6 +259,7 @@ function GiocaPageContent() {
                   const url = new URL(href);
                   url.searchParams.set('mode', 'test');
                   url.searchParams.set('week', '2');
+                  try { sessionStorage.setItem('swipick:gioca:autoAdvanceMsg', 'Stiamo iniziando dal giorno 2,\nvisualizza i risultati della settimana 1 nella pagina dei risultati'); } catch {}
                   router.replace(url.toString());
                 }
         if (!cancelled) setLoading(false);
@@ -212,7 +287,7 @@ function GiocaPageContent() {
               if (DEBUG_GIOCA) {
                 try { console.log('[gioca] match-cards loaded', { week: selectedWeek, count: arr.length, first: arr[0]?.fixtureId, userIdForOverlay }); } catch {}
               }
-              mcLenForLog = arr.length;
+              // keep local length if needed for future logs
             } else {
               cardsArrLocal = [];
               if (DEBUG_GIOCA) {
@@ -256,38 +331,18 @@ function GiocaPageContent() {
                   goals: { home: Number.isFinite(f.homeScore as number) ? Number(f.homeScore) : undefined, away: Number.isFinite(f.awayScore as number) ? Number(f.awayScore) : undefined },
                   score: { halftime: {}, fulltime: { home: Number(f.homeScore ?? 0), away: Number(f.awayScore ?? 0) } },
                 } as Fixture;
-              });
+                });
             fixtureData = mapped.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 10);
             if (DEBUG_GIOCA) {
               try { console.log('[gioca] fixtures loaded', { week: selectedWeek, count: fixtureData.length, first: fixtureData[0]?.id }); } catch {}
             }
+              // Apply fetched data to state (aligning is handled at render time)
+              setFixtures(fixtureData);
+              setMatchCards(cardsArrLocal);
           }
         } else {
-          // Load live fixtures
-          const response = await apiClient.getUpcomingSerieAFixtures(7);
-          if (response.error) {
-            throw new Error(response.error);
-          }
-          fixtureData = response.data || response;
-        }
-        
-        // Align arrays by position and trim to the same length to avoid UI overlap on first paint
-        if (currentMode === 'test') {
-          const minLen = Math.min(fixtureData.length, cardsArrLocal.length);
-          if (minLen > 0) {
-            fixtureData = fixtureData.slice(0, minLen);
-            cardsArrLocal = cardsArrLocal.slice(0, minLen);
-          }
-          if (cancelled) return;
-          setMatchCards(cardsArrLocal);
-        }
-        if (cancelled) return;
-        setFixtures(fixtureData);
-        setCurrentFixtureIndex(0);
-        if (DEBUG_GIOCA) {
-          try {
-            console.log('[gioca] fetch complete', { mode: currentMode, week: selectedWeek, fixtures: fixtureData.length, matchCards: mcLenForLog, alignedTo: currentMode === 'test' ? Math.min(fixtureData.length, cardsArrLocal.length) : fixtureData.length, userKey });
-          } catch {}
+          // Live mode not implemented in this build; leave fixtureData empty for now.
+          if (DEBUG_GIOCA) { try { console.log('[gioca] live mode fetch skipped'); } catch {} }
         }
       } catch (err) {
         console.error('Error fetching fixtures:', err);
@@ -299,7 +354,56 @@ function GiocaPageContent() {
 
     fetchFixtures();
     return () => { cancelled = true; };
-  }, [currentMode, selectedWeek, firebaseUser?.uid, userKey, router]);
+  }, [currentMode, selectedWeek, firebaseUser?.uid, userKey, router, safeReadState]);
+
+  // Persist UI state whenever key pieces change and after initial hydration is done
+  useEffect(() => {
+    try {
+      if (!readyToPersistRef.current) return;
+      if (!fixtures.length) return;
+      const deck = fixtures.map((f) => f.id);
+      const idx = Math.min(Math.max(currentFixtureIndex, 0), Math.max(0, fixtures.length - 1));
+      const state = { v: 1 as const, lastIndex: idx, predictions, deck };
+      safeWriteState(state);
+    } catch {}
+  }, [fixtures, currentFixtureIndex, predictions, safeWriteState]);
+
+  // Reconcile with server state post-hydration (Test Mode)
+  useEffect(() => {
+    const run = async () => {
+      if (currentMode !== 'test') return;
+      if (!userKey) return;
+      if (!fixtures.length) return;
+      const sig = `${userKey}:${selectedWeek}`;
+      if (reconciledRef.current === sig) return;
+      try {
+        const respUnknown = await apiClient.getTestWeeklyStats(userKey, selectedWeek) as unknown;
+        const wrap = (respUnknown && typeof respUnknown === 'object' && 'data' in (respUnknown as Record<string, unknown>))
+          ? (respUnknown as { data?: { totalPredictions?: number; predictions?: Array<{ fixtureId: number; userChoice: '1'|'X'|'2'|'SKIP' }> } }).data
+          : (respUnknown as { totalPredictions?: number; predictions?: Array<{ fixtureId: number; userChoice: '1'|'X'|'2'|'SKIP' }> } | undefined);
+        const data = wrap || { totalPredictions: 0, predictions: [] };
+        const total = Number(data?.totalPredictions ?? 0);
+        const arr: Array<{ fixtureId: number; userChoice: '1'|'X'|'2'|'SKIP' }> = Array.isArray(data?.predictions) ? data.predictions : [];
+        const serverPreds: Record<number, '1'|'X'|'2'> = {};
+        for (const p of arr) {
+          if (p && (p.userChoice === '1' || p.userChoice === 'X' || p.userChoice === '2')) {
+            serverPreds[p.fixtureId] = p.userChoice;
+          }
+        }
+        if (Object.keys(serverPreds).length > 0) {
+          try { localStorage.setItem(hasWeekPredsKey(selectedWeek, userKey), '1'); } catch {}
+        }
+        setPredictions((prev) => ({ ...prev, ...serverPreds }));
+        // find first-unanswered in current deck order
+        const first = fixtures.findIndex((f) => !serverPreds[f.id]);
+        setCurrentFixtureIndex(first >= 0 ? first : 0);
+        if (total >= 10) setWeekComplete(true);
+        reconciledRef.current = sig;
+        if (DEBUG_GIOCA) { try { console.debug('[gioca] reconciliation', { week: selectedWeek, serverCount: Object.keys(serverPreds).length, total, first }); } catch {} }
+      } catch {}
+    };
+    run();
+  }, [currentMode, userKey, selectedWeek, fixtures, hasWeekPredsKey]);
 
   // Check if selected week is already fully predicted (Test Mode) and set veil
   useEffect(() => {
@@ -367,7 +471,7 @@ function GiocaPageContent() {
     if (currentMode !== 'test') return;
     if (!rolledWeek1Once) return;
     try {
-      const qp = searchParams.get('week');
+  const qp = searchParams?.get('week') ?? null;
       if (!qp) {
         const href = typeof window !== 'undefined' ? window.location.href : null;
         if (href) {
@@ -381,6 +485,18 @@ function GiocaPageContent() {
       }
     } catch {}
   }, [currentMode, rolledWeek1Once, searchParams, router]);
+
+  // One-time toast after auto-advance replacement
+  useEffect(() => {
+    try {
+      const key = 'swipick:gioca:autoAdvanceMsg';
+      const msg = typeof window !== 'undefined' ? sessionStorage.getItem(key) : null;
+      if (msg) {
+        setToast(msg);
+        sessionStorage.removeItem(key);
+      }
+    } catch {}
+  }, []);
 
   // Resolve backend user id (UUID string) from Firebase UID for persistence in Test Mode
   useEffect(() => {
@@ -656,6 +772,23 @@ function GiocaPageContent() {
     const dominant: 'horizontal' | 'vertical' = ax >= ay ? 'horizontal' : 'vertical';
     const dir = dominant === 'horizontal' ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
 
+    // Live mode: allow swipe gesture but don't commit; nudge and snap back with toast
+    if (currentMode === 'live') {
+      const NUDGE = 80;
+      const targetLive = {
+        x: dir === 'left' ? -NUDGE : dir === 'right' ? NUDGE : 0,
+        y: dir === 'up' ? -NUDGE : dir === 'down' ? NUDGE : 0,
+        transition: { type: 'tween', ease: 'easeOut', duration: 0.18 },
+      } as const;
+      try {
+        await controls.start(targetLive);
+      } finally {
+        await controls.start({ x: 0, y: 0, transition: { type: 'spring', stiffness: 420, damping: 30 } });
+        setToast((t) => t ?? 'Le partite live non sono ancora iniziate. Prova a giocare in Modalità Test.');
+      }
+      return;
+    }
+
     // Animate out in chosen direction, then commit
     const distance = 900; // off-screen
     const threshold = 60; // minimum swipe
@@ -749,6 +882,36 @@ function GiocaPageContent() {
       setNextTarget(computeNextTarget(fixtures));
     }
   }, [fixtures, computeNextTarget]);
+
+  // Compute earliest kickoff normalized to current year (used to decide if the week has started in Test Mode)
+  const computeEarliestNormalized = useCallback((items: Fixture[]): Date | null => {
+    if (!items || items.length === 0) return null;
+    const now = Date.now();
+    const year = new Date(now).getFullYear();
+    const times = items.map((f) => {
+      const d = new Date(f.date);
+      const c = new Date(d.getTime());
+      c.setFullYear(year);
+      return c.getTime();
+    });
+    const minTs = times.reduce((min, ts) => (ts < min ? ts : min), Number.POSITIVE_INFINITY);
+    return Number.isFinite(minTs) ? new Date(minTs) : null;
+  }, []);
+
+  // Gate missed weeks in Test Mode (configurable): if earliest normalized kickoff is in the past, show modal
+  useEffect(() => {
+    try {
+      if (currentMode !== 'test') return;
+      if (fixtures.length === 0) return;
+      const gatingApplies = MISSED_WEEK_GATING ? (selectedWeek >= 1 && selectedWeek <= TERMINAL_WEEK) : (selectedWeek === 1);
+      if (!gatingApplies) return;
+      const earliest = computeEarliestNormalized(fixtures);
+      if (!earliest) return;
+      if (Date.now() >= earliest.getTime()) {
+        setMissedWeekModalOpen(true);
+      }
+    } catch {}
+  }, [currentMode, fixtures, selectedWeek, computeEarliestNormalized]);
 
   // Countdown to the computed next kickoff
   const getTimeToNextMatch = useCallback(() => {
@@ -851,6 +1014,19 @@ function GiocaPageContent() {
   const animateAndCommit = async (dir: 'left' | 'right' | 'up' | 'down') => {
     if (!currentFixture) return;
     if (currentMode === 'test' && weekComplete) return;
+    // Live mode: show playful nudge and toast instead of committing
+    if (currentMode === 'live') {
+      const NUDGE = 80;
+      const targetLive = {
+        x: dir === 'left' ? -NUDGE : dir === 'right' ? NUDGE : 0,
+        y: dir === 'up' ? -NUDGE : dir === 'down' ? NUDGE : 0,
+        transition: { type: 'tween', ease: 'easeOut', duration: 0.18 },
+      } as const;
+      await controls.start(targetLive);
+      await controls.start({ x: 0, y: 0, transition: { type: 'spring', stiffness: 420, damping: 30 } });
+      setToast((t) => t ?? 'Le partite live non sono ancora iniziate. Prova a giocare in Modalità Test.');
+      return;
+    }
     if (isSkipAnimating) return;
     const distance = 900;
     if (dir === 'down') {
@@ -860,7 +1036,8 @@ function GiocaPageContent() {
         const yBottom = (() => {
           try { return Math.min(900, (typeof window !== 'undefined' ? window.innerHeight : 800) - 40); } catch { return 820; }
         })();
-        await controls.start({ y: yBottom, transition: { type: 'tween', ease: 'easeOut', duration: DOWN_EXIT_DURATION } });
+        // 0.5x slower
+        await controls.start({ y: yBottom, transition: { type: 'tween', ease: 'easeOut', duration: DOWN_EXIT_DURATION * 4 } });
         await controls.start({ x: 0, y: 0, transition: { type: 'spring', stiffness: SNAP_BACK_STIFFNESS, damping: SNAP_BACK_DAMPING } });
       } finally {
         skipFixture();
@@ -872,7 +1049,8 @@ function GiocaPageContent() {
     const target = {
       x: dir === 'left' ? -distance : dir === 'right' ? distance : 0,
       y: dir === 'up' ? -distance : undefined,
-      transition: { type: 'tween', ease: 'easeOut', duration: 0.28 },
+      // 0.5x slower
+      transition: { type: 'tween', ease: 'easeOut', duration: 0.56 },
     } as const;
     await controls.start(target);
     if (dir === 'up') {
@@ -915,9 +1093,10 @@ function GiocaPageContent() {
           for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i) || '';
             const isGioca = k.startsWith('swipick:gioca:hasPreds:test:week:') && k.includes(`:user:${userKey}`);
+            const isGiocaState = k.startsWith('swipick:gioca:state:v1:mode:') && k.endsWith(`:user:${userKey}`);
             const isReveal = k.startsWith('swipick:risultati:reveal:test:week:') && k.includes(`:user:${userKey}`);
             const isAutoRoll = k === `swipick:risultati:autoRoll:week1:user:${userKey}`;
-            if (isGioca || isReveal || isAutoRoll) keysToRemove.push(k);
+            if (isGioca || isGiocaState || isReveal || isAutoRoll) keysToRemove.push(k);
           }
           keysToRemove.forEach((k) => localStorage.removeItem(k));
         }
@@ -949,8 +1128,9 @@ function GiocaPageContent() {
   const canShowVeil = (() => {
     if (currentMode !== 'test') return false;
     if (weekComplete !== true) return false;
-    if (selectedWeek === 1 && rolledWeek1Once) return false;
-    if (selectedWeek === 2) {
+  if (selectedWeek === 1 && rolledWeek1Once) return false;
+  // For week 2, only show veil after at least one prediction exists (avoid blocking empty state)
+  if (selectedWeek === 2) {
       try {
         const k = hasWeekPredsKey(2, userKey);
         const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
@@ -959,36 +1139,56 @@ function GiocaPageContent() {
         return false;
       }
     }
+  // For other weeks when gating is enabled, show veil normally; for terminal week, also allow veil
     return true;
   })();
 
-  // Helper to render last-5 bubbles
+  // Helper to render last-5 bubbles (pick vs result)
   const renderLastFive = (list: Array<'1' | 'X' | '2'>, side: 'home' | 'away', form?: Last5Item[]) => {
-    // Always render 5 bubbles; pad with placeholders if needed
-    const raw: (Last5Item | null)[] = (form && form.length)
+    // Normalize to Last5Item[], pad to 5, then render right-to-left (most recent on the right)
+    const base: (Last5Item | null)[] = (form && form.length)
       ? form
       : list.map((code) => ({ fixtureId: 0, code, predicted: null, correct: null }));
-    const filled: Array<Last5Item | null> = [...raw];
+    const filled: Array<Last5Item | null> = base.slice(0, 5);
     while (filled.length < 5) filled.push(null);
 
+    // Render left-to-right so the first (oldest) appears on the left and the last (newest) on the right
     return (
-  <div className="flex justify-center gap-1 mt-1">
+      <div className="flex justify-center gap-1 mt-1">
         {filled.map((it, idx) => {
           if (it === null) {
             return (
               <div
                 key={idx}
-        className="w-5 h-5 rounded-md text-[10px] leading-none flex items-center justify-center bg-gray-100 text-gray-700"
+                className="w-5 h-5 rounded-md text-[10px] leading-none flex items-center justify-center bg-gray-100 text-gray-700"
+                aria-label="no data"
+                title="—"
               >
                 —
               </div>
             );
           }
-      const color = it.correct == null
-    ? 'bg-gray-100 text-gray-700'
-    : it.correct ? 'bg-[#ccffb3] text-[#2a8000]' : 'bg-[#ffb3b3] text-[#cc0000]';
+          let color = 'bg-gray-100 text-gray-700';
+          let titleStr: string = it.code;
+          const pick = it.predicted;
+          if (pick === '1' || pick === 'X' || pick === '2') {
+            if (pick === it.code) {
+              color = 'bg-[#ccffb3] text-[#2a8000]';
+              titleStr = `${it.code} — Corretto`;
+            } else {
+              color = 'bg-[#ffb3b3] text-[#cc0000]';
+              titleStr = `${it.code} — Errato`;
+            }
+          } else {
+            color = 'bg-gray-100 text-gray-700';
+            titleStr = it.code;
+          }
           return (
-    <div key={idx} className={`w-5 h-5 rounded-md text-[10px] leading-none flex items-center justify-center ${color}`}>
+            <div
+              key={idx}
+              className={`w-5 h-5 rounded-md text-[10px] leading-none flex items-center justify-center ${color}`}
+              title={titleStr}
+            >
               {it.code}
             </div>
           );
@@ -1014,9 +1214,10 @@ function GiocaPageContent() {
           <></>
         )}
 
-        {/* Header with progress locked at 10/10 */}
+        {/* Header with progress locked at 10/10 — FIXED at top (safe-area aware) */}
         <div
-          className="w-full mx-0 mt-0 mb-6 rounded-b-2xl rounded-t-none text-white"
+          ref={completeHeaderRef}
+          className="fixed left-0 right-0 top-0 z-40 w-full mx-0 mt-0 rounded-b-2xl rounded-t-none text-white pt-[max(env(safe-area-inset-top),8px)]"
           style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
         >
           {currentMode === 'test' && (
@@ -1038,7 +1239,7 @@ function GiocaPageContent() {
               </div>
             </div>
           )}
-          <div className="text-center px-4 pt-[max(env(safe-area-inset-top),24px)]">
+          <div className="text-center px-4 pt-2">
             {(() => {
               const range = getWeekDateRange();
               const from = range?.start?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
@@ -1062,6 +1263,9 @@ function GiocaPageContent() {
           </div>
         </div>
 
+        {/* Spacer equal to the fixed header height to avoid content being hidden underneath */}
+        <div aria-hidden className="w-full" style={{ height: completeHeaderH + 24 }} />
+
         {/* Summary list */}
         <div className="px-4 pb-24">
           {fixtures.map((f, idx) => {
@@ -1076,8 +1280,10 @@ function GiocaPageContent() {
             const badge = (label: '1'|'X'|'2') => (
               <div
                 className={
-                  `w-8 h-8 rounded-full grid place-items-center text-xs font-bold ` +
-                  (pick === label ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-500')
+                  `min-w-[36px] h-7 px-2 rounded-md grid place-items-center text-xs font-semibold border ` +
+                  (pick === label
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                    : 'bg-white text-gray-700 border-gray-300')
                 }
               >
                 {label}
@@ -1090,17 +1296,17 @@ function GiocaPageContent() {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     {homeLogo ? (
-                      <Image src={homeLogo} alt={homeName} width={28} height={28} className="w-7 h-7 object-contain" />
+                      <Image src={homeLogo} alt={homeName} width={48} height={48} className="w-12 h-12 object-contain" />
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-purple-100" />
+                      <div className="w-12 h-12 rounded-full bg-purple-100" />
                     )}
                     <span className="text-sm font-semibold text-black">{homeName}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     {awayLogo ? (
-                      <Image src={awayLogo} alt={awayName} width={28} height={28} className="w-7 h-7 object-contain" />
+                      <Image src={awayLogo} alt={awayName} width={48} height={48} className="w-12 h-12 object-contain" />
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-blue-100" />
+                      <div className="w-12 h-12 rounded-full bg-blue-100" />
                     )}
                     <span className="text-sm font-semibold text-black">{awayName}</span>
                   </div>
@@ -1142,7 +1348,11 @@ function GiocaPageContent() {
               </div>
               <span className="text-xs text-purple-600 font-medium">Gioca</span>
             </div>
-            <button onClick={() => router.push('/profilo')} className="flex-1 text-center py-4">
+            <button onClick={() => {
+              const params = new URLSearchParams({ mode: currentMode });
+              if (currentMode === 'test') params.set('week', String(selectedWeek));
+              router.push(`/profilo?${params.toString()}`);
+            }} className="flex-1 text-center py-4">
               <div className="text-gray-500 mb-1">
                 <BsFillFilePersonFill className="w-6 h-6 mx-auto" />
               </div>
@@ -1243,7 +1453,7 @@ function GiocaPageContent() {
   <div className="px-3 mb-8 relative max-w-[390px] mx-auto w-full">
   {/* Next card preview to be revealed (hidden on very small screens to avoid visual spill) */}
   {effectiveFixtures[currentFixtureIndex + 1] && (
-  <div className={`absolute inset-0 scale-[0.97] opacity-95 pointer-events-none ${previewOnTop ? 'z-20' : 'z-0'} hidden sm:block`}>
+  <div className={`absolute inset-0 opacity-95 pointer-events-none ${previewOnTop ? 'z-20' : 'z-0'} scale-[0.94] sm:scale-[0.97]`}>
       <div className="match-card bg-white rounded-2xl p-3 shadow-lg border border-gray-200">
               {/* Next card content */}
               {(() => {
@@ -1380,10 +1590,9 @@ function GiocaPageContent() {
         </motion.div>
       </div>
 
-      {/* Prediction Buttons - Diamond Layout (fixed above bottom nav) */}
+      {/* Prediction Buttons - Diamond Layout (in-flow; scrolls with content) */}
       <div
-        className="fixed left-0 right-0 z-30"
-        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 96px)' }}
+        className="relative left-0 right-0 z-30 px-4 mt-3 mb-[calc(env(safe-area-inset-bottom)+96px)]"
       >
         <div className="flex justify-center">
           <div className="grid grid-cols-3 gap-x-4 gap-y-0 justify-items-center items-center max-w-[340px] w-full mx-auto">
@@ -1441,13 +1650,24 @@ function GiocaPageContent() {
         </div>
       </div>
 
-      {/* spacer to allow scroll behind fixed controls */}
-      <div aria-hidden className="w-full" style={{ height: 'calc(env(safe-area-inset-bottom) + 160px)' }} />
+  {/* spacer to avoid overlap with bottom nav on short screens */}
+  <div aria-hidden className="w-full" style={{ height: 'calc(env(safe-area-inset-bottom) + 80px)' }} />
+
+  {/* Toast: Live mode notice */}
+  {toast && (
+    <Toast
+  message={toast}
+      onClose={() => setToast(null)}
+      variant="lozenge"
+    />
+  )}
 
       {/* Modal: User not found */}
       {currentMode === 'test' && userMissingModal.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl p-6 w-80 shadow-xl">
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+          <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-1/2 -translate-x-1/2 w-[88%] max-w-md pointer-events-auto">
+            <div className="bg-white rounded-xl p-6 shadow-xl">
             <h3 className="text-lg font-semibold text-black mb-2">Account non trovato</h3>
             <p className="text-sm text-gray-600 mb-4">Per continuare in Test Mode serve un account backend. Vai alla pagina di benvenuto per completare.</p>
             <div className="flex gap-3 justify-end">
@@ -1466,14 +1686,62 @@ function GiocaPageContent() {
                 Vai a Welcome
               </button>
             </div>
+            </div>
           </div>
-        </div>
+          </div>
+      )}
+
+      {/* Modal: Missed week (first fixture already started) */}
+      {currentMode === 'test' && missedWeekModalOpen && (
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
+          <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-1/2 -translate-x-1/2 w-[88%] max-w-md pointer-events-auto">
+            <div className="relative bg-white rounded-2xl shadow-2xl p-6 text-center">
+            <button
+              aria-label="Chiudi"
+              title="Chiudi"
+              onClick={() => setMissedWeekModalOpen(false)}
+              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700"
+            >
+              ×
+            </button>
+            <h3 className="text-xl font-semibold text-black mb-2">Giornata {selectedWeek} già iniziata</h3>
+            <p className="text-sm text-gray-700 mb-5">La prima partita è già iniziata.</p>
+            <div className="flex gap-3 justify-center flex-wrap">
+              <button
+                onClick={() => {
+                  setMissedWeekModalOpen(false);
+                  router.push(`/risultati?mode=test&week=${selectedWeek}&missed=1`);
+                }}
+                className="px-5 py-2 rounded-md border border-gray-300 text-black font-medium hover:bg-gray-50"
+              >
+                Mostra risultati per Giornata {selectedWeek}
+              </button>
+              {selectedWeek < TERMINAL_WEEK && (
+                <button
+                  onClick={() => {
+                    setMissedWeekModalOpen(false);
+                    setCurrentFixtureIndex(0);
+                    try { sessionStorage.setItem('swipick:gioca:autoAdvanceMsg', 'Stiamo iniziando dal giorno 2,\nvisualizza i risultati della settimana 1 nella pagina dei risultati'); } catch {}
+                    router.push(`/gioca?mode=test&week=${selectedWeek + 1}`);
+                  }}
+                  className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
+                >
+                  Continua alla Giornata {selectedWeek + 1}
+                </button>
+              )}
+            </div>
+            </div>
+          </div>
+          </div>
       )}
 
         {/* Veil when week is completed (Test Mode). Hidden for Week 1 once rollover occurred, to avoid blocking UI when user navigates back. */}
   {canShowVeil && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+          <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-1/2 -translate-x-1/2 w-[88%] max-w-md pointer-events-auto">
+            <div className="bg-white rounded-2xl shadow-2xl p-6 text-center">
             <h3 className="text-xl font-semibold text-black mb-2">Giornata completata</h3>
             <p className="text-sm text-gray-700 mb-5">Hai già effettuato 10 scelte per questa settimana. Vai alla pagina Risultati per rivelare e vedere l&apos;andamento.</p>
             <div className="flex gap-3 justify-center">
@@ -1484,8 +1752,9 @@ function GiocaPageContent() {
                 Vai a Risultati
               </button>
             </div>
+            </div>
           </div>
-        </div>
+          </div>
       )}
 
   {/* Bottom Navigation */}

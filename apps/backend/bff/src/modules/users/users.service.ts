@@ -12,6 +12,7 @@ import { User, AuthProvider } from '../../entities/user.entity';
 import { FirebaseConfigService } from '../../config/firebase.config';
 import { EmailService } from '../../services/email.service';
 import { NotificationPreferences } from '../../entities/notification-preferences.entity';
+import { UserAvatar } from '../../entities/user-avatar.entity';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
@@ -43,6 +44,8 @@ export class UsersService {
     private userRepository: Repository<User>,
     @InjectRepository(NotificationPreferences)
     private prefsRepository: Repository<NotificationPreferences>,
+    @InjectRepository(UserAvatar)
+    private avatarRepository: Repository<UserAvatar>,
     private dataSource: DataSource,
     private firebaseConfig: FirebaseConfigService,
     private emailService: EmailService,
@@ -436,6 +439,83 @@ export class UsersService {
   }
 
   /**
+   * Update user's avatar URL (stored in googleProfileUrl for now)
+   */
+  async updateAvatarUrl(userId: string, url: string): Promise<UserResponseDto> {
+    // Basic URL validation and https enforcement
+    try {
+      const u = new URL(url);
+      if (u.protocol !== 'https:') {
+        throw new BadRequestException('URL immagine deve usare HTTPS');
+      }
+    } catch {
+      throw new BadRequestException('URL immagine non valido');
+    }
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Utente non trovato');
+    }
+    user.googleProfileUrl = url;
+    const saved = await this.userRepository.save(user);
+    return this.transformToResponse(saved);
+  }
+
+  /** Avatar: upsert processed bytes */
+  async setAvatarBytes(
+    userId: string,
+    mimeType: string,
+    buf: Buffer,
+  ): Promise<{ etag: string }> {
+    if (!/^image\/(webp|png|jpeg)$/.test(mimeType)) {
+      throw new BadRequestException('Tipo immagine non supportato');
+    }
+    if (buf.length <= 0 || buf.length > 4 * 1024 * 1024) {
+      throw new BadRequestException('Dimensione immagine non valida (max 4MB)');
+    }
+    const crypto = await import('node:crypto');
+    const etag = crypto.createHash('sha256').update(buf).digest('hex');
+    const existing = await this.avatarRepository.findOne({ where: { userId } });
+    if (existing) {
+      existing.mimeType = mimeType;
+      existing.size = buf.length;
+      existing.bytes = buf;
+      existing.etag = etag;
+      await this.avatarRepository.save(existing);
+    } else {
+      const rec = this.avatarRepository.create({
+        userId,
+        mimeType,
+        size: buf.length,
+        bytes: buf,
+        etag,
+      });
+      await this.avatarRepository.save(rec);
+    }
+    return { etag };
+  }
+
+  async getAvatar(userId: string): Promise<UserAvatar | null> {
+    return this.avatarRepository.findOne({ where: { userId } });
+  }
+
+  /**
+   * Presign S3/R2 upload URL (placeholder implementation)
+   * Replace with actual S3 client configured with credentials if using R2/S3.
+   */
+  async presignAvatarUpload(
+    userId: string,
+  ): Promise<{ url: string; key: string }> {
+    // For now, just return a dummy structure to be replaced when integrating S3/R2
+    // A real implementation would use @aws-sdk/s3-request-presigner with a PutObjectCommand
+    const key = `avatars/${userId}/${Date.now()}.webp`;
+    const url = `https://example-upload-endpoint.invalid/${key}`;
+    this.logger.warn(
+      'presignAvatarUpload called without S3 integration. Returning placeholder URL.',
+    );
+    return { url, key };
+  }
+
+  /**
    * Send password reset email via Firebase (client-side only)
    * This method validates the user exists and provides appropriate response
    */
@@ -551,5 +631,79 @@ export class UsersService {
     throw new BadRequestException(
       "Errore durante la registrazione dell'utente",
     );
+  }
+
+  /**
+   * Delete a user account and related data.
+   * Steps:
+   * 1) Verify Firebase ID token and match with userId
+   * 2) Transactionally delete related DB rows (avatars, notification prefs, user)
+   * 3) Optionally reset test-mode data in gaming-services
+   * 4) Delete Firebase auth user
+   */
+  async deleteAccount(
+    userId: string,
+    firebaseIdToken: string,
+  ): Promise<{ success: boolean; message: string; warnings?: string[] }> {
+    const warnings: string[] = [];
+
+    // 1) Verify token and user match
+    const decoded = await this.firebaseConfig.verifyIdToken(firebaseIdToken);
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Utente non trovato');
+    }
+    if (decoded.uid !== user.firebaseUid) {
+      throw new BadRequestException("Token non corrisponde all'utente");
+    }
+
+    // 2) DB deletions inside a transaction
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      // Delete avatar (if any)
+      await queryRunner.manager.delete(UserAvatar, { userId });
+      // Delete notification preferences (if any)
+      await queryRunner.manager.delete(NotificationPreferences, { userId });
+      // Delete the user
+      await queryRunner.manager.delete(User, { id: userId });
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error('DB deletion failed during account deletion', err);
+      throw new BadRequestException('Errore durante la cancellazione dati');
+    } finally {
+      await queryRunner.release();
+    }
+
+    // 3) Best-effort reset of test-mode data in gaming-services
+    try {
+      if (this.gamingServicesUrl) {
+        const resetTest = `${this.gamingServicesUrl}/api/test-mode/reset/${userId}`;
+        await firstValueFrom(this.httpService.delete(resetTest));
+        const purgeLive = `${this.gamingServicesUrl}/api/predictions/user/${userId}`;
+        await firstValueFrom(this.httpService.delete(purgeLive));
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Impossibile pulire i dati di gioco per utente ${userId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      warnings.push('Pulizia dati gioco non completa');
+    }
+
+    // 4) Delete Firebase auth user
+    try {
+      await this.firebaseConfig.deleteUser(user.firebaseUid);
+    } catch (err) {
+      this.logger.error('Firebase auth deletion failed', err);
+      warnings.push('Eliminazione utente Firebase non riuscita');
+    }
+
+    return {
+      success: true,
+      message: 'Account eliminato con successo',
+      warnings: warnings.length ? warnings : undefined,
+    };
   }
 }

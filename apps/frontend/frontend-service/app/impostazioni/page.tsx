@@ -1,15 +1,16 @@
 
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/src/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
 import { Toast } from '@/src/components/Toast';
+// Firebase storage imports removed: using Neon multipart upload via BFF
 
 export default function ImpostazioniPage() {
   const router = useRouter();
-  const { firebaseUser } = useAuthContext();
+  const { firebaseUser, getAuthToken, logout } = useAuthContext();
 
   const [userId, setUserId] = useState<string | null>(null);
   const [email, setEmail] = useState<string>('');
@@ -17,6 +18,10 @@ export default function ImpostazioniPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<boolean>(false);
+  const [deleting, setDeleting] = useState<boolean>(false);
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Notification toggles (persisted)
   const [notifResults, setNotifResults] = useState(true);
@@ -77,11 +82,68 @@ export default function ImpostazioniPage() {
     }
   };
 
+    // Client-side image processing removed; server sanitizes with sharp
+
+  const onPickAvatar = () => {
+    fileInputRef.current?.click();
+  };
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userId) return;
+    // Basic client-side validation
+    if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) {
+      alert('Formato immagine non supportato. Usa JPEG, PNG o WebP.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) { // 5MB cap
+      alert('Immagine troppo grande (max 5MB)');
+      return;
+    }
+    try {
+  setUploading(true);
+  // Prefer Neon multipart upload (server sanitizes with sharp)
+  await apiClient.uploadUserAvatarBytes(userId, file);
+      setToast('Avatar aggiornato');
+      setTimeout(() => setToast(null), 1800);
+    } catch (err) {
+      console.error('[impostazioni] avatar upload failed', err);
+      alert('Caricamento avatar fallito');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!userId) return;
+    try {
+      setDeleting(true);
+      const token = await getAuthToken();
+      if (!token) {
+        alert('Autenticazione richiesta per eliminare l\'account');
+        setDeleting(false);
+        return;
+      }
+      await apiClient.deleteAccount(userId, token);
+      // Logout locally and redirect to welcome/login
+      await logout();
+      router.replace('/');
+    } catch (err: unknown) {
+      console.error('[impostazioni] delete account failed', err);
+      const msg = err instanceof Error ? err.message : 'Eliminazione account fallita';
+      alert(msg);
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white pb-8 pt-[calc(env(safe-area-inset-top)+120px)]">
       {/* Fixed header: centered bold title, bold back arrow */}
-      <div className="fixed top-0 left-0 right-0 bg-white">
-        <div className="relative h-[165px] flex items-center justify-center px-4">
+      <div className="fixed top-10 left-0 right-0 bg-white">
+        <div className="relative h-[125px] flex items-center justify-center px-4">
           <button
             aria-label="Indietro"
             onClick={() => router.back()}
@@ -95,6 +157,33 @@ export default function ImpostazioniPage() {
           <h1 className="text-lg font-bold text-black">Impostazioni</h1>
         </div>
       </div>
+
+  {/* (moved delete section to the bottom of content) */}
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50">
+          <div className="w-full sm:w-[420px] bg-white rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl">
+            <div className="text-base font-semibold text-gray-900 mb-1">Conferma eliminazione</div>
+            <p className="text-sm text-gray-600 mb-4">Sei sicuro di voler eliminare definitivamente il tuo account? Questa azione non può essere annullata.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-900 font-medium"
+                disabled={deleting}
+              >
+                Annulla
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 py-3 rounded-xl bg-red-600 text-white font-semibold disabled:opacity-60"
+                disabled={deleting}
+              >
+                {deleting ? 'Eliminazione…' : 'Elimina'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="px-5">
         {loading && (
@@ -133,13 +222,17 @@ export default function ImpostazioniPage() {
             </svg>
           </button>
 
-          {/* Immagine profilo (chevron) */}
-          <button disabled className="w-full py-5.5 flex items-center justify-between opacity-60 cursor-not-allowed">
+          {/* Immagine profilo (picker) */}
+          <button onClick={onPickAvatar} className={`w-full py-5.5 flex items-center justify-between ${uploading ? 'opacity-60 cursor-wait' : ''}`} disabled={uploading}>
             <div className="text-gray-800">immagine profilo</div>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5 text-black" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 6l6 6-6 6" />
-            </svg>
+            <div className="flex items-center gap-2">
+              {uploading && <span className="text-xs text-gray-500">Caricamento…</span>}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5 text-black" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+            </div>
           </button>
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="user" className="hidden" onChange={onFileChange} />
         </div>
 
         {/* Subheader: Notifiche */}
@@ -200,6 +293,18 @@ export default function ImpostazioniPage() {
               <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform peer-checked:translate-x-5"></div>
             </label>
           </div>
+        </div>
+
+        {/* Danger zone: Delete account at bottom, with at least 20px gap after Gol toggle */}
+        <div className="mt-5 mb-8">
+          <div className="text-sm font-semibold text-gray-800 mb-2">Pericolo</div>
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="w-full py-3 rounded-xl bg-red-600 text-white font-semibold shadow-sm active:scale-[0.99] disabled:opacity-60 tracking-wide"
+          >
+            ELIMINA ACCOUNT
+          </button>
+          <p className="text-[11px] text-gray-500 mt-2">Questa azione è irreversibile e rimuoverà il tuo account e la tua cronologia.</p>
         </div>
       </div>
   {toast && <Toast message={toast} onClose={() => setToast(null)} />}
