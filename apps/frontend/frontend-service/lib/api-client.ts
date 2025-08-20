@@ -192,6 +192,11 @@ class ApiClient {
     return res.json();
   }
 
+  // Get stored avatar (base64) and return JSON
+  async getUserAvatar(userId: string) {
+    return this.request(`/users/${userId}/avatar`);
+  }
+
   async getUserWeeklyPredictions(userId: string, mode: 'live' | 'test' = 'live') {
     return this.request(`/predictions/weekly/${userId}?mode=${mode}`);
   }

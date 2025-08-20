@@ -36,6 +36,7 @@ export default function ProfiloPage() {
   const [nickname, setNickname] = useState<string | null>(null);
   const [email, setEmail] = useState<string>('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [summary, setSummary] = useState<UserSummary | null>(null);
 
   // Computed KPIs
@@ -168,7 +169,8 @@ export default function ProfiloPage() {
       const resp = await apiClient.getUserByFirebaseUid(firebaseUser.uid) as BffResponse<{ id: string; email: string; name: string; nickname?: string | null; googleProfileUrl?: string | null }>;
       const u = resp.data;
       if (!u?.id) throw new Error('Utente non trovato');
-      setDisplayName(u.nickname || u.name || firebaseUser.displayName || u.email || '');
+  setDisplayName(u.nickname || u.name || firebaseUser.displayName || u.email || '');
+  setUserId(u.id);
       setNickname(u.nickname ?? null);
       setEmail(u.email || firebaseUser.email || '');
       setAvatarUrl(u.googleProfileUrl || firebaseUser.photoURL || null);
@@ -242,6 +244,25 @@ export default function ProfiloPage() {
       // ignore
     }
   }, [displayName, kpi]);
+
+  // Fetch stored avatar (base64) after we know the userId
+  useEffect(() => {
+    const fetchAvatar = async () => {
+      if (!userId) return;
+      try {
+        const r = await apiClient.getUserAvatar(userId);
+        // Expect shape: { success: true, data: { mimeType, base64 } }
+        const b64 = r?.data?.base64 as string | undefined;
+        const mime = r?.data?.mimeType as string | undefined;
+        if (b64 && mime) {
+          setAvatarUrl(`data:${mime};base64,${b64}`);
+        }
+      } catch {
+        // ignore if no avatar
+      }
+    };
+    fetchAvatar();
+  }, [userId]);
 
   const HeaderAvatar = () => {
     const initial = (displayName || email || ' ')[0]?.toUpperCase?.() || 'U';
