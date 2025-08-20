@@ -272,6 +272,7 @@ function RisultatiPageContent() {
     if (!searchParams) return;
     const qMode = searchParams.get('mode');
     const qWeek = searchParams.get('week');
+    const qMissed = searchParams.get('missed');
     if (qMode === 'test' || qMode === 'live') {
       setMode(qMode);
       setActiveTab(qMode === 'test' ? 'week' : 'overview');
@@ -281,9 +282,11 @@ function RisultatiPageContent() {
       setSelectedWeek(w);
     }
     if (DEBUG_RISULTATI) {
-      try { console.log('[risultati] init from searchParams', { qMode, qWeek }); } catch {}
+      try { console.log('[risultati] init from searchParams', { qMode, qWeek, qMissed }); } catch {}
     }
   }, [searchParams]);
+
+  // (moved below revealKey)
 
   // If no explicit tab was set via query, align the visible tab to the current mode
   useEffect(() => {
@@ -414,6 +417,42 @@ function RisultatiPageContent() {
   const revealKey = useMemo(() => {
     return userId ? `swipick:risultati:reveal:test:week:${selectedWeek}:user:${userId}` : null;
   }, [userId, selectedWeek]);
+
+  // If redirected due to a missed first match (missed=1) for Week 1 in Test Mode,
+  // auto-reveal all fixtures, disable buttons, and persist the reveal state.
+  useEffect(() => {
+    try {
+      if (!searchParams) return;
+      const missed = searchParams.get('missed') === '1';
+      if (!missed) return;
+      if (mode !== 'test') return;
+      if (selectedWeek !== 1) return;
+      if (weekCards.length === 0) return;
+      // Build reveal map and ids
+      const map: Record<number, boolean> = {};
+      const ids: number[] = [];
+      weekCards.forEach((m) => { map[m.fixtureId] = true; ids.push(Number(m.fixtureId)); });
+      setRevealed(map);
+      // Prevent auto-rollover from triggering due to all 10 being revealed via missed flow
+      try {
+        const k = `swipick:risultati:autoRoll:week1:user:${userId ?? 'anon'}`;
+        localStorage.setItem(k, '1');
+      } catch {}
+      setRolledWeek1Once(true);
+      // Persist to localStorage once revealKey is available
+      if (revealKey) {
+        try { localStorage.setItem(revealKey, JSON.stringify(ids)); } catch {}
+      }
+      // Clean URL param to avoid repeat
+      if (typeof window !== 'undefined') {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('missed');
+          window.history.replaceState({}, '', url.toString());
+        } catch {}
+      }
+    } catch {}
+  }, [searchParams, mode, selectedWeek, weekCards, revealKey, userId]);
 
   // Load reveal state
   useEffect(() => {

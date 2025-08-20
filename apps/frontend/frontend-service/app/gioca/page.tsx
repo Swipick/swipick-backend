@@ -1550,7 +1550,7 @@ function GiocaPageContent() {
               <button
                 onClick={() => {
                   setMissedWeekModalOpen(false);
-                  router.push('/risultati?mode=test&week=1');
+                  router.push('/risultati?mode=test&week=1&missed=1');
                 }}
                 className="px-5 py-2 rounded-md border border-gray-300 text-black font-medium hover:bg-gray-50"
               >
