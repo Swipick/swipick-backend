@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   Param,
   UsePipes,
@@ -54,5 +55,21 @@ export class SpecsController {
     @Param('userId', ParseUUIDPipe) userId: string,
   ): Promise<UserSummaryResponseDto> {
     return this.specsService.getUserSummary(userId);
+  }
+
+  /**
+   * Purge all live predictions for a user
+   * DELETE /api/predictions/user/:userId
+   */
+  @Delete('user/:userId')
+  async deleteUserPredictions(
+    @Param('userId', ParseUUIDPipe) userId: string,
+  ): Promise<{ success: boolean; deleted: number; message: string }> {
+    const deleted = await this.specsService.deleteUserPredictions(userId);
+    return {
+      success: true,
+      deleted,
+      message: `Deleted ${deleted} predictions for user ${userId}`,
+    };
   }
 }

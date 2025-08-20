@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Patch,
+  Delete,
   Body,
   Param,
   HttpCode,
@@ -11,7 +12,9 @@ import {
   ValidationPipe,
   ParseUUIDPipe,
   Logger,
+  Headers,
 } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadedFile, UseInterceptors } from '@nestjs/common';
@@ -415,5 +418,26 @@ export class UsersController {
   ): Promise<{ success: boolean; url: string; key: string; message: string }> {
     const { url, key } = await this.usersService.presignAvatarUpload(userId);
     return { success: true, url, key, message: 'URL generato' };
+  }
+
+  /**
+   * Delete user account and related data
+   * DELETE /api/users/:id
+   * Requires Authorization: Bearer <Firebase ID token>
+   */
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  async deleteAccount(
+    @Param('id', ParseUUIDPipe) userId: string,
+    @Headers('authorization') authHeader?: string,
+  ): Promise<{ success: boolean; message: string; warnings?: string[] }> {
+    const token = (authHeader || '').startsWith('Bearer ')
+      ? (authHeader || '').slice('Bearer '.length)
+      : undefined;
+    if (!token) {
+      throw new UnauthorizedException('Token di autenticazione mancante');
+    }
+    const result = await this.usersService.deleteAccount(userId, token);
+    return result;
   }
 }

@@ -197,6 +197,27 @@ class ApiClient {
     return this.request(`/users/${userId}/avatar`);
   }
 
+  // Delete account (requires Firebase ID token)
+  async deleteAccount(userId: string, firebaseIdToken: string) {
+    const url = `${this.apiUrl}/users/${userId}`;
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${firebaseIdToken}`,
+      },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      try {
+        const j = JSON.parse(text);
+        throw new Error(j.message || `HTTP ${res.status}`);
+      } catch {
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+    }
+    return res.json();
+  }
+
   async getUserWeeklyPredictions(userId: string, mode: 'live' | 'test' = 'live') {
     return this.request(`/predictions/weekly/${userId}?mode=${mode}`);
   }

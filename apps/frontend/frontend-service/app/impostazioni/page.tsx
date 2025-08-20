@@ -10,7 +10,7 @@ import { Toast } from '@/src/components/Toast';
 
 export default function ImpostazioniPage() {
   const router = useRouter();
-  const { firebaseUser } = useAuthContext();
+  const { firebaseUser, getAuthToken, logout } = useAuthContext();
 
   const [userId, setUserId] = useState<string | null>(null);
   const [email, setEmail] = useState<string>('');
@@ -19,6 +19,8 @@ export default function ImpostazioniPage() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [uploading, setUploading] = useState<boolean>(false);
+  const [deleting, setDeleting] = useState<boolean>(false);
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Notification toggles (persisted)
@@ -113,10 +115,34 @@ export default function ImpostazioniPage() {
     }
   };
 
+  const confirmDelete = async () => {
+    if (!userId) return;
+    try {
+      setDeleting(true);
+      const token = await getAuthToken();
+      if (!token) {
+        alert('Autenticazione richiesta per eliminare l\'account');
+        setDeleting(false);
+        return;
+      }
+      await apiClient.deleteAccount(userId, token);
+      // Logout locally and redirect to welcome/login
+      await logout();
+      router.replace('/');
+    } catch (err: unknown) {
+      console.error('[impostazioni] delete account failed', err);
+      const msg = err instanceof Error ? err.message : 'Eliminazione account fallita';
+      alert(msg);
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white pb-8 pt-[calc(env(safe-area-inset-top)+120px)]">
       {/* Fixed header: centered bold title, bold back arrow */}
-      <div className="fixed top-0 left-0 right-0 bg-white">
+      <div className="fixed top-10 left-0 right-0 bg-white">
         <div className="relative h-[125px] flex items-center justify-center px-4">
           <button
             aria-label="Indietro"
@@ -131,6 +157,33 @@ export default function ImpostazioniPage() {
           <h1 className="text-lg font-bold text-black">Impostazioni</h1>
         </div>
       </div>
+
+  {/* (moved delete section to the bottom of content) */}
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50">
+          <div className="w-full sm:w-[420px] bg-white rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl">
+            <div className="text-base font-semibold text-gray-900 mb-1">Conferma eliminazione</div>
+            <p className="text-sm text-gray-600 mb-4">Sei sicuro di voler eliminare definitivamente il tuo account? Questa azione non può essere annullata.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-900 font-medium"
+                disabled={deleting}
+              >
+                Annulla
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 py-3 rounded-xl bg-red-600 text-white font-semibold disabled:opacity-60"
+                disabled={deleting}
+              >
+                {deleting ? 'Eliminazione…' : 'Elimina'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="px-5">
         {loading && (
@@ -240,6 +293,18 @@ export default function ImpostazioniPage() {
               <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform peer-checked:translate-x-5"></div>
             </label>
           </div>
+        </div>
+
+        {/* Danger zone: Delete account at bottom, with at least 20px gap after Gol toggle */}
+        <div className="mt-5 mb-8">
+          <div className="text-sm font-semibold text-gray-800 mb-2">Pericolo</div>
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="w-full py-3 rounded-xl bg-red-600 text-white font-semibold shadow-sm active:scale-[0.99] disabled:opacity-60 tracking-wide"
+          >
+            ELIMINA ACCOUNT
+          </button>
+          <p className="text-[11px] text-gray-500 mt-2">Questa azione è irreversibile e rimuoverà il tuo account e la tua cronologia.</p>
         </div>
       </div>
   {toast && <Toast message={toast} onClose={() => setToast(null)} />}
