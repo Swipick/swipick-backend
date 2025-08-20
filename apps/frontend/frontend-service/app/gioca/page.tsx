@@ -1127,31 +1127,44 @@ function GiocaPageContent() {
 
   // Helper to render last-5 bubbles
   const renderLastFive = (list: Array<'1' | 'X' | '2'>, side: 'home' | 'away', form?: Last5Item[]) => {
-    // Always render 5 bubbles; pad with placeholders if needed
-    const raw: (Last5Item | null)[] = (form && form.length)
+    // Normalize to Last5Item[], pad to 5, then render right-to-left (most recent on the right)
+    const base: (Last5Item | null)[] = (form && form.length)
       ? form
       : list.map((code) => ({ fixtureId: 0, code, predicted: null, correct: null }));
-    const filled: Array<Last5Item | null> = [...raw];
+    const filled: Array<Last5Item | null> = base.slice(0, 5);
     while (filled.length < 5) filled.push(null);
 
+    // Render with flex-row-reverse so the last item appears at the right edge
     return (
-  <div className="flex justify-center gap-1 mt-1">
+      <div className="flex justify-center gap-1 mt-1 flex-row-reverse">
         {filled.map((it, idx) => {
           if (it === null) {
             return (
               <div
                 key={idx}
-        className="w-5 h-5 rounded-md text-[10px] leading-none flex items-center justify-center bg-gray-100 text-gray-700"
+                className="w-5 h-5 rounded-md text-[10px] leading-none flex items-center justify-center bg-gray-100 text-gray-700"
+                aria-label="no data"
+                title="—"
               >
                 —
               </div>
             );
           }
-      const color = it.correct == null
-    ? 'bg-gray-100 text-gray-700'
-    : it.correct ? 'bg-[#ccffb3] text-[#2a8000]' : 'bg-[#ffb3b3] text-[#cc0000]';
+          // Color logic:
+          // 1) If backend provides correctness (per-item), prefer that (green/red)
+          // 2) If unknown, keep neutral gray to avoid mislabeling wins/losses without venue context
+          let color = 'bg-gray-100 text-gray-700';
+          if (typeof it.correct === 'boolean') {
+            color = it.correct ? 'bg-[#ccffb3] text-[#2a8000]' : 'bg-[#ffb3b3] text-[#cc0000]';
+          } else if (it.code === 'X') {
+            color = 'bg-gray-100 text-gray-700';
+          }
           return (
-    <div key={idx} className={`w-5 h-5 rounded-md text-[10px] leading-none flex items-center justify-center ${color}`}>
+            <div
+              key={idx}
+              className={`w-5 h-5 rounded-md text-[10px] leading-none flex items-center justify-center ${color}`}
+              title={it.code}
+            >
               {it.code}
             </div>
           );
