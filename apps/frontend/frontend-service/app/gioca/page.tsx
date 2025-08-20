@@ -1022,7 +1022,8 @@ function GiocaPageContent() {
         const yBottom = (() => {
           try { return Math.min(900, (typeof window !== 'undefined' ? window.innerHeight : 800) - 40); } catch { return 820; }
         })();
-        await controls.start({ y: yBottom, transition: { type: 'tween', ease: 'easeOut', duration: DOWN_EXIT_DURATION } });
+        // 0.5x slower
+        await controls.start({ y: yBottom, transition: { type: 'tween', ease: 'easeOut', duration: DOWN_EXIT_DURATION * 4 } });
         await controls.start({ x: 0, y: 0, transition: { type: 'spring', stiffness: SNAP_BACK_STIFFNESS, damping: SNAP_BACK_DAMPING } });
       } finally {
         skipFixture();
@@ -1034,7 +1035,8 @@ function GiocaPageContent() {
     const target = {
       x: dir === 'left' ? -distance : dir === 'right' ? distance : 0,
       y: dir === 'up' ? -distance : undefined,
-      transition: { type: 'tween', ease: 'easeOut', duration: 0.28 },
+      // 0.5x slower
+      transition: { type: 'tween', ease: 'easeOut', duration: 0.56 },
     } as const;
     await controls.start(target);
     if (dir === 'up') {
