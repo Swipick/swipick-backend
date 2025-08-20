@@ -221,7 +221,6 @@ function GiocaPageContent() {
         setLoading(true);
         setError(null);
   let fixtureData: Fixture[] = [];
-  let mcLenForLog = 0;
   let cardsArrLocal: MatchCard[] = [];
 
     if (currentMode === 'test') {
@@ -274,7 +273,7 @@ function GiocaPageContent() {
               if (DEBUG_GIOCA) {
                 try { console.log('[gioca] match-cards loaded', { week: selectedWeek, count: arr.length, first: arr[0]?.fixtureId, userIdForOverlay }); } catch {}
               }
-              mcLenForLog = arr.length;
+              // keep local length if needed for future logs
             } else {
               cardsArrLocal = [];
               if (DEBUG_GIOCA) {
@@ -318,87 +317,18 @@ function GiocaPageContent() {
                   goals: { home: Number.isFinite(f.homeScore as number) ? Number(f.homeScore) : undefined, away: Number.isFinite(f.awayScore as number) ? Number(f.awayScore) : undefined },
                   score: { halftime: {}, fulltime: { home: Number(f.homeScore ?? 0), away: Number(f.awayScore ?? 0) } },
                 } as Fixture;
-              });
+                });
             fixtureData = mapped.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 10);
             if (DEBUG_GIOCA) {
               try { console.log('[gioca] fixtures loaded', { week: selectedWeek, count: fixtureData.length, first: fixtureData[0]?.id }); } catch {}
             }
+              // Apply fetched data to state (aligning is handled at render time)
+              setFixtures(fixtureData);
+              setMatchCards(cardsArrLocal);
           }
         } else {
-          // Load live fixtures
-          const response = await apiClient.getUpcomingSerieAFixtures(7);
-          if (response.error) {
-            throw new Error(response.error);
-          }
-          fixtureData = response.data || response;
-        }
-        
-        // Align arrays by position and trim to the same length to avoid UI overlap on first paint
-        if (currentMode === 'test') {
-          const minLen = Math.min(fixtureData.length, cardsArrLocal.length);
-          if (minLen > 0) {
-            fixtureData = fixtureData.slice(0, minLen);
-            cardsArrLocal = cardsArrLocal.slice(0, minLen);
-          }
-          if (cancelled) return;
-          // Hydrate persisted UI state (deck order, index, predictions)
-          let restoredIndex: number | null = null;
-          try {
-            const persisted = safeReadState();
-            if (persisted && fixtureData.length > 0) {
-              // Build maps for reordering by fixtureId
-              const byIdFixture = new Map<number, Fixture>();
-              fixtureData.forEach((f) => byIdFixture.set(f.id, f));
-              const byIdCard = new Map<number, MatchCard>();
-              cardsArrLocal.forEach((c) => byIdCard.set(c.fixtureId, c));
-              // Filter deck to known ids and append any missing in current order
-              const seen = new Set<number>();
-              const orderedIds: number[] = [];
-              for (const id of persisted.deck) {
-                if (byIdFixture.has(id) && !seen.has(id)) {
-                  seen.add(id);
-                  orderedIds.push(id);
-                }
-              }
-              for (const f of fixtureData) {
-                if (!seen.has(f.id)) {
-                  seen.add(f.id);
-                  orderedIds.push(f.id);
-                }
-              }
-              // Rebuild arrays in this order
-              const newFixtures: Fixture[] = orderedIds.map((id) => byIdFixture.get(id)!).filter(Boolean);
-              const newCards: MatchCard[] = orderedIds.map((id) => byIdCard.get(id)!).filter(Boolean);
-              if (newFixtures.length === fixtureData.length && newCards.length === cardsArrLocal.length) {
-                fixtureData = newFixtures;
-                cardsArrLocal = newCards;
-              }
-              // Restore predictions and index (bounded)
-              setPredictions((prev) => ({ ...prev, ...persisted.predictions }));
-              restoredIndex = Math.min(Math.max(persisted.lastIndex, 0), Math.max(0, fixtureData.length - 1));
-            }
-          } catch {}
-          setMatchCards(cardsArrLocal);
-          setFixtures(fixtureData);
-          if (restoredIndex != null) {
-            setCurrentFixtureIndex(restoredIndex);
-          } else {
-            setCurrentFixtureIndex(0);
-          }
-          // Enable persistence after first hydration
-          readyToPersistRef.current = true;
-          if (DEBUG_GIOCA) { try { console.debug('[gioca] persistence hydration', { restoredIndex, count: fixtureData.length }); } catch {} }
-          if (!cancelled) return;
-        }
-        if (cancelled) return;
-        // Live mode: set arrays as-is, then enable persistence
-        setFixtures(fixtureData);
-        setCurrentFixtureIndex(0);
-        readyToPersistRef.current = true;
-        if (DEBUG_GIOCA) {
-          try {
-            console.log('[gioca] fetch complete', { mode: currentMode, week: selectedWeek, fixtures: fixtureData.length, matchCards: mcLenForLog, alignedTo: currentMode === 'test' ? Math.min(fixtureData.length, cardsArrLocal.length) : fixtureData.length, userKey });
-          } catch {}
+          // Live mode not implemented in this build; leave fixtureData empty for now.
+          if (DEBUG_GIOCA) { try { console.log('[gioca] live mode fetch skipped'); } catch {} }
         }
       } catch (err) {
         console.error('Error fetching fixtures:', err);
@@ -1197,7 +1127,7 @@ function GiocaPageContent() {
     return true;
   })();
 
-  // Helper to render last-5 bubbles
+  // Helper to render last-5 bubbles (pick vs result)
   const renderLastFive = (list: Array<'1' | 'X' | '2'>, side: 'home' | 'away', form?: Last5Item[]) => {
     // Normalize to Last5Item[], pad to 5, then render right-to-left (most recent on the right)
     const base: (Last5Item | null)[] = (form && form.length)
@@ -1206,9 +1136,9 @@ function GiocaPageContent() {
     const filled: Array<Last5Item | null> = base.slice(0, 5);
     while (filled.length < 5) filled.push(null);
 
-    // Render with flex-row-reverse so the last item appears at the right edge
+    // Render left-to-right so the first (oldest) appears on the left and the last (newest) on the right
     return (
-      <div className="flex justify-center gap-1 mt-1 flex-row-reverse">
+      <div className="flex justify-center gap-1 mt-1">
         {filled.map((it, idx) => {
           if (it === null) {
             return (
@@ -1222,37 +1152,18 @@ function GiocaPageContent() {
               </div>
             );
           }
-          // Color logic (team perspective):
-          // Priority:
-          // 1) outcome ('W'|'D'|'L') if provided by backend
-          // 2) derive using teamWasHome + code (1/X/2)
-          // 3) if code === 'X' -> grey
-          // 4) fallback neutral grey when insufficient data
           let color = 'bg-gray-100 text-gray-700';
           let titleStr: string = it.code;
-
-          const normalizeOutcome = (): 'W'|'D'|'L'|null => {
-            if (it.outcome === 'W' || it.outcome === 'D' || it.outcome === 'L') return it.outcome;
-            if (it.code === 'X') return 'D';
-            if (typeof it.teamWasHome === 'boolean') {
-              if (it.code === '1') return it.teamWasHome ? 'W' : 'L';
-              if (it.code === '2') return it.teamWasHome ? 'L' : 'W';
+          const pick = it.predicted;
+          if (pick === '1' || pick === 'X' || pick === '2') {
+            if (pick === it.code) {
+              color = 'bg-[#ccffb3] text-[#2a8000]';
+              titleStr = `${it.code} — Corretto`;
+            } else {
+              color = 'bg-[#ffb3b3] text-[#cc0000]';
+              titleStr = `${it.code} — Errato`;
             }
-            return null;
-          };
-
-          const oc = normalizeOutcome();
-          if (oc === 'W') {
-            color = 'bg-[#ccffb3] text-[#2a8000]';
-            titleStr = `${it.code} — Vittoria`;
-          } else if (oc === 'D') {
-            color = 'bg-gray-100 text-gray-700';
-            titleStr = `${it.code} — Pareggio`;
-          } else if (oc === 'L') {
-            color = 'bg-[#ffb3b3] text-[#cc0000]';
-            titleStr = `${it.code} — Sconfitta`;
           } else {
-            // fallback: neutral grey (unknown side)
             color = 'bg-gray-100 text-gray-700';
             titleStr = it.code;
           }
