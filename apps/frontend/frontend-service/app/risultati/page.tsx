@@ -10,11 +10,17 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { FaMedal } from 'react-icons/fa';
 import { RiFootballLine } from 'react-icons/ri';
 import { BsFillFilePersonFill } from 'react-icons/bs';
+import { Toast } from '@/src/components/Toast';
 import confetti from 'canvas-confetti';
 // Gradient header is inlined; page background is white per design
 
 // Debug flag for targeted instrumentation on Risultati page (enable with NEXT_PUBLIC_DEBUG_RISULTATI=1)
 const DEBUG_RISULTATI = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_DEBUG_RISULTATI === '1';
+const MISSED_WEEK_GATING = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MISSED_WEEK_GATING === '1';
+const TERMINAL_WEEK = (() => {
+  const v = typeof process !== 'undefined' ? parseInt(String(process.env.NEXT_PUBLIC_TEST_TERMINAL_WEEK || '4'), 10) : 4;
+  return Number.isFinite(v) ? v : 4;
+})();
 
 // Minimal type describing possible fixture row shapes from Test Fixtures endpoint
 type FixtureRow = {
@@ -124,6 +130,7 @@ function RisultatiPageContent() {
   const [finalVeilOpen, setFinalVeilOpen] = useState(false);
   // Track the most recently revealed fixture and where to fire confetti
   const [recentlyRevealed, setRecentlyRevealed] = useState<{ id: number; origin?: { x: number; y: number } } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   // Fire indigo/white confetti burst (non-blocking), optionally anchored to a viewport origin
   const fireConfetti = useCallback((origin?: { x: number; y: number }) => {
@@ -418,7 +425,7 @@ function RisultatiPageContent() {
     return userId ? `swipick:risultati:reveal:test:week:${selectedWeek}:user:${userId}` : null;
   }, [userId, selectedWeek]);
 
-  // If redirected due to a missed first match (missed=1) for Week 1 in Test Mode,
+  // If redirected due to a missed first match (missed=1) in Test Mode (week gating),
   // auto-reveal all fixtures, disable buttons, and persist the reveal state.
   useEffect(() => {
     try {
@@ -426,7 +433,8 @@ function RisultatiPageContent() {
       const missed = searchParams.get('missed') === '1';
       if (!missed) return;
       if (mode !== 'test') return;
-      if (selectedWeek !== 1) return;
+      const gatingApplies = MISSED_WEEK_GATING ? (selectedWeek >= 1 && selectedWeek <= TERMINAL_WEEK) : (selectedWeek === 1);
+      if (!gatingApplies) return;
       if (weekCards.length === 0) return;
       // Build reveal map and ids
       const map: Record<number, boolean> = {};
@@ -435,10 +443,12 @@ function RisultatiPageContent() {
       setRevealed(map);
       // Prevent auto-rollover from triggering due to all 10 being revealed via missed flow
       try {
-        const k = `swipick:risultati:autoRoll:week1:user:${userId ?? 'anon'}`;
-        localStorage.setItem(k, '1');
+        if (selectedWeek === 1) {
+          const k = `swipick:risultati:autoRoll:week1:user:${userId ?? 'anon'}`;
+          localStorage.setItem(k, '1');
+          setRolledWeek1Once(true);
+        }
       } catch {}
-      setRolledWeek1Once(true);
       // Persist to localStorage once revealKey is available
       if (revealKey) {
         try { localStorage.setItem(revealKey, JSON.stringify(ids)); } catch {}
@@ -449,10 +459,25 @@ function RisultatiPageContent() {
           const url = new URL(window.location.href);
           url.searchParams.delete('missed');
           window.history.replaceState({}, '', url.toString());
+          // Show toast now and also store a session marker to avoid duplicates on reload
+          setToast('Risultati mostrati automaticamente. Questo non ha effetto sulle statistiche.');
+          try { sessionStorage.setItem('swipick:risultati:missedToast', '1'); } catch {}
         } catch {}
       }
     } catch {}
   }, [searchParams, mode, selectedWeek, weekCards, revealKey, userId]);
+
+  // Show one-time toast explaining missed auto-reveal
+  useEffect(() => {
+    try {
+      const key = 'swipick:risultati:missedToast';
+      const msg = typeof window !== 'undefined' ? sessionStorage.getItem(key) : null;
+      if (msg) {
+        setToast(msg);
+        sessionStorage.removeItem(key);
+      }
+    } catch {}
+  }, []);
 
   // Load reveal state
   useEffect(() => {
@@ -765,10 +790,10 @@ function RisultatiPageContent() {
         console.debug('[risultati] onReveal join', { fixtureId, weeklyPresent: !!weeklyStats, pred: joinPred, fallback: joinFx });
       } catch {}
     }
-    // Determine if this click completes all reveals for Giornata 4 (Test Mode)
+    // Determine if this click completes all reveals for the terminal test week (Test Mode)
     const completesWeek4 = (() => {
       if (mode !== 'test') return false;
-      if (selectedWeek !== 4) return false;
+      if (selectedWeek !== TERMINAL_WEEK) return false;
       if (weekCards.length !== 10) return false;
       const wasRevealed = !!revealed[fixtureId];
       if (wasRevealed) return false;
@@ -857,6 +882,9 @@ function RisultatiPageContent() {
   return (
     <div className="h-[100svh] bg-white pb-20 overflow-y-auto touch-pan-y">
       <div className="pb-4">
+        {toast && (
+          <Toast message={toast} onClose={() => setToast(null)} />
+        )}
         {/* Sticky: Header + Meter + Share */}
         <div className="sticky top-0 z-30 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70 pointer-events-none">
           {/* Top Header Panel (modal-like) */}
@@ -1264,12 +1292,12 @@ function RisultatiPageContent() {
         </div>
       )}
       {/* Final Completion Veil (after last reveal in Giornata 4) */}
-      {finalVeilOpen && (
+  {finalVeilOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
-            <h3 className="text-xl font-semibold text-black mb-2">Grazie per aver completato il gioco di prova</h3>
+    <h3 className="text-xl font-semibold text-black mb-2">Grazie per aver completato il gioco di prova</h3>
             <p className="text-sm text-gray-700 mb-5">
-              Hai completato tutte le rivelazioni della Giornata 4. Puoi reimpostare la Modalità Test per ricominciare da capo.
+      Hai completato tutte le rivelazioni della Giornata {selectedWeek}. Puoi reimpostare la Modalità Test per ricominciare da capo.
             </p>
             <div className="flex gap-3 justify-center">
               <button

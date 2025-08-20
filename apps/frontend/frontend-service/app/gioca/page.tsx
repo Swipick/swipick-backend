@@ -15,6 +15,12 @@ import { BsFillFilePersonFill } from 'react-icons/bs';
 
 // Debug flag (enable with NEXT_PUBLIC_DEBUG_GIOCA=1)
 const DEBUG_GIOCA = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_DEBUG_GIOCA === '1';
+// Config flags for gating and terminal week in Test Mode
+const MISSED_WEEK_GATING = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MISSED_WEEK_GATING === '1';
+const TERMINAL_WEEK = (() => {
+  const v = typeof process !== 'undefined' ? parseInt(String(process.env.NEXT_PUBLIC_TEST_TERMINAL_WEEK || '4'), 10) : 4;
+  return Number.isFinite(v) ? v : 4;
+})();
 
 interface Team {
   id: number;
@@ -150,6 +156,8 @@ function GiocaPageContent() {
   const hasWeekPredsKey = useCallback((week: number, u?: string | null) => {
     return `swipick:gioca:hasPreds:test:week:${week}:user:${u ?? 'anon'}`;
   }, []);
+  // Track reconciliation to avoid redundant merges per (user,week)
+  const reconciledRef = useRef<string | null>(null);
 
   // -------- Persisted UI State (deck order, current index, predictions) --------
   type GiocaPersistState = {
@@ -227,6 +235,7 @@ function GiocaPageContent() {
                   const url = new URL(href);
                   url.searchParams.set('mode', 'test');
                   url.searchParams.set('week', '2');
+                  try { sessionStorage.setItem('swipick:gioca:autoAdvanceMsg', 'Parti dalla Giornata 2 — puoi vedere i risultati della Giornata 1 in Risultati.'); } catch {}
                   router.replace(url.toString());
                 }
         if (!cancelled) setLoading(false);
@@ -404,6 +413,43 @@ function GiocaPageContent() {
     } catch {}
   }, [fixtures, currentFixtureIndex, predictions, safeWriteState]);
 
+  // Reconcile with server state post-hydration (Test Mode)
+  useEffect(() => {
+    const run = async () => {
+      if (currentMode !== 'test') return;
+      if (!userKey) return;
+      if (!fixtures.length) return;
+      const sig = `${userKey}:${selectedWeek}`;
+      if (reconciledRef.current === sig) return;
+      try {
+        const respUnknown = await apiClient.getTestWeeklyStats(userKey, selectedWeek) as unknown;
+        const wrap = (respUnknown && typeof respUnknown === 'object' && 'data' in (respUnknown as Record<string, unknown>))
+          ? (respUnknown as { data?: { totalPredictions?: number; predictions?: Array<{ fixtureId: number; userChoice: '1'|'X'|'2'|'SKIP' }> } }).data
+          : (respUnknown as { totalPredictions?: number; predictions?: Array<{ fixtureId: number; userChoice: '1'|'X'|'2'|'SKIP' }> } | undefined);
+        const data = wrap || { totalPredictions: 0, predictions: [] };
+        const total = Number(data?.totalPredictions ?? 0);
+        const arr: Array<{ fixtureId: number; userChoice: '1'|'X'|'2'|'SKIP' }> = Array.isArray(data?.predictions) ? data.predictions : [];
+        const serverPreds: Record<number, '1'|'X'|'2'> = {};
+        for (const p of arr) {
+          if (p && (p.userChoice === '1' || p.userChoice === 'X' || p.userChoice === '2')) {
+            serverPreds[p.fixtureId] = p.userChoice;
+          }
+        }
+        if (Object.keys(serverPreds).length > 0) {
+          try { localStorage.setItem(hasWeekPredsKey(selectedWeek, userKey), '1'); } catch {}
+        }
+        setPredictions((prev) => ({ ...prev, ...serverPreds }));
+        // find first-unanswered in current deck order
+        const first = fixtures.findIndex((f) => !serverPreds[f.id]);
+        setCurrentFixtureIndex(first >= 0 ? first : 0);
+        if (total >= 10) setWeekComplete(true);
+        reconciledRef.current = sig;
+        if (DEBUG_GIOCA) { try { console.debug('[gioca] reconciliation', { week: selectedWeek, serverCount: Object.keys(serverPreds).length, total, first }); } catch {} }
+      } catch {}
+    };
+    run();
+  }, [currentMode, userKey, selectedWeek, fixtures, hasWeekPredsKey]);
+
   // Check if selected week is already fully predicted (Test Mode) and set veil
   useEffect(() => {
     const checkWeekCompletion = async () => {
@@ -484,6 +530,18 @@ function GiocaPageContent() {
       }
     } catch {}
   }, [currentMode, rolledWeek1Once, searchParams, router]);
+
+  // One-time toast after auto-advance replacement
+  useEffect(() => {
+    try {
+      const key = 'swipick:gioca:autoAdvanceMsg';
+      const msg = typeof window !== 'undefined' ? sessionStorage.getItem(key) : null;
+      if (msg) {
+        setToast(msg);
+        sessionStorage.removeItem(key);
+      }
+    } catch {}
+  }, []);
 
   // Resolve backend user id (UUID string) from Firebase UID for persistence in Test Mode
   useEffect(() => {
@@ -885,12 +943,13 @@ function GiocaPageContent() {
     return Number.isFinite(minTs) ? new Date(minTs) : null;
   }, []);
 
-  // Gate Week 1 in Test Mode: if earliest normalized kickoff is in the past, show modal offering to view results for Giornata 1 or continue to Giornata 2
+  // Gate missed weeks in Test Mode (configurable): if earliest normalized kickoff is in the past, show modal
   useEffect(() => {
     try {
       if (currentMode !== 'test') return;
       if (fixtures.length === 0) return;
-      if (selectedWeek !== 1) return; // scope per product guidance
+      const gatingApplies = MISSED_WEEK_GATING ? (selectedWeek >= 1 && selectedWeek <= TERMINAL_WEEK) : (selectedWeek === 1);
+      if (!gatingApplies) return;
       const earliest = computeEarliestNormalized(fixtures);
       if (!earliest) return;
       if (Date.now() >= earliest.getTime()) {
@@ -1112,8 +1171,9 @@ function GiocaPageContent() {
   const canShowVeil = (() => {
     if (currentMode !== 'test') return false;
     if (weekComplete !== true) return false;
-    if (selectedWeek === 1 && rolledWeek1Once) return false;
-    if (selectedWeek === 2) {
+  if (selectedWeek === 1 && rolledWeek1Once) return false;
+  // For week 2, only show veil after at least one prediction exists (avoid blocking empty state)
+  if (selectedWeek === 2) {
       try {
         const k = hasWeekPredsKey(2, userKey);
         const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
@@ -1122,6 +1182,7 @@ function GiocaPageContent() {
         return false;
       }
     }
+  // For other weeks when gating is enabled, show veil normally; for terminal week, also allow veil
     return true;
   })();
 
@@ -1652,32 +1713,35 @@ function GiocaPageContent() {
         </div>
       )}
 
-      {/* Modal: Week 1 missed (first fixture already started) */}
+      {/* Modal: Missed week (first fixture already started) */}
       {currentMode === 'test' && missedWeekModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
-            <h3 className="text-xl font-semibold text-black mb-2">Reindirizzamento alla Giornata 2</h3>
+            <h3 className="text-xl font-semibold text-black mb-2">Giornata {selectedWeek} già iniziata</h3>
             <p className="text-sm text-gray-700 mb-5">La prima partita è già iniziata.</p>
             <div className="flex gap-3 justify-center flex-wrap">
               <button
                 onClick={() => {
                   setMissedWeekModalOpen(false);
-                  router.push('/risultati?mode=test&week=1&missed=1');
+                  router.push(`/risultati?mode=test&week=${selectedWeek}&missed=1`);
                 }}
                 className="px-5 py-2 rounded-md border border-gray-300 text-black font-medium hover:bg-gray-50"
               >
-                Mostra risultati per Giornata 1
+                Mostra risultati per Giornata {selectedWeek}
               </button>
-              <button
-                onClick={() => {
-                  setMissedWeekModalOpen(false);
-                  setCurrentFixtureIndex(0);
-                  router.push('/gioca?mode=test&week=2');
-                }}
-                className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
-              >
-                Continua alla Giornata 2
-              </button>
+              {selectedWeek < TERMINAL_WEEK && (
+                <button
+                  onClick={() => {
+                    setMissedWeekModalOpen(false);
+                    setCurrentFixtureIndex(0);
+                    try { sessionStorage.setItem('swipick:gioca:autoAdvanceMsg', `Parti dalla Giornata ${selectedWeek + 1} — puoi vedere i risultati della Giornata ${selectedWeek} in Risultati.`); } catch {}
+                    router.push(`/gioca?mode=test&week=${selectedWeek + 1}`);
+                  }}
+                  className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
+                >
+                  Continua alla Giornata {selectedWeek + 1}
+                </button>
+              )}
             </div>
           </div>
         </div>
