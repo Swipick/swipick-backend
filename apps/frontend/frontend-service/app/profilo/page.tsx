@@ -21,6 +21,10 @@ type NavigatorWebShare = Navigator & {
   clipboard?: Navigator['clipboard'];
 };
 
+// Debug flag for Profilo (
+// enable by setting NEXT_PUBLIC_DEBUG_PROFILO=1)
+const DEBUG_PROFILO = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_DEBUG_PROFILO === '1';
+
 export default function ProfiloPage() {
   const router = useRouter();
   const { firebaseUser } = useAuthContext();
@@ -39,13 +43,35 @@ export default function ProfiloPage() {
     const weeks = summary?.weeklyStats || [];
     const played = weeks.filter(w => Number(w.totalPredictions) > 0);
     const weeksPlayed = played.length;
-    const avg = Number(summary?.overallAccuracy ?? 0);
-    const best = played.length
-      ? played.reduce((a, b) => (b.accuracy > a.accuracy ? b : a))
-      : { accuracy: 0, week: 1 } as WeeklyStats;
-    const worst = played.length
-      ? played.reduce((a, b) => (b.accuracy < a.accuracy ? b : a))
-      : { accuracy: 0, week: 1 } as WeeklyStats;
+
+    // Weighted average across all finished predictions (preferred over summary.overallAccuracy)
+    const totals = played.reduce(
+      (acc, w) => {
+        const tp = Number(w.totalPredictions) || 0;
+        const cp = Number(w.correctPredictions) || 0;
+        acc.finished += tp;
+        acc.correct += cp;
+        return acc;
+      },
+      { finished: 0, correct: 0 }
+    );
+    const avg = totals.finished > 0 ? (totals.correct / totals.finished) * 100 : 0;
+
+    // Best/Worst by per-week accuracy among played weeks (tie-break: higher correct, then lower week number)
+    const cmpBest = (a: WeeklyStats, b: WeeklyStats) => {
+      if (b.accuracy !== a.accuracy) return b.accuracy - a.accuracy;
+      const bc = (b.correctPredictions || 0) - (a.correctPredictions || 0);
+      if (bc !== 0) return bc;
+      return a.week - b.week; // earlier week wins tie
+    };
+    const cmpWorst = (a: WeeklyStats, b: WeeklyStats) => {
+      if (a.accuracy !== b.accuracy) return a.accuracy - b.accuracy;
+      const bc = (a.correctPredictions || 0) - (b.correctPredictions || 0);
+      if (bc !== 0) return bc;
+      return a.week - b.week; // earlier week wins tie
+    };
+    const best = played.length ? [...played].sort(cmpBest)[0] : ({ accuracy: 0, week: 1, totalPredictions: 0, correctPredictions: 0, points: 0 } as WeeklyStats);
+    const worst = played.length ? [...played].sort(cmpWorst)[0] : ({ accuracy: 0, week: 1, totalPredictions: 0, correctPredictions: 0, points: 0 } as WeeklyStats);
 
     // Format percent in it-IT with one decimal
     const fmtPct = (n: number) => `${n.toLocaleString('it-IT', { maximumFractionDigits: 1 })}%`;
@@ -147,15 +173,39 @@ export default function ProfiloPage() {
       setEmail(u.email || firebaseUser.email || '');
       setAvatarUrl(u.googleProfileUrl || firebaseUser.photoURL || null);
 
-      // Fetch both live and test summaries; prefer the one with actual plays
+      // Fetch both live and test summaries; prefer based on mode and actual plays
       const [liveResp, testResp] = await Promise.all([
         apiClient.getUserSummary(u.id, 'live').catch(() => null),
         apiClient.getUserSummary(u.id, 'test').catch(() => null),
       ]);
-  const liveSum = normalizeSummary(liveResp as unknown);
-  const testSum = normalizeSummary(testResp as unknown);
+      if (DEBUG_PROFILO) {
+        try {
+          console.log('[profilo] raw live summary', liveResp);
+          console.log('[profilo] raw test summary', testResp);
+        } catch {}
+      }
+      const liveSum = normalizeSummary(liveResp as unknown);
+      const testSum = normalizeSummary(testResp as unknown);
+      const livePlayed = (liveSum.weeklyStats || []).filter(w => Number(w.totalPredictions) > 0).length;
       const testPlayed = (testSum.weeklyStats || []).filter(w => Number(w.totalPredictions) > 0).length;
-      const chosen = testPlayed > 0 ? testSum : liveSum;
+      // Selection logic:
+      // - If mode === 'test' and test has plays, pick test; else if live has plays, pick live; else pick the one with more played weeks
+      let chosen = liveSum;
+      if ((mode === 'test' && testPlayed > 0) || (mode !== 'test' && livePlayed === 0 && testPlayed > 0)) {
+        chosen = testSum;
+      } else if (mode !== 'test' && livePlayed > 0) {
+        chosen = liveSum;
+      } else if (testPlayed > livePlayed) {
+        chosen = testSum;
+      }
+      if (DEBUG_PROFILO) {
+        try {
+          const finish = (arr: WeeklyStats[]) => ({ weeks: arr.length, played: arr.filter(w => w.totalPredictions > 0).length, totalPreds: arr.reduce((a, b) => a + (b.totalPredictions || 0), 0), correct: arr.reduce((a, b) => a + (b.correctPredictions || 0), 0) });
+          console.log('[profilo] normalized live', finish(liveSum.weeklyStats));
+          console.log('[profilo] normalized test', finish(testSum.weeklyStats));
+          console.log('[profilo] chosen summary', finish(chosen.weeklyStats));
+        } catch {}
+      }
       setSummary(chosen);
     } catch (e) {
       console.error('[profilo] loadData failed', e);
@@ -163,7 +213,7 @@ export default function ProfiloPage() {
     } finally {
       setLoading(false);
     }
-  }, [firebaseUser]);
+  }, [firebaseUser, mode]);
 
   useEffect(() => {
     if (!firebaseUser) {
