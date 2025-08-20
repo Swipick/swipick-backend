@@ -883,7 +883,11 @@ function RisultatiPageContent() {
     <div className="h-[100svh] bg-white pb-20 overflow-y-auto touch-pan-y">
       <div className="pb-4">
         {toast && (
-          <Toast message={toast} onClose={() => setToast(null)} />
+          <Toast
+            message={`${toast}\n• Le rivelazioni sono locali e non influiscono sulle statistiche.`}
+            onClose={() => setToast(null)}
+            variant="lozenge"
+          />
         )}
         {/* Sticky: Header + Meter + Share */}
         <div className="sticky top-0 z-30 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70 pointer-events-none">

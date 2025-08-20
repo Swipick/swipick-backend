@@ -235,7 +235,7 @@ function GiocaPageContent() {
                   const url = new URL(href);
                   url.searchParams.set('mode', 'test');
                   url.searchParams.set('week', '2');
-                  try { sessionStorage.setItem('swipick:gioca:autoAdvanceMsg', 'Parti dalla Giornata 2 — puoi vedere i risultati della Giornata 1 in Risultati.'); } catch {}
+                  try { sessionStorage.setItem('swipick:gioca:autoAdvanceMsg', 'Stiamo iniziando dal giorno 2,\nvisualizza i risultati della settimana 1 nella pagina dei risultati'); } catch {}
                   router.replace(url.toString());
                 }
         if (!cancelled) setLoading(false);
@@ -1685,7 +1685,13 @@ function GiocaPageContent() {
   <div aria-hidden className="w-full" style={{ height: 'calc(env(safe-area-inset-bottom) + 80px)' }} />
 
   {/* Toast: Live mode notice */}
-  {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+  {toast && (
+    <Toast
+  message={toast}
+      onClose={() => setToast(null)}
+      variant="lozenge"
+    />
+  )}
 
       {/* Modal: User not found */}
       {currentMode === 'test' && userMissingModal.show && (
@@ -1716,7 +1722,15 @@ function GiocaPageContent() {
       {/* Modal: Missed week (first fixture already started) */}
       {currentMode === 'test' && missedWeekModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
+          <div className="relative bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
+            <button
+              aria-label="Chiudi"
+              title="Chiudi"
+              onClick={() => setMissedWeekModalOpen(false)}
+              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700"
+            >
+              ×
+            </button>
             <h3 className="text-xl font-semibold text-black mb-2">Giornata {selectedWeek} già iniziata</h3>
             <p className="text-sm text-gray-700 mb-5">La prima partita è già iniziata.</p>
             <div className="flex gap-3 justify-center flex-wrap">
@@ -1734,7 +1748,7 @@ function GiocaPageContent() {
                   onClick={() => {
                     setMissedWeekModalOpen(false);
                     setCurrentFixtureIndex(0);
-                    try { sessionStorage.setItem('swipick:gioca:autoAdvanceMsg', `Parti dalla Giornata ${selectedWeek + 1} — puoi vedere i risultati della Giornata ${selectedWeek} in Risultati.`); } catch {}
+                    try { sessionStorage.setItem('swipick:gioca:autoAdvanceMsg', 'Stiamo iniziando dal giorno 2,\nvisualizza i risultati della settimana 1 nella pagina dei risultati'); } catch {}
                     router.push(`/gioca?mode=test&week=${selectedWeek + 1}`);
                   }}
                   className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
