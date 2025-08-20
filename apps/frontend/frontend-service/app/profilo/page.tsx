@@ -8,6 +8,7 @@ import { apiClient } from '@/lib/api-client';
 import { FaMedal } from 'react-icons/fa';
 import { RiFootballLine } from 'react-icons/ri';
 import { BsFillFilePersonFill } from 'react-icons/bs';
+import { MdOutlineIosShare } from 'react-icons/md';
 
 // Minimal shared types (mirror Risultati page shapes)
 interface WeeklyStats { week: number; totalPredictions: number; correctPredictions: number; accuracy: number; points: number; }
@@ -167,9 +168,12 @@ export default function ProfiloPage() {
     try {
       // Resolve backend user by Firebase UID
       const resp = await apiClient.getUserByFirebaseUid(firebaseUser.uid) as BffResponse<{ id: string; email: string; name: string; nickname?: string | null; googleProfileUrl?: string | null }>;
-      const u = resp.data;
+  const u = resp.data;
       if (!u?.id) throw new Error('Utente non trovato');
-  setDisplayName(u.nickname || u.name || firebaseUser.displayName || u.email || '');
+  // First line should be the user's first name (prefer backend name, then Firebase name, fallback to email local part)
+  const fullName = (u.name || firebaseUser.displayName || '')?.trim();
+  const firstName = fullName ? fullName.split(/\s+/)[0] : (u.email?.split('@')[0] ?? '');
+  setDisplayName(firstName || '');
   setUserId(u.id);
       setNickname(u.nickname ?? null);
       setEmail(u.email || firebaseUser.email || '');
@@ -268,14 +272,14 @@ export default function ProfiloPage() {
     const initial = (displayName || email || ' ')[0]?.toUpperCase?.() || 'U';
     if (avatarUrl) {
       return (
-        <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/20">
+        <div className="w-28 h-28 rounded-2xl overflow-hidden bg-white/20">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
         </div>
       );
     }
     return (
-      <div className="w-16 h-16 rounded-xl bg-white/20 grid place-items-center text-2xl font-bold">
+      <div className="w-28 h-28 rounded-2xl bg-white/20 grid place-items-center text-3xl font-bold">
         {initial}
       </div>
     );
@@ -285,78 +289,91 @@ export default function ProfiloPage() {
     <div className="min-h-screen bg-white pb-24">
       {/* Gradient header */}
       <div
-        className="w-full mx-0 mt-0 mb-6 rounded-b-2xl rounded-t-none text-white"
+        className="w-full mx-0 mt-0 mb-9 rounded-b-2xl rounded-t-none text-white"
         style={{
           background: 'radial-gradient(circle at center, #554099, #3d2d73)',
           boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
         }}
       >
-        <div className="px-5 pt-9 pb-7">
-          <div className="flex items-center gap-4">
+        <div className="px-10 pt-9 pb-7">
+          <div className="flex flex-col gap-3">
             <HeaderAvatar />
-            <div className="flex-1 min-w-0">
-              <div className="text-lg font-semibold truncate">{displayName || ' '}</div>
-              <div className="text-white/80 text-sm">{nickname ? `@${nickname}` : email}</div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="text-lg font-semibold truncate">{displayName || ' '}</div>
+                <div className="text-white/80 text-sm">{nickname ? `@${nickname}` : (email ? `@${email.split('@')[0]}` : '')}</div>
+              </div>
+              <button
+                aria-label="Impostazioni"
+                onClick={() => router.push('/impostazioni')}
+                className="p-2 rounded-lg hover:bg-white/10 active:bg-white/15"
+                title="Impostazioni"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                  <path d="M19.14,12.94a7.43,7.43,0,0,0,.05-.94,7.43,7.43,0,0,0-.05-.94l2.11-1.65a.5.5,0,0,0,.12-.64l-2-3.46a.5.5,0,0,0-.6-.22l-2.49,1a7.63,7.63,0,0,0-1.63-.94l-.38-2.65A.5.5,0,0,0,13.72,2H10.28a.5.5,0,0,0-.5.42L9.4,5.07a7.63,7.63,0,0,0-1.63.94l-2.49-1a.5.5,0,0,0-.6.22l-2,3.46a.5.5,0,0,0,.12.64L4.86,11.06a7.43,7.43,0,0,0-.05.94,7.43,7.43,0,0,0,.05.94L2.75,14.59a.5.5,0,0,0-.12.64l2,3.46a.5.5,0,0,0,.6.22l2.49-1a7.63,7.63,0,0,0,1.63.94l.38,2.65a.5.5,0,0,0,.5.42h3.44a.5.5,0,0,0,.5-.42l.38-2.65a7.63,7.63,0,0,0,1.63-.94l2.49,1a.5.5,0,0,0,.6-.22l2-3.46a.5.5,0,0,0-.12-.64ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z" />
+                </svg>
+              </button>
             </div>
-            <button
-              aria-label="Impostazioni"
-              onClick={() => router.push('/impostazioni')}
-              className="p-2 rounded-lg hover:bg-white/10 active:bg-white/15"
-              title="Impostazioni"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
-                <path d="M19.14,12.94a7.43,7.43,0,0,0,.05-.94,7.43,7.43,0,0,0-.05-.94l2.11-1.65a.5.5,0,0,0,.12-.64l-2-3.46a.5.5,0,0,0-.6-.22l-2.49,1a7.63,7.63,0,0,0-1.63-.94l-.38-2.65A.5.5,0,0,0,13.72,2H10.28a.5.5,0,0,0-.5.42L9.4,5.07a7.63,7.63,0,0,0-1.63.94l-2.49-1a.5.5,0,0,0-.6.22l-2,3.46a.5.5,0,0,0,.12.64L4.86,11.06a7.43,7.43,0,0,0-.05.94,7.43,7.43,0,0,0,.05.94L2.75,14.59a.5.5,0,0,0-.12.64l2,3.46a.5.5,0,0,0,.6.22l2.49-1a7.63,7.63,0,0,0,1.63.94l.38,2.65a.5.5,0,0,0,.5.42h3.44a.5.5,0,0,0,.5-.42l.38-2.65a7.63,7.63,0,0,0,1.63-.94l2.49,1a.5.5,0,0,0,.6-.22l2-3.46a.5.5,0,0,0-.12-.64ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z" />
-              </svg>
-            </button>
           </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="px-4 space-y-4">
+  <div className="px-10 space-y-4">
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 p-3 text-sm">{error}</div>
         )}
 
         {/* Average card */}
         <div className="grid grid-cols-1 gap-4">
-          <div className="bg-gradient-to-br from-white to-purple-50 rounded-2xl p-4 shadow-sm border border-purple-100/40">
-            <div className="text-sm text-gray-700 mb-2">Punteggio medio</div>
-            <div className="flex items-end justify-between">
-              <div className={`text-4xl font-extrabold text-[#1f1147] ${loading ? 'animate-pulse' : ''}`}>
-                {loading ? '—' : kpi.average}
+          <div className="bg-gradient-to-br from-white to-purple-300 rounded-2xl p-5 shadow-lg border border-purple-100/40 min-h-[132px]">
+            <div className="flex items-start justify-between">
+              <div className="text-sm text-gray-700">Punteggio medio</div>
+              <div className="flex flex-col items-end text-right mt-10">
+                <div className={`text-5xl font-extrabold text-[#1f1147] leading-none ${loading ? 'animate-pulse' : ''}`}>
+                  {loading ? '—' : kpi.average}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">{loading ? '—' : `${kpi.weeksPlayed} giornate giocate`}</div>
               </div>
-              <div className="text-xs text-gray-500">{loading ? '—' : `${kpi.weeksPlayed} giornate giocate`}</div>
             </div>
           </div>
         </div>
 
         {/* Best/Worst */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="rounded-2xl p-4 shadow-sm border border-green-100/50" style={{ background: 'linear-gradient(180deg, #f4fff1, #ffffff)' }}>
-            <div className="text-sm text-gray-700 mb-3">Risultato migliore</div>
-            <div className={`text-3xl font-extrabold text-[#1f1147] ${loading ? 'animate-pulse' : ''}`}>{loading ? '—' : kpi.best.pct}</div>
-            <div className="text-xs text-gray-500 mt-1">{loading ? '—' : `giornata ${kpi.best.week}`}</div>
+          <div className="rounded-2xl p-4 shadow-lg border border-green-100/50 min-h-[162px]" style={{ background: 'linear-gradient(180deg, #f4fff1, #ffffff)' }}>
+            {/* Row 1: label */}
+            <div className="text-sm text-gray-700">Risultato migliore</div>
+            {/* Row 2: right-aligned metric */}
+            <div className="mt-2 flex justify-end">
+              <div className="flex flex-col items-end text-right mt-10">
+                <div className={`text-5xl font-extrabold text-[#1f1147] leading-none ${loading ? 'animate-pulse' : ''}`}>{loading ? '—' : kpi.best.pct}</div>
+                <div className="text-xs text-gray-500 mt-1">{loading ? '—' : `giornata ${kpi.best.week}`}</div>
+              </div>
+            </div>
           </div>
-          <div className="rounded-2xl p-4 shadow-sm border border-orange-100/50" style={{ background: 'linear-gradient(180deg, #ffeef2, #ffffff)' }}>
-            <div className="text-sm text-gray-700 mb-3">Risultato peggiore</div>
-            <div className={`text-3xl font-extrabold text-[#1f1147] ${loading ? 'animate-pulse' : ''}`}>{loading ? '—' : kpi.worst.pct}</div>
-            <div className="text-xs text-gray-500 mt-1">{loading ? '—' : `giornata ${kpi.worst.week}`}</div>
+          <div className="rounded-2xl p-4 shadow-lg border border-orange-100/50" style={{ background: 'linear-gradient(180deg, #ffeef2, #ffffff)' }}>
+            {/* Row 1: label */}
+            <div className="text-sm text-gray-700">Risultato peggiore</div>
+            {/* Row 2: right-aligned metric */}
+            <div className="mt-2 flex justify-end">
+              <div className="flex flex-col items-end text-right mt-10">
+                <div className={`text-5xl font-extrabold text-[#1f1147] leading-none ${loading ? 'animate-pulse' : ''}`}>{loading ? '—' : kpi.worst.pct}</div>
+                <div className="text-xs text-gray-500 mt-1">{loading ? '—' : `giornata ${kpi.worst.week}`}</div>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Share */}
-        <div className="pt-2 pb-2">
+    <div className="pt-12 pb-2 flex justify-center">
           <button
-            className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium shadow ${loading ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+      className={`w-fit inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium shadow ${loading ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
             onClick={onShare}
             disabled={loading}
             title="Condividi profilo"
           >
-            {/* Share icon (simple) */}
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-              <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.02-4.11A2.99 2.99 0 0 0 18 7.91c1.66 0 3-1.35 3-3.01s-1.34-3-3-3a3 3 0 0 0-2.82 4.01L8.16 9.83A3 3 0 0 0 6 9c-1.66 0-3 1.34-3 3s1.34 3.01 3 3.01c1.02 0 1.92-.5 2.46-1.26l7.05 4.12c-.05.21-.08.43-.08.66 0 1.66 1.34 3.01 3 3.01s3-1.35 3-3.01-1.34-3-3-3Z" />
-            </svg>
+            <MdOutlineIosShare className="w-4 h-4" />
             Condividi profilo
           </button>
         </div>
