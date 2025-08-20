@@ -151,6 +151,43 @@ function GiocaPageContent() {
     return `swipick:gioca:hasPreds:test:week:${week}:user:${u ?? 'anon'}`;
   }, []);
 
+  // -------- Persisted UI State (deck order, current index, predictions) --------
+  type GiocaPersistState = {
+    v: 1;
+    lastIndex: number;
+    predictions: Record<number, '1'|'X'|'2'>;
+    deck: number[]; // fixtureId order
+  };
+  const persistKey = useCallback(() => {
+    const modeKey = currentMode ?? 'live';
+    const weekKey = Number.isFinite(selectedWeek) ? selectedWeek : 1;
+    const user = userKey ?? 'anon';
+    return `swipick:gioca:state:v1:mode:${modeKey}:week:${weekKey}:user:${user}`;
+  }, [currentMode, selectedWeek, userKey]);
+
+  const readyToPersistRef = useRef<boolean>(false);
+
+  const safeReadState = useCallback((): GiocaPersistState | null => {
+    try {
+      if (typeof window === 'undefined') return null;
+      const raw = localStorage.getItem(persistKey());
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as Partial<GiocaPersistState> | null;
+      if (!parsed || parsed.v !== 1) return null;
+      if (!Array.isArray(parsed.deck)) return null;
+      if (typeof parsed.lastIndex !== 'number') return null;
+      if (!parsed.predictions || typeof parsed.predictions !== 'object') return null;
+      return { v: 1, lastIndex: parsed.lastIndex, predictions: parsed.predictions as Record<number,'1'|'X'|'2'>, deck: parsed.deck as number[] };
+    } catch { return null; }
+  }, [persistKey]);
+
+  const safeWriteState = useCallback((state: GiocaPersistState) => {
+    try {
+      if (typeof window === 'undefined') return;
+      localStorage.setItem(persistKey(), JSON.stringify(state));
+    } catch {}
+  }, [persistKey]);
+
   // Update context if mode changed via URL
   useEffect(() => {
     if (currentMode !== mode) {
@@ -284,11 +321,60 @@ function GiocaPageContent() {
             cardsArrLocal = cardsArrLocal.slice(0, minLen);
           }
           if (cancelled) return;
+          // Hydrate persisted UI state (deck order, index, predictions)
+          let restoredIndex: number | null = null;
+          try {
+            const persisted = safeReadState();
+            if (persisted && fixtureData.length > 0) {
+              // Build maps for reordering by fixtureId
+              const byIdFixture = new Map<number, Fixture>();
+              fixtureData.forEach((f) => byIdFixture.set(f.id, f));
+              const byIdCard = new Map<number, MatchCard>();
+              cardsArrLocal.forEach((c) => byIdCard.set(c.fixtureId, c));
+              // Filter deck to known ids and append any missing in current order
+              const seen = new Set<number>();
+              const orderedIds: number[] = [];
+              for (const id of persisted.deck) {
+                if (byIdFixture.has(id) && !seen.has(id)) {
+                  seen.add(id);
+                  orderedIds.push(id);
+                }
+              }
+              for (const f of fixtureData) {
+                if (!seen.has(f.id)) {
+                  seen.add(f.id);
+                  orderedIds.push(f.id);
+                }
+              }
+              // Rebuild arrays in this order
+              const newFixtures: Fixture[] = orderedIds.map((id) => byIdFixture.get(id)!).filter(Boolean);
+              const newCards: MatchCard[] = orderedIds.map((id) => byIdCard.get(id)!).filter(Boolean);
+              if (newFixtures.length === fixtureData.length && newCards.length === cardsArrLocal.length) {
+                fixtureData = newFixtures;
+                cardsArrLocal = newCards;
+              }
+              // Restore predictions and index (bounded)
+              setPredictions((prev) => ({ ...prev, ...persisted.predictions }));
+              restoredIndex = Math.min(Math.max(persisted.lastIndex, 0), Math.max(0, fixtureData.length - 1));
+            }
+          } catch {}
           setMatchCards(cardsArrLocal);
+          setFixtures(fixtureData);
+          if (restoredIndex != null) {
+            setCurrentFixtureIndex(restoredIndex);
+          } else {
+            setCurrentFixtureIndex(0);
+          }
+          // Enable persistence after first hydration
+          readyToPersistRef.current = true;
+          if (DEBUG_GIOCA) { try { console.debug('[gioca] persistence hydration', { restoredIndex, count: fixtureData.length }); } catch {} }
+          if (!cancelled) return;
         }
         if (cancelled) return;
+        // Live mode: set arrays as-is, then enable persistence
         setFixtures(fixtureData);
         setCurrentFixtureIndex(0);
+        readyToPersistRef.current = true;
         if (DEBUG_GIOCA) {
           try {
             console.log('[gioca] fetch complete', { mode: currentMode, week: selectedWeek, fixtures: fixtureData.length, matchCards: mcLenForLog, alignedTo: currentMode === 'test' ? Math.min(fixtureData.length, cardsArrLocal.length) : fixtureData.length, userKey });
@@ -304,7 +390,19 @@ function GiocaPageContent() {
 
     fetchFixtures();
     return () => { cancelled = true; };
-  }, [currentMode, selectedWeek, firebaseUser?.uid, userKey, router]);
+  }, [currentMode, selectedWeek, firebaseUser?.uid, userKey, router, safeReadState]);
+
+  // Persist UI state whenever key pieces change and after initial hydration is done
+  useEffect(() => {
+    try {
+      if (!readyToPersistRef.current) return;
+      if (!fixtures.length) return;
+      const deck = fixtures.map((f) => f.id);
+      const idx = Math.min(Math.max(currentFixtureIndex, 0), Math.max(0, fixtures.length - 1));
+      const state = { v: 1 as const, lastIndex: idx, predictions, deck };
+      safeWriteState(state);
+    } catch {}
+  }, [fixtures, currentFixtureIndex, predictions, safeWriteState]);
 
   // Check if selected week is already fully predicted (Test Mode) and set veil
   useEffect(() => {
@@ -979,9 +1077,10 @@ function GiocaPageContent() {
           for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i) || '';
             const isGioca = k.startsWith('swipick:gioca:hasPreds:test:week:') && k.includes(`:user:${userKey}`);
+            const isGiocaState = k.startsWith('swipick:gioca:state:v1:mode:') && k.endsWith(`:user:${userKey}`);
             const isReveal = k.startsWith('swipick:risultati:reveal:test:week:') && k.includes(`:user:${userKey}`);
             const isAutoRoll = k === `swipick:risultati:autoRoll:week1:user:${userKey}`;
-            if (isGioca || isReveal || isAutoRoll) keysToRemove.push(k);
+            if (isGioca || isGiocaState || isReveal || isAutoRoll) keysToRemove.push(k);
           }
           keysToRemove.forEach((k) => localStorage.removeItem(k));
         }
