@@ -86,7 +86,18 @@ interface TestFixtureAPI {
 
 // Match-cards API types
 interface MatchCardKickoff { iso: string; display: string; }
-interface Last5Item { fixtureId: number; code: '1'|'X'|'2'; predicted: '1'|'X'|'2'|null; correct: boolean|null; }
+interface Last5Item {
+  fixtureId: number;
+  code: '1'|'X'|'2';
+  // Optional: user prediction metadata (when applicable)
+  predicted: '1'|'X'|'2'|null;
+  correct: boolean|null;
+  // Optional: backend-provided, team-perspective outcome for this historical item
+  // 'W' = team won, 'D' = draw, 'L' = team lost
+  outcome?: 'W'|'D'|'L' | null;
+  // Optional: whether this team was the home side in that specific historical match
+  teamWasHome?: boolean | null;
+}
 interface MatchCardTeamHome { name: string; logo: string | null; winRateHome: number | null; last5: Array<'1' | 'X' | '2'>; standingsPosition?: number|null; form?: Last5Item[]; }
 interface MatchCardTeamAway { name: string; logo: string | null; winRateAway: number | null; last5: Array<'1' | 'X' | '2'>; standingsPosition?: number|null; form?: Last5Item[]; }
 interface MatchCard { week: number; fixtureId: number; kickoff: MatchCardKickoff; stadium: string | null; home: MatchCardTeamHome; away: MatchCardTeamAway; }
@@ -1211,20 +1222,45 @@ function GiocaPageContent() {
               </div>
             );
           }
-          // Color logic:
-          // 1) If backend provides correctness (per-item), prefer that (green/red)
-          // 2) If unknown, keep neutral gray to avoid mislabeling wins/losses without venue context
+          // Color logic (team perspective):
+          // Priority:
+          // 1) outcome ('W'|'D'|'L') if provided by backend
+          // 2) derive using teamWasHome + code (1/X/2)
+          // 3) if code === 'X' -> grey
+          // 4) fallback neutral grey when insufficient data
           let color = 'bg-gray-100 text-gray-700';
-          if (typeof it.correct === 'boolean') {
-            color = it.correct ? 'bg-[#ccffb3] text-[#2a8000]' : 'bg-[#ffb3b3] text-[#cc0000]';
-          } else if (it.code === 'X') {
+          let titleStr: string = it.code;
+
+          const normalizeOutcome = (): 'W'|'D'|'L'|null => {
+            if (it.outcome === 'W' || it.outcome === 'D' || it.outcome === 'L') return it.outcome;
+            if (it.code === 'X') return 'D';
+            if (typeof it.teamWasHome === 'boolean') {
+              if (it.code === '1') return it.teamWasHome ? 'W' : 'L';
+              if (it.code === '2') return it.teamWasHome ? 'L' : 'W';
+            }
+            return null;
+          };
+
+          const oc = normalizeOutcome();
+          if (oc === 'W') {
+            color = 'bg-[#ccffb3] text-[#2a8000]';
+            titleStr = `${it.code} — Vittoria`;
+          } else if (oc === 'D') {
             color = 'bg-gray-100 text-gray-700';
+            titleStr = `${it.code} — Pareggio`;
+          } else if (oc === 'L') {
+            color = 'bg-[#ffb3b3] text-[#cc0000]';
+            titleStr = `${it.code} — Sconfitta`;
+          } else {
+            // fallback: neutral grey (unknown side)
+            color = 'bg-gray-100 text-gray-700';
+            titleStr = it.code;
           }
           return (
             <div
               key={idx}
               className={`w-5 h-5 rounded-md text-[10px] leading-none flex items-center justify-center ${color}`}
-              title={it.code}
+              title={titleStr}
             >
               {it.code}
             </div>

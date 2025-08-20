@@ -73,8 +73,20 @@ interface PredictionHistory {
 
 // Match-cards API types for Test Mode
 interface MatchCardKickoff { iso: string; display: string; }
-interface MatchCardTeamHome { name: string; logo: string | null; winRateHome: number | null; last5: Array<'1' | 'X' | '2'>; }
-interface MatchCardTeamAway { name: string; logo: string | null; winRateAway: number | null; last5: Array<'1' | 'X' | '2'>; }
+// Last-5 item shape (optional richer data from backend)
+interface Last5Item {
+  fixtureId: number;
+  code: '1'|'X'|'2';
+  predicted?: '1'|'X'|'2'|null;
+  correct?: boolean|null;
+  // Optional team-perspective outcome: 'W' win, 'D' draw, 'L' loss
+  outcome?: 'W'|'D'|'L' | null;
+  // Whether this team was home in the historical match (for deriving W/L from code)
+  teamWasHome?: boolean | null;
+}
+
+interface MatchCardTeamHome { name: string; logo: string | null; winRateHome: number | null; last5: Array<'1' | 'X' | '2'>; form?: Last5Item[] }
+interface MatchCardTeamAway { name: string; logo: string | null; winRateAway: number | null; last5: Array<'1' | 'X' | '2'>; form?: Last5Item[] }
 interface MatchCard { week: number; fixtureId: number; kickoff: MatchCardKickoff; stadium: string | null; home: MatchCardTeamHome; away: MatchCardTeamAway; }
 
 type Choice = '1' | 'X' | '2';
@@ -405,6 +417,7 @@ function RisultatiPageContent() {
       default: return prediction;
     }
   };
+
 
   const getResultColor = (isCorrect?: boolean) => {
     if (isCorrect === undefined) return 'text-gray-500';
@@ -1036,6 +1049,7 @@ function RisultatiPageContent() {
                             )}
               <div className="text-black font-bold truncate">{m.home.name}</div>
                           </div>
+                          {/* last-5 removed as requested */}
                           <div className="flex items-center gap-3 h-12">
                             {m.away.logo ? (
                               <Image src={m.away.logo} alt={m.away.name} width={48} height={48} className="rounded" />
@@ -1044,6 +1058,7 @@ function RisultatiPageContent() {
                             )}
               <div className="text-black font-bold truncate">{m.away.name}</div>
                           </div>
+                          {/* last-5 removed as requested */}
                         </div>
 
                         {/* Col 2: Final scores (two rows) */}
