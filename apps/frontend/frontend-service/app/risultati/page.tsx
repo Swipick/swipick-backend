@@ -7,6 +7,9 @@ import { useAuthContext } from '@/src/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
 import { IoShareOutline } from 'react-icons/io5';
 import { AnimatePresence, motion } from 'framer-motion';
+import { FaMedal } from 'react-icons/fa';
+import { RiFootballLine } from 'react-icons/ri';
+import { BsFillFilePersonFill } from 'react-icons/bs';
 // Gradient header is inlined; page background is white per design
 
 // Debug flag for targeted instrumentation on Risultati page (enable with NEXT_PUBLIC_DEBUG_RISULTATI=1)
@@ -761,18 +764,6 @@ function RisultatiPageContent() {
   return (
     <div className="min-h-screen bg-white pb-20">
       <div className="pb-4">
-        {/* Test Mode banner with Reset */}
-        {mode === 'test' && (
-          <div className="bg-orange-500 text-white py-2 px-3 font-semibold flex items-center justify-between">
-            <div>🧪 MODALITÀ TEST - Dati storici Serie A 2023-24</div>
-            <button
-              onClick={() => performTestReset({ requireConfirm: true })}
-              className="text-xs font-semibold border rounded-md px-2.5 py-1 border-white/70 hover:bg-white/10"
-            >
-              Reset
-            </button>
-          </div>
-        )}
         {/* Sticky: Header + Meter + Share */}
         <div className="sticky top-0 z-30 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70">
           {/* Top Header Panel (modal-like) */}
@@ -780,6 +771,25 @@ function RisultatiPageContent() {
             className="w-full mx-0 mt-0 mb-2 rounded-b-2xl rounded-t-none text-white"
             style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
           >
+            {/* Test Mode lozenge (matches Gioca page) */}
+            {mode === 'test' && (
+              <div className="pt-3 px-4 flex justify-center">
+                <div
+                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 max-w-full min-w-0 overflow-hidden mx-auto"
+                  style={{ backgroundColor: '#A9BA9D', color: '#043927' }}
+                >
+                  <span className="text-[11px] font-semibold truncate">MODALITÀ TEST - Dati storici Serie A 2023-24</span>
+                  <button
+                    onClick={() => performTestReset({ requireConfirm: true })}
+                    className="text-xs font-semibold rounded-full px-2 py-0.5"
+                    style={{ backgroundColor: '#780606', color: '#ffffff' }}
+                    title="Reimposta Test Mode"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="relative px-4 pt-10 pb-6">
               {/* Faded previous (left) - clickable */}
               <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-sm opacity-30">
@@ -1079,23 +1089,15 @@ function RisultatiPageContent() {
           </div>
         )}
 
-        {/* Bottom Navigation */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
+        {/* Bottom Navigation (icons and styles match Gioca/Profilo) */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t pb-[max(env(safe-area-inset-bottom),0px)]">
           <div className="flex">
-            <button
-              onClick={() => {
-                if (DEBUG_RISULTATI) { try { console.log('[risultati] nav -> risultati (self)'); } catch {} }
-                router.push(`/risultati?mode=${mode}${mode === 'test' ? `&week=${selectedWeek}` : ''}`);
-              }}
-              className="flex-1 text-center py-4 border-b-2 border-purple-600"
-            >
+            <div className="flex-1 text-center py-4 border-b-2 border-purple-600">
               <div className="text-purple-600 mb-1">
-                <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M9 11H7v6h2v-6zm4 0h-2v6h2v-6zm4 0h-2v6h2v-6zM4 22h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16V8H4v2zm0-6h16V2H4v2z"/>
-                </svg>
+                <FaMedal className="w-6 h-6 mx-auto" />
               </div>
               <span className="text-xs text-purple-600 font-medium">Risultati</span>
-            </button>
+            </div>
             <button
               onClick={() => {
                 if (DEBUG_RISULTATI) { try { console.log('[risultati] nav -> gioca', { mode, week: selectedWeek }); } catch {} }
@@ -1103,23 +1105,23 @@ function RisultatiPageContent() {
               }}
               className="flex-1 text-center py-4"
             >
-              <div className="text-gray-400 mb-1">
-                <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                </svg>
+              <div className="text-gray-500 mb-1">
+                <RiFootballLine className="w-6 h-6 mx-auto" />
               </div>
-              <span className="text-xs text-gray-500">Gioca</span>
+              <span className="text-xs text-black">Gioca</span>
             </button>
             <button
-              onClick={() => router.push('/profilo')}
+              onClick={() => {
+                const params = new URLSearchParams({ mode });
+                if (mode === 'test') params.set('week', String(selectedWeek));
+                router.push(`/profilo?${params.toString()}`);
+              }}
               className="flex-1 text-center py-4"
             >
-              <div className="text-gray-400 mb-1">
-                <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2c1.1 0 2 .9 2 2 0 .74-.4 1.38-1 1.72v.78h-.5c-.83 0-1.5.67-1.5 1.5v.5c0 .28-.22.5-.5.5s-.5-.22-.5-.5v-.5c0-1.38 1.12-2.5 2.5-2.5H13V5.72c-.6-.34-1-.98-1-1.72 0-1.1.9-2 2-2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
-                </svg>
+              <div className="text-gray-500 mb-1">
+                <BsFillFilePersonFill className="w-6 h-6 mx-auto" />
               </div>
-              <span className="text-xs text-gray-500">Profilo</span>
+              <span className="text-xs text-black">Profilo</span>
             </button>
           </div>
         </div>
