@@ -169,6 +169,20 @@ function GiocaPageContent() {
   }, []);
   // Track reconciliation to avoid redundant merges per (user,week)
   const reconciledRef = useRef<string | null>(null);
+  // Completed summary header (fixed) height measurement for spacer
+  const completeHeaderRef = useRef<HTMLDivElement | null>(null);
+  const [completeHeaderH, setCompleteHeaderH] = useState<number>(160);
+  useEffect(() => {
+    const measure = () => {
+      if (completeHeaderRef.current) {
+        setCompleteHeaderH(completeHeaderRef.current.getBoundingClientRect().height);
+      }
+    };
+    // Measure asap and on resize
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [currentMode]);
 
   // -------- Persisted UI State (deck order, current index, predictions) --------
   type GiocaPersistState = {
@@ -1200,9 +1214,10 @@ function GiocaPageContent() {
           <></>
         )}
 
-        {/* Header with progress locked at 10/10 */}
+        {/* Header with progress locked at 10/10 — FIXED at top (safe-area aware) */}
         <div
-          className="w-full mx-0 mt-0 mb-6 rounded-b-2xl rounded-t-none text-white"
+          ref={completeHeaderRef}
+          className="fixed left-0 right-0 top-0 z-40 w-full mx-0 mt-0 rounded-b-2xl rounded-t-none text-white pt-[max(env(safe-area-inset-top),8px)]"
           style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
         >
           {currentMode === 'test' && (
@@ -1224,7 +1239,7 @@ function GiocaPageContent() {
               </div>
             </div>
           )}
-          <div className="text-center px-4 pt-[max(env(safe-area-inset-top),24px)]">
+          <div className="text-center px-4 pt-2">
             {(() => {
               const range = getWeekDateRange();
               const from = range?.start?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
@@ -1248,6 +1263,9 @@ function GiocaPageContent() {
           </div>
         </div>
 
+        {/* Spacer equal to the fixed header height to avoid content being hidden underneath */}
+        <div aria-hidden className="w-full" style={{ height: completeHeaderH + 24 }} />
+
         {/* Summary list */}
         <div className="px-4 pb-24">
           {fixtures.map((f, idx) => {
@@ -1262,8 +1280,10 @@ function GiocaPageContent() {
             const badge = (label: '1'|'X'|'2') => (
               <div
                 className={
-                  `w-8 h-8 rounded-full grid place-items-center text-xs font-bold ` +
-                  (pick === label ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-500')
+                  `min-w-[36px] h-7 px-2 rounded-md grid place-items-center text-xs font-semibold border ` +
+                  (pick === label
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                    : 'bg-white text-gray-700 border-gray-300')
                 }
               >
                 {label}
@@ -1276,17 +1296,17 @@ function GiocaPageContent() {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     {homeLogo ? (
-                      <Image src={homeLogo} alt={homeName} width={28} height={28} className="w-7 h-7 object-contain" />
+                      <Image src={homeLogo} alt={homeName} width={48} height={48} className="w-12 h-12 object-contain" />
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-purple-100" />
+                      <div className="w-12 h-12 rounded-full bg-purple-100" />
                     )}
                     <span className="text-sm font-semibold text-black">{homeName}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     {awayLogo ? (
-                      <Image src={awayLogo} alt={awayName} width={28} height={28} className="w-7 h-7 object-contain" />
+                      <Image src={awayLogo} alt={awayName} width={48} height={48} className="w-12 h-12 object-contain" />
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-blue-100" />
+                      <div className="w-12 h-12 rounded-full bg-blue-100" />
                     )}
                     <span className="text-sm font-semibold text-black">{awayName}</span>
                   </div>
@@ -1644,8 +1664,10 @@ function GiocaPageContent() {
 
       {/* Modal: User not found */}
       {currentMode === 'test' && userMissingModal.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl p-6 w-80 shadow-xl">
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+          <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-1/2 -translate-x-1/2 w-[88%] max-w-md pointer-events-auto">
+            <div className="bg-white rounded-xl p-6 shadow-xl">
             <h3 className="text-lg font-semibold text-black mb-2">Account non trovato</h3>
             <p className="text-sm text-gray-600 mb-4">Per continuare in Test Mode serve un account backend. Vai alla pagina di benvenuto per completare.</p>
             <div className="flex gap-3 justify-end">
@@ -1664,14 +1686,17 @@ function GiocaPageContent() {
                 Vai a Welcome
               </button>
             </div>
+            </div>
           </div>
-        </div>
+          </div>
       )}
 
       {/* Modal: Missed week (first fixture already started) */}
       {currentMode === 'test' && missedWeekModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
-          <div className="relative bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
+          <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-1/2 -translate-x-1/2 w-[88%] max-w-md pointer-events-auto">
+            <div className="relative bg-white rounded-2xl shadow-2xl p-6 text-center">
             <button
               aria-label="Chiudi"
               title="Chiudi"
@@ -1706,14 +1731,17 @@ function GiocaPageContent() {
                 </button>
               )}
             </div>
+            </div>
           </div>
-        </div>
+          </div>
       )}
 
         {/* Veil when week is completed (Test Mode). Hidden for Week 1 once rollover occurred, to avoid blocking UI when user navigates back. */}
   {canShowVeil && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+          <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-1/2 -translate-x-1/2 w-[88%] max-w-md pointer-events-auto">
+            <div className="bg-white rounded-2xl shadow-2xl p-6 text-center">
             <h3 className="text-xl font-semibold text-black mb-2">Giornata completata</h3>
             <p className="text-sm text-gray-700 mb-5">Hai già effettuato 10 scelte per questa settimana. Vai alla pagina Risultati per rivelare e vedere l&apos;andamento.</p>
             <div className="flex gap-3 justify-center">
@@ -1724,8 +1752,9 @@ function GiocaPageContent() {
                 Vai a Risultati
               </button>
             </div>
+            </div>
           </div>
-        </div>
+          </div>
       )}
 
   {/* Bottom Navigation */}
