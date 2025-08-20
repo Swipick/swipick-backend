@@ -17,7 +17,7 @@ import {
   User
 } from 'firebase/auth';
 
-import { auth } from './firebase';
+import { auth } from '@/lib/firebase';
 import { FirebaseUser, ActionCodeSettings } from '../types/auth.types';
 import { getFirebaseErrorMessage } from '../utils/firebase-errors';
 
