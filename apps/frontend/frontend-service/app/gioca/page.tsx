@@ -1592,7 +1592,7 @@ function GiocaPageContent() {
 
       {/* Prediction Buttons - Diamond Layout (in-flow; scrolls with content) */}
       <div
-        className="relative left-0 right-0 z-30 px-4 mt-3 mb-[calc(env(safe-area-inset-bottom)+96px)]"
+        className="relative left-0 right-0 px-4 mt-3 mb-6"
       >
         <div className="flex justify-center">
           <div className="grid grid-cols-3 gap-x-4 gap-y-0 justify-items-center items-center max-w-[340px] w-full mx-auto">
@@ -1651,7 +1651,7 @@ function GiocaPageContent() {
       </div>
 
   {/* spacer to avoid overlap with bottom nav on short screens */}
-  <div aria-hidden className="w-full" style={{ height: 'calc(env(safe-area-inset-bottom) + 80px)' }} />
+  <div aria-hidden className="w-full" style={{ height: 'calc(env(safe-area-inset-bottom) + 64px)' }} />
 
   {/* Toast: Live mode notice */}
   {toast && (
