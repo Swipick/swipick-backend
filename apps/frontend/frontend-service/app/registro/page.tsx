@@ -32,18 +32,21 @@ const RegistrationForm: React.FC = () => {
     resetForm,
   } = useRegistration();
 
-  const { signInWithGoogle } = useAuthContext();
+  const { signInWithGoogle, getAuthToken } = useAuthContext();
 
   const handleGoogleSignIn = async () => {
     try {
       setGoogleLoading(true);
       
-      // Sign in with Google and get Firebase user
-      const firebaseUser = await signInWithGoogle();
-      
-      // NEW: Sync with backend database
+      // Sign in with Google
+      await signInWithGoogle();
+
+      // Sync with backend database using a fresh Firebase ID token
       try {
-        const idToken = firebaseUser.accessToken;
+        const idToken = await getAuthToken();
+        if (!idToken) {
+          throw new Error('Token di autenticazione non disponibile');
+        }
         const result = await apiClient.syncGoogleUser(idToken);
         
         console.log('✅ Google user synced to database:', result);
@@ -55,9 +58,9 @@ const RegistrationForm: React.FC = () => {
           router.push('/mode-selection');
         }
       } catch (backendError) {
-        console.error('❌ Backend sync failed, proceeding anyway:', backendError);
-        // Still redirect to game even if backend sync fails
-        router.push('/mode-selection');
+        console.error('❌ Backend sync failed:', backendError);
+        alert('Accesso con Google non completato. Riprova.');
+        return;
       }
     } catch (error) {
       console.error('Google sign-in failed:', error);
