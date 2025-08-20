@@ -758,10 +758,6 @@ function RisultatiPageContent() {
       }
     }
     if (DEBUG_RISULTATI) { try { console.log('[risultati] reveal allowed', { week: selectedWeek, fixtureId }); } catch {} }
-    // Ensure stats are present to show scores once reveal is allowed
-    if (!weeklyStats) {
-      await loadWeeklyStats(selectedWeek);
-    }
     if (DEBUG_RISULTATI) {
       try {
         const joinPred = predByFixture.get(fixtureId);
