@@ -11,6 +11,15 @@ export interface GoogleAuthResult {
 
 export const signInWithGoogle = async (): Promise<GoogleAuthResult> => {
   try {
+    // Prefer redirect on mobile browsers where popups are unreliable (iOS/Android)
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(ua);
+    if (isMobile) {
+      await signInWithRedirect(auth, googleProvider);
+      return { success: true };
+    }
+
+    // Desktop: try popup first
     const result = await signInWithPopup(auth, googleProvider);
     return {
       success: true,
@@ -22,7 +31,11 @@ export const signInWithGoogle = async (): Promise<GoogleAuthResult> => {
     console.error('Google sign-in error:', authError);
     
     // Handle specific error cases
-    if (authError.code === 'auth/popup-blocked') {
+    if (
+      authError.code === 'auth/popup-blocked' ||
+      authError.code === 'auth/operation-not-supported-in-this-environment' ||
+      authError.code === 'auth/blocked-by-user-agent'
+    ) {
       // Fallback to redirect method
       try {
         await signInWithRedirect(auth, googleProvider);

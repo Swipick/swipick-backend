@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { RegistrationProvider, useRegistration } from '@/contexts/RegistrationContext';
@@ -33,11 +33,61 @@ const RegistrationForm: React.FC = () => {
   } = useRegistration();
 
   const { signInWithGoogle, getAuthToken } = useAuthContext();
+  const [shakeTerms, setShakeTerms] = useState(false);
+
+  // Handle Google redirect result on mount to complete flow
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const intent = typeof window !== 'undefined' ? window.sessionStorage.getItem('swipick:google:register:intent') : null;
+        if (intent !== '1') return;
+        // Only continue if terms were accepted when flow started
+        const agreed = typeof window !== 'undefined' ? window.sessionStorage.getItem('swipick:google:register:terms') === '1' : false;
+        if (!agreed) {
+          window.sessionStorage.removeItem('swipick:google:register:intent');
+          window.sessionStorage.removeItem('swipick:google:register:terms');
+          return;
+        }
+        // Get token and sync
+        const idToken = await getAuthToken();
+        if (!idToken) return;
+        if (cancelled) return;
+        const result = await apiClient.syncGoogleUser(idToken);
+        if (cancelled) return;
+        console.log('✅ Google redirect user synced:', result);
+        if (result.data && (result.data as BackendUserResponse).needsProfileCompletion) {
+          router.push(`/complete-profile/${(result.data as BackendUserResponse).id}`);
+        } else {
+          router.push('/mode-selection');
+        }
+      } catch (e) {
+        console.error('[registro] google redirect handling failed', e);
+      } finally {
+        try {
+          window.sessionStorage.removeItem('swipick:google:register:intent');
+          window.sessionStorage.removeItem('swipick:google:register:terms');
+        } catch {}
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [getAuthToken, router]);
 
   const handleGoogleSignIn = async () => {
     try {
       setGoogleLoading(true);
-      
+      // Require Terms acceptance before starting OAuth
+      if (!registrationData.agreeToTerms) {
+        setShakeTerms(true);
+        setTimeout(() => setShakeTerms(false), 600);
+        return;
+      }
+      // Persist intent so redirect flow can continue after return
+      try {
+        window.sessionStorage.setItem('swipick:google:register:intent', '1');
+        window.sessionStorage.setItem('swipick:google:register:terms', '1');
+      } catch {}
+
       // Sign in with Google
       await signInWithGoogle();
 
@@ -178,7 +228,7 @@ const RegistrationForm: React.FC = () => {
             />
 
             {/* Terms Agreement Checkbox */}
-            <div className="flex items-start space-x-3 py-2">
+            <div className={`flex items-start space-x-3 py-2 ${shakeTerms ? 'terms-shake' : ''}`}>
               <div className="flex items-center h-5">
                 <input
                   id="agreeToTerms"
@@ -232,11 +282,11 @@ const RegistrationForm: React.FC = () => {
             <span className="text-gray-500 text-sm">oppure</span>
           </div>
 
-          {/* Google Sign In Button */}
+          {/* Google Sign In Button (gated by Terms with shake prompt) */}
           <button
             type="button"
             onClick={handleGoogleSignIn}
-            className="w-full h-10 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium px-4 rounded-lg transition-colors flex items-center justify-center mb-4"
+            className={`w-full h-10 bg-white border border-gray-300 text-gray-700 font-medium px-4 rounded-lg transition-colors flex items-center justify-center mb-4 ${registrationData.agreeToTerms ? 'hover:bg-gray-50' : 'opacity-60 cursor-not-allowed'}`}
             disabled={isLoading || googleLoading}
           >
             {googleLoading ? (
@@ -285,6 +335,20 @@ const RegistrationForm: React.FC = () => {
           </div>
         </div>
       </div>
+      {/* local styles for shake */}
+      <style jsx>{`
+        .terms-shake {
+          animation: terms-shake-keyframes 0.4s ease-in-out 0s 1;
+        }
+        @keyframes terms-shake-keyframes {
+          0% { transform: translateX(0); }
+          20% { transform: translateX(-6px); }
+          40% { transform: translateX(6px); }
+          60% { transform: translateX(-4px); }
+          80% { transform: translateX(4px); }
+          100% { transform: translateX(0); }
+        }
+      `}</style>
     </GradientBackground>
   );
 };
