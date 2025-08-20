@@ -10,6 +10,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { FaMedal } from 'react-icons/fa';
 import { RiFootballLine } from 'react-icons/ri';
 import { BsFillFilePersonFill } from 'react-icons/bs';
+import confetti from 'canvas-confetti';
 // Gradient header is inlined; page background is white per design
 
 // Debug flag for targeted instrumentation on Risultati page (enable with NEXT_PUBLIC_DEBUG_RISULTATI=1)
@@ -121,6 +122,27 @@ function RisultatiPageContent() {
   const [fixtureScores, setFixtureScores] = useState<Map<number, { homeScore: number | null; awayScore: number | null; actual?: Choice }>>(new Map());
   // Final completion veil (after last reveal in Giornata 4)
   const [finalVeilOpen, setFinalVeilOpen] = useState(false);
+  // Track the most recently revealed fixture and where to fire confetti
+  const [recentlyRevealed, setRecentlyRevealed] = useState<{ id: number; origin?: { x: number; y: number } } | null>(null);
+
+  // Fire indigo/white confetti burst (non-blocking), optionally anchored to a viewport origin
+  const fireConfetti = useCallback((origin?: { x: number; y: number }) => {
+    try {
+      const colors = ['#6366f1', '#ffffff']; // indigo-500 and white
+      if (origin) {
+        // Centered burst from the button
+        confetti({ particleCount: 90, spread: 80, startVelocity: 45, gravity: 0.9, decay: 0.9, scalar: 0.9, colors, origin });
+      } else {
+        // Fallback: two symmetric bursts if no origin provided
+        confetti({ particleCount: 50, spread: 70, startVelocity: 45, gravity: 0.9, decay: 0.9, scalar: 0.9, colors, origin: { x: 0.15, y: 0.2 } });
+        confetti({ particleCount: 50, spread: 70, startVelocity: 45, gravity: 0.9, decay: 0.9, scalar: 0.9, colors, origin: { x: 0.85, y: 0.2 } });
+      }
+    } catch (e) {
+      if (DEBUG_RISULTATI) {
+        try { console.warn('[risultati] confetti failed', e); } catch {}
+      }
+    }
+  }, []);
 
   // Semi-circular success meter (SVG half-donut) sized to match the share button width
   const CircularMeter: React.FC<{ percent: number; onShare?: () => void; shareEnabled?: boolean }> = ({ percent, onShare, shareEnabled = true }) => {
@@ -632,7 +654,7 @@ function RisultatiPageContent() {
     }
   }, [selectedWeek, meter]);
 
-  const onReveal = async (fixtureId: number) => {
+  const onReveal = async (fixtureId: number, anchorEl?: HTMLElement) => {
     // Guard: in Test Mode, for weeks > 1, require at least 10 predictions to reveal
     if (mode === 'test' && selectedWeek > 1) {
       // Fast-path: if current stats show not allowed, block and try re-check to be safe
@@ -719,11 +741,47 @@ function RisultatiPageContent() {
       return already + 1 === 10;
     })();
 
+    // Mark revealed
     setRevealed((prev) => ({ ...prev, [fixtureId]: true }));
+
+    // Compute viewport-based origin from the clicked button (if provided) and store context
+    let origin: { x: number; y: number } | undefined = undefined;
+    try {
+      if (anchorEl && typeof window !== 'undefined') {
+        const rect = anchorEl.getBoundingClientRect();
+        origin = {
+          x: (rect.left + rect.width / 2) / window.innerWidth,
+          y: (rect.top + rect.height / 2) / window.innerHeight,
+        };
+      }
+    } catch {}
+    setRecentlyRevealed({ id: fixtureId, origin });
+
     if (completesWeek4) {
       setTimeout(() => setFinalVeilOpen(true), 80); // allow UI to update first
     }
   };
+
+  // When a reveal occurs, check correctness and fire confetti if correct
+  useEffect(() => {
+    const ctx = recentlyRevealed;
+    if (!ctx) return;
+    const fid = ctx.id;
+    // Ensure it's marked revealed in state first
+    if (!revealed[fid]) return;
+    // Try to compute correctness from available data
+    const pred = predByFixture.get(fid);
+    const actual = pred?.actual ?? fixtureScores.get(fid)?.actual;
+    const userPick = pred?.prediction ?? null;
+    if (!actual || !userPick) {
+      // Wait until data arrives (effect will re-run when predByFixture/fixtureScores change)
+      return;
+    }
+    const isCorrect = userPick === actual;
+    if (isCorrect) fireConfetti(ctx.origin);
+    // Clear to avoid duplicate firing
+    setRecentlyRevealed(null);
+  }, [recentlyRevealed, predByFixture, fixtureScores, revealed, fireConfetti]);
 
   // Auto-rollover to week 2 when all 10 revealed in week 1 (only once)
   useEffect(() => {
@@ -762,13 +820,13 @@ function RisultatiPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-white pb-20">
+    <div className="h-[100svh] bg-white pb-20 overflow-y-auto touch-pan-y">
       <div className="pb-4">
         {/* Sticky: Header + Meter + Share */}
-        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70 pointer-events-none">
           {/* Top Header Panel (modal-like) */}
           <div
-            className="w-full mx-0 mt-0 mb-2 rounded-b-2xl rounded-t-none text-white"
+            className="w-full mx-0 mt-0 mb-2 rounded-b-2xl rounded-t-none text-white pointer-events-auto"
             style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
           >
             {/* Test Mode lozenge (matches Gioca page) */}
@@ -836,7 +894,7 @@ function RisultatiPageContent() {
 
           {/* Success Meter area (sticky along with header) */}
           {mode === 'test' && (
-            <div className="px-4 pb-2">
+            <div className="px-4 pb-2 pointer-events-auto">
               <CircularMeter percent={meter.percent} onShare={handleShare} shareEnabled={shareSupported} />
             </div>
           )}
@@ -934,7 +992,7 @@ function RisultatiPageContent() {
                         {/* Col 3: Status button (centered) */}
             <div className="flex items-center justify-center ml-1.5">
                           <button
-                            onClick={() => onReveal(m.fixtureId)}
+                            onClick={(e) => onReveal(m.fixtureId, e.currentTarget)}
                             disabled={isRevealed}
                             className={`min-w-[72px] px-2 py-2 rounded-md text-[11px] leading-tight text-center font-medium ${statusColor} ${isRevealed ? 'opacity-100 cursor-default' : 'hover:bg-opacity-100'}`}
                           >
