@@ -136,10 +136,11 @@ function RisultatiPageContent() {
   const [nextWeekRange, setNextWeekRange] = useState<{ from: string; to: string } | null>(null);
   const [navDir, setNavDir] = useState<1 | -1 | 0>(0);
   const [pendingWeekForUrl, setPendingWeekForUrl] = useState<number | null>(null);
-  const [rolledWeek1Once, setRolledWeek1Once] = useState(false);
   const [fixtureScores, setFixtureScores] = useState<Map<number, { homeScore: number | null; awayScore: number | null; actual?: Choice }>>(new Map());
   // Final completion veil (after last reveal in Giornata 4)
   const [finalVeilOpen, setFinalVeilOpen] = useState(false);
+  // New: completion veil for non-terminal weeks (1..TERMINAL_WEEK-1)
+  const [advanceVeilOpen, setAdvanceVeilOpen] = useState(false);
   // Track the most recently revealed fixture and where to fire confetti
   const [recentlyRevealed, setRecentlyRevealed] = useState<{ id: number; origin?: { x: number; y: number } } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -459,7 +460,7 @@ function RisultatiPageContent() {
         if (selectedWeek === 1) {
           const k = `swipick:risultati:autoRoll:week1:user:${userId ?? 'anon'}`;
           localStorage.setItem(k, '1');
-          setRolledWeek1Once(true);
+          // legacy rollover flag removed
         }
       } catch {}
       // Persist to localStorage once revealKey is available
@@ -525,14 +526,7 @@ function RisultatiPageContent() {
     } catch {}
   }, [revealed, revealKey, allowRevealThisWeek]);
 
-  // Load auto-rollover flag for week 1 (persisted) so we don't force week 2 when user navigates back
-  useEffect(() => {
-    if (!userId) return;
-    try {
-      const k = `swipick:risultati:autoRoll:week1:user:${userId}`;
-      setRolledWeek1Once(localStorage.getItem(k) === '1');
-    } catch {}
-  }, [userId]);
+  // Legacy auto-rollover flag removed
 
   // Fetch week match-cards when in Test Mode
   useEffect(() => {
@@ -804,9 +798,20 @@ function RisultatiPageContent() {
       } catch {}
     }
     // Determine if this click completes all reveals for the terminal test week (Test Mode)
-    const completesWeek4 = (() => {
+    const completesTerminal = (() => {
       if (mode !== 'test') return false;
       if (selectedWeek !== TERMINAL_WEEK) return false;
+      if (weekCards.length !== 10) return false;
+      const wasRevealed = !!revealed[fixtureId];
+      if (wasRevealed) return false;
+      const already = Object.values(revealed).filter(Boolean).length;
+      return already + 1 === 10;
+    })();
+
+    // Determine if this click completes all reveals for a non-terminal week (1..TERMINAL_WEEK-1)
+    const completesAdvancable = (() => {
+      if (mode !== 'test') return false;
+      if (selectedWeek >= TERMINAL_WEEK) return false;
       if (weekCards.length !== 10) return false;
       const wasRevealed = !!revealed[fixtureId];
       if (wasRevealed) return false;
@@ -830,8 +835,10 @@ function RisultatiPageContent() {
     } catch {}
     setRecentlyRevealed({ id: fixtureId, origin });
 
-    if (completesWeek4) {
+    if (completesTerminal) {
       setTimeout(() => setFinalVeilOpen(true), 80); // allow UI to update first
+    } else if (completesAdvancable) {
+      setTimeout(() => setAdvanceVeilOpen(true), 80);
     }
   };
 
@@ -856,25 +863,16 @@ function RisultatiPageContent() {
     setRecentlyRevealed(null);
   }, [recentlyRevealed, predByFixture, fixtureScores, revealed, fireConfetti]);
 
-  // Auto-rollover to week 2 when all 10 revealed in week 1 (only once)
+  // When returning to a week with all 10 already revealed, show advance veil (weeks < terminal)
   useEffect(() => {
     if (mode !== 'test') return;
-    if (selectedWeek !== 1) return;
-    if (rolledWeek1Once) return; // don't auto-roll again when user returns to week 1
-    if (weekCards.length === 10) {
-      const allRevealed = weekCards.every((m) => revealed[m.fixtureId]);
-      if (allRevealed) {
-        // Reset and go to week 2
-        try {
-          const k = `swipick:risultati:autoRoll:week1:user:${userId ?? 'anon'}`;
-          localStorage.setItem(k, '1');
-        } catch {}
-        setRolledWeek1Once(true);
-        updateWeek(2);
-        setRevealed({});
-      }
+    if (selectedWeek >= TERMINAL_WEEK) return; // terminal handled by its own veil
+    if (weekCards.length !== 10) return;
+    const allRevealed = weekCards.every((m) => revealed[m.fixtureId]);
+    if (allRevealed) {
+      setAdvanceVeilOpen(true);
     }
-  }, [mode, selectedWeek, weekCards, revealed, updateWeek, rolledWeek1Once, userId]);
+  }, [mode, selectedWeek, weekCards, revealed]);
 
   if (loading) {
     return (
@@ -1330,6 +1328,36 @@ function RisultatiPageContent() {
                 className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
               >
                 Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Advance Veil for non-terminal weeks (1..TERMINAL_WEEK-1) */}
+      {advanceVeilOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
+            <h3 className="text-xl font-semibold text-black mb-2">Giornata completata</h3>
+            <p className="text-sm text-gray-700 mb-5">
+              Hai rivelato tutte le 10 partite della Giornata {selectedWeek}.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setAdvanceVeilOpen(false)}
+                className="px-5 py-2 rounded-md border border-gray-300 text-black font-medium hover:bg-gray-50"
+              >
+                Chiudi
+              </button>
+              <button
+                onClick={() => {
+                  setAdvanceVeilOpen(false);
+                  const next = Math.min(selectedWeek + 1, TERMINAL_WEEK);
+                  // Redirect to Gioca for the following week
+                  router.push(`/gioca?mode=${mode}&week=${next}`);
+                }}
+                className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
+              >
+                go to next week
               </button>
             </div>
           </div>
