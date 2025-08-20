@@ -1,11 +1,12 @@
 
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/src/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
 import { Toast } from '@/src/components/Toast';
+// Firebase storage imports removed: using Neon multipart upload via BFF
 
 export default function ImpostazioniPage() {
   const router = useRouter();
@@ -17,6 +18,8 @@ export default function ImpostazioniPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Notification toggles (persisted)
   const [notifResults, setNotifResults] = useState(true);
@@ -77,11 +80,44 @@ export default function ImpostazioniPage() {
     }
   };
 
+    // Client-side image processing removed; server sanitizes with sharp
+
+  const onPickAvatar = () => {
+    fileInputRef.current?.click();
+  };
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userId) return;
+    // Basic client-side validation
+    if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) {
+      alert('Formato immagine non supportato. Usa JPEG, PNG o WebP.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) { // 5MB cap
+      alert('Immagine troppo grande (max 5MB)');
+      return;
+    }
+    try {
+  setUploading(true);
+  // Prefer Neon multipart upload (server sanitizes with sharp)
+  await apiClient.uploadUserAvatarBytes(userId, file);
+      setToast('Avatar aggiornato');
+      setTimeout(() => setToast(null), 1800);
+    } catch (err) {
+      console.error('[impostazioni] avatar upload failed', err);
+      alert('Caricamento avatar fallito');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white pb-8 pt-[calc(env(safe-area-inset-top)+120px)]">
       {/* Fixed header: centered bold title, bold back arrow */}
       <div className="fixed top-0 left-0 right-0 bg-white">
-        <div className="relative h-[165px] flex items-center justify-center px-4">
+        <div className="relative h-[125px] flex items-center justify-center px-4">
           <button
             aria-label="Indietro"
             onClick={() => router.back()}
@@ -133,13 +169,17 @@ export default function ImpostazioniPage() {
             </svg>
           </button>
 
-          {/* Immagine profilo (chevron) */}
-          <button disabled className="w-full py-5.5 flex items-center justify-between opacity-60 cursor-not-allowed">
+          {/* Immagine profilo (picker) */}
+          <button onClick={onPickAvatar} className={`w-full py-5.5 flex items-center justify-between ${uploading ? 'opacity-60 cursor-wait' : ''}`} disabled={uploading}>
             <div className="text-gray-800">immagine profilo</div>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5 text-black" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 6l6 6-6 6" />
-            </svg>
+            <div className="flex items-center gap-2">
+              {uploading && <span className="text-xs text-gray-500">Caricamento…</span>}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5 text-black" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+            </div>
           </button>
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="user" className="hidden" onChange={onFileChange} />
         </div>
 
         {/* Subheader: Notifiche */}

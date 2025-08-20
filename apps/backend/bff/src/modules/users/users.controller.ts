@@ -13,6 +13,9 @@ import {
   Logger,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { UploadedFile, UseInterceptors } from '@nestjs/common';
+import * as sharp from 'sharp';
 import { NotificationPreferences } from '../../entities/notification-preferences.entity';
 import {
   CreateUserDto,
@@ -320,5 +323,97 @@ export class UsersController {
   ): Promise<{ success: boolean; data: NotificationPreferences }> {
     const data = await this.usersService.updatePreferences(userId, body);
     return { success: true, data };
+  }
+
+  /**
+   * Update user's avatar URL
+   * PATCH /api/users/:id/avatar
+   */
+  @Patch(':id/avatar')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async updateAvatar(
+    @Param('id', ParseUUIDPipe) userId: string,
+    @Body() body: { url: string },
+  ): Promise<{
+    success: boolean;
+    data: UserResponseDto;
+    message: string;
+  }> {
+    if (!body?.url || typeof body.url !== 'string') {
+      throw new Error('URL immagine non valido');
+    }
+    const data = await this.usersService.updateAvatarUrl(userId, body.url);
+    return { success: true, data, message: 'Avatar aggiornato' };
+  }
+
+  /**
+   * Upload avatar bytes (multipart/form-data) and store in DB
+   * POST /api/users/:id/avatar/upload
+   */
+  @Post(':id/avatar/upload')
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 4 * 1024 * 1024 } }),
+  )
+  @HttpCode(HttpStatus.OK)
+  async uploadAvatar(
+    @Param('id', ParseUUIDPipe) userId: string,
+    @UploadedFile() file: any,
+  ): Promise<{ success: boolean; etag: string; message: string }> {
+    if (!file) {
+      throw new Error('File mancante');
+    }
+    if (!/^image\/(jpeg|png|webp)$/i.test(file.mimetype)) {
+      throw new Error('Formato non supportato');
+    }
+    // Sanitize with sharp: center-crop square, resize 256, encode webp
+    const pipeline = sharp(file.buffer).rotate();
+    const meta = await pipeline.metadata();
+    const size = Math.min(meta.width || 0, meta.height || 0);
+    const left = Math.max(0, Math.floor(((meta.width || 0) - size) / 2));
+    const top = Math.max(0, Math.floor(((meta.height || 0) - size) / 2));
+    const processed = await pipeline
+      .extract({ left, top, width: size, height: size })
+      .resize(256, 256)
+      .webp({ quality: 90 })
+      .toBuffer();
+    const { etag } = await this.usersService.setAvatarBytes(
+      userId,
+      'image/webp',
+      processed,
+    );
+    return { success: true, etag, message: 'Avatar aggiornato' };
+  }
+
+  /** Stream avatar */
+  @Get(':id/avatar')
+  async getAvatar(@Param('id', ParseUUIDPipe) userId: string) {
+    const rec = await this.usersService.getAvatar(userId);
+    if (!rec) {
+      return { success: false, message: 'Nessun avatar' };
+    }
+    return {
+      success: true,
+      data: {
+        mimeType: rec.mimeType,
+        size: rec.size,
+        etag: rec.etag,
+        // Base64 for simplicity in JSON; consider streaming endpoint in future
+        base64: rec.bytes.toString('base64'),
+      },
+    };
+  }
+
+  /**
+   * Generate a presigned URL for S3/R2 direct upload
+   * POST /api/users/:id/avatar/presign
+   */
+  @Post(':id/avatar/presign')
+  @HttpCode(HttpStatus.OK)
+  async presignAvatar(
+    @Param('id', ParseUUIDPipe) userId: string,
+  ): Promise<{ success: boolean; url: string; key: string; message: string }> {
+    const { url, key } = await this.usersService.presignAvatarUpload(userId);
+    return { success: true, url, key, message: 'URL generato' };
   }
 }

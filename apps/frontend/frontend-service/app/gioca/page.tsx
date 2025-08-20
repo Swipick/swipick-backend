@@ -8,6 +8,7 @@ import { apiClient } from "@/lib/api-client";
 import { getLogoForTeam } from "@/lib/club-logos";
 import { useGameMode } from "@/src/contexts/GameModeContext";
 import { useAuthContext } from "@/src/contexts/AuthContext";
+import { Toast } from '@/src/components/Toast';
 import { FaMedal } from 'react-icons/fa';
 import { RiFootballLine } from 'react-icons/ri';
 import { BsFillFilePersonFill } from 'react-icons/bs';
@@ -105,10 +106,10 @@ function GiocaPageContent() {
   const { firebaseUser } = useAuthContext();
   
   // Get mode from URL parameters or context
-  const currentMode = (searchParams.get('mode') as 'live' | 'test') || mode;
+  const currentMode = ((searchParams?.get('mode') as 'live' | 'test' | null) ?? null) || mode;
   // Selected week for test mode (defaults to 1)
   const selectedWeek = (() => {
-    const w = Number(searchParams.get('week'));
+    const w = Number(searchParams?.get('week') ?? NaN);
     return Number.isFinite(w) && w >= 1 && w <= 38 ? w : 1;
   })();
   
@@ -128,6 +129,8 @@ function GiocaPageContent() {
   // Skip animation control & z-index swap with preview card
   const [isSkipAnimating, setIsSkipAnimating] = useState(false);
   const [previewOnTop, setPreviewOnTop] = useState(false);
+  // Lightweight toast for UX messages
+  const [toast, setToast] = useState<string | null>(null);
   // Tuning constants for gesture feel
   const DOWN_EXIT_DURATION = 0.46; // time to travel to bottom before snap-back
   const SNAP_BACK_STIFFNESS = 190;  // lower = slower spring
@@ -367,7 +370,7 @@ function GiocaPageContent() {
     if (currentMode !== 'test') return;
     if (!rolledWeek1Once) return;
     try {
-      const qp = searchParams.get('week');
+  const qp = searchParams?.get('week') ?? null;
       if (!qp) {
         const href = typeof window !== 'undefined' ? window.location.href : null;
         if (href) {
@@ -656,6 +659,23 @@ function GiocaPageContent() {
     const dominant: 'horizontal' | 'vertical' = ax >= ay ? 'horizontal' : 'vertical';
     const dir = dominant === 'horizontal' ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
 
+    // Live mode: allow swipe gesture but don't commit; nudge and snap back with toast
+    if (currentMode === 'live') {
+      const NUDGE = 80;
+      const targetLive = {
+        x: dir === 'left' ? -NUDGE : dir === 'right' ? NUDGE : 0,
+        y: dir === 'up' ? -NUDGE : dir === 'down' ? NUDGE : 0,
+        transition: { type: 'tween', ease: 'easeOut', duration: 0.18 },
+      } as const;
+      try {
+        await controls.start(targetLive);
+      } finally {
+        await controls.start({ x: 0, y: 0, transition: { type: 'spring', stiffness: 420, damping: 30 } });
+        setToast((t) => t ?? 'Le partite live non sono ancora iniziate. Prova a giocare in Modalità Test.');
+      }
+      return;
+    }
+
     // Animate out in chosen direction, then commit
     const distance = 900; // off-screen
     const threshold = 60; // minimum swipe
@@ -851,6 +871,19 @@ function GiocaPageContent() {
   const animateAndCommit = async (dir: 'left' | 'right' | 'up' | 'down') => {
     if (!currentFixture) return;
     if (currentMode === 'test' && weekComplete) return;
+    // Live mode: show playful nudge and toast instead of committing
+    if (currentMode === 'live') {
+      const NUDGE = 80;
+      const targetLive = {
+        x: dir === 'left' ? -NUDGE : dir === 'right' ? NUDGE : 0,
+        y: dir === 'up' ? -NUDGE : dir === 'down' ? NUDGE : 0,
+        transition: { type: 'tween', ease: 'easeOut', duration: 0.18 },
+      } as const;
+      await controls.start(targetLive);
+      await controls.start({ x: 0, y: 0, transition: { type: 'spring', stiffness: 420, damping: 30 } });
+      setToast((t) => t ?? 'Le partite live non sono ancora iniziate. Prova a giocare in Modalità Test.');
+      return;
+    }
     if (isSkipAnimating) return;
     const distance = 900;
     if (dir === 'down') {
@@ -1142,7 +1175,11 @@ function GiocaPageContent() {
               </div>
               <span className="text-xs text-purple-600 font-medium">Gioca</span>
             </div>
-            <button onClick={() => router.push('/profilo')} className="flex-1 text-center py-4">
+            <button onClick={() => {
+              const params = new URLSearchParams({ mode: currentMode });
+              if (currentMode === 'test') params.set('week', String(selectedWeek));
+              router.push(`/profilo?${params.toString()}`);
+            }} className="flex-1 text-center py-4">
               <div className="text-gray-500 mb-1">
                 <BsFillFilePersonFill className="w-6 h-6 mx-auto" />
               </div>
@@ -1243,7 +1280,7 @@ function GiocaPageContent() {
   <div className="px-3 mb-8 relative max-w-[390px] mx-auto w-full">
   {/* Next card preview to be revealed (hidden on very small screens to avoid visual spill) */}
   {effectiveFixtures[currentFixtureIndex + 1] && (
-  <div className={`absolute inset-0 scale-[0.97] opacity-95 pointer-events-none ${previewOnTop ? 'z-20' : 'z-0'} hidden sm:block`}>
+  <div className={`absolute inset-0 opacity-95 pointer-events-none ${previewOnTop ? 'z-20' : 'z-0'} scale-[0.94] sm:scale-[0.97]`}>
       <div className="match-card bg-white rounded-2xl p-3 shadow-lg border border-gray-200">
               {/* Next card content */}
               {(() => {
@@ -1380,10 +1417,9 @@ function GiocaPageContent() {
         </motion.div>
       </div>
 
-      {/* Prediction Buttons - Diamond Layout (fixed above bottom nav) */}
+      {/* Prediction Buttons - Diamond Layout (in-flow; scrolls with content) */}
       <div
-        className="fixed left-0 right-0 z-30"
-        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 96px)' }}
+        className="relative left-0 right-0 z-30 px-4 mt-3 mb-[calc(env(safe-area-inset-bottom)+96px)]"
       >
         <div className="flex justify-center">
           <div className="grid grid-cols-3 gap-x-4 gap-y-0 justify-items-center items-center max-w-[340px] w-full mx-auto">
@@ -1441,8 +1477,11 @@ function GiocaPageContent() {
         </div>
       </div>
 
-      {/* spacer to allow scroll behind fixed controls */}
-      <div aria-hidden className="w-full" style={{ height: 'calc(env(safe-area-inset-bottom) + 160px)' }} />
+  {/* spacer to avoid overlap with bottom nav on short screens */}
+  <div aria-hidden className="w-full" style={{ height: 'calc(env(safe-area-inset-bottom) + 80px)' }} />
+
+  {/* Toast: Live mode notice */}
+  {toast && <Toast message={toast} onClose={() => setToast(null)} />}
 
       {/* Modal: User not found */}
       {currentMode === 'test' && userMissingModal.show && (

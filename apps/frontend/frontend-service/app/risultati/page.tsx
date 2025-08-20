@@ -6,9 +6,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthContext } from '@/src/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
 import { IoShareOutline } from 'react-icons/io5';
-import { FaMedal } from 'react-icons/fa';
-import { RiFootballLine } from 'react-icons/ri';
-import { BsFillFilePersonFill } from 'react-icons/bs';
 import { AnimatePresence, motion } from 'framer-motion';
 // Gradient header is inlined; page background is white per design
 
@@ -445,7 +442,7 @@ function RisultatiPageContent() {
         return;
       }
       try {
-        const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, userId ?? undefined) as unknown as { data?: MatchCard[] } | MatchCard[];
+  const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, userId ?? undefined) as unknown as { data?: MatchCard[] } | MatchCard[];
         const data = Array.isArray(mcResponse) ? mcResponse : mcResponse?.data ?? [];
         const sorted = (data as MatchCard[]).slice().sort((a, b) => new Date(a.kickoff.iso).getTime() - new Date(b.kickoff.iso).getTime());
         setWeekCards(sorted.slice(0, 10));
@@ -466,6 +463,7 @@ function RisultatiPageContent() {
       if (mode !== 'test') { setNextWeekRange(null); return; }
       const nxt = selectedWeek + 1;
       try {
+
         const resp = await apiClient.getTestMatchCardsByWeek(nxt, userId ?? undefined) as unknown as { data?: MatchCard[] } | MatchCard[];
         const arr = Array.isArray(resp) ? resp : resp?.data ?? [];
         if (Array.isArray(arr) && arr.length) {
@@ -487,7 +485,7 @@ function RisultatiPageContent() {
     const run = async () => {
       if (mode !== 'test') { setFixtureScores(new Map()); return; }
       try {
-        const resp = await apiClient.getTestFixturesByWeek(selectedWeek) as unknown as { data?: Array<FixtureRow> } | Array<FixtureRow>;
+  const resp = await apiClient.getTestFixturesByWeek(selectedWeek) as unknown as { data?: Array<FixtureRow> } | Array<FixtureRow>;
         const arr: FixtureRow[] = Array.isArray(resp) ? resp : (resp?.data ?? []);
         const map = new Map<number, { homeScore: number | null; awayScore: number | null; actual?: Choice }>();
 
@@ -543,7 +541,8 @@ function RisultatiPageContent() {
   const loadWeeklyStats = useCallback(async (week: number) => {
     if (mode !== 'test' || !userId) { setWeeklyStats(null); return; }
     try {
-      const resp = await apiClient.getTestWeeklyStats(userId, week);
+  const resp = await apiClient.getTestWeeklyStats(userId, week);
+
       const stats: TestWeeklyStatsResp | null = (resp && typeof resp === 'object' && 'data' in (resp as Record<string, unknown>))
         ? (resp as { data: TestWeeklyStatsResp }).data
         : (resp as unknown as TestWeeklyStatsResp | null);
@@ -637,6 +636,7 @@ function RisultatiPageContent() {
       if (!allowRevealThisWeek) {
         if (userId) {
           try {
+
             const resp = await apiClient.getTestWeeklyStats(userId, selectedWeek);
             const stats: TestWeeklyStatsResp | null = (resp && typeof resp === 'object' && 'data' in (resp as Record<string, unknown>))
               ? (resp as { data: TestWeeklyStatsResp }).data
@@ -761,71 +761,75 @@ function RisultatiPageContent() {
   return (
     <div className="min-h-screen bg-white pb-20">
       <div className="pb-4">
-        {/* Top Header Panel (modal-like) */}
-  <div
-          className="w-full mx-0 mt-0 mb-6 rounded-b-2xl rounded-t-none text-white"
-          style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
-        >
-          {mode === 'test' && (
-            <div className="pt-3 px-4 flex justify-center">
-              <div
-                className="inline-flex items-center gap-2 rounded-full px-3 py-1 mx-auto"
-                style={{ backgroundColor: '#A9BA9D', color: '#043927' }}
-              >
-                <span className="text-xs font-semibold">MODALITÀ TEST - Dati storici Serie A 2023-24</span>
+        {/* Test Mode banner with Reset */}
+        {mode === 'test' && (
+          <div className="bg-orange-500 text-white py-2 px-3 font-semibold flex items-center justify-between">
+            <div>🧪 MODALITÀ TEST - Dati storici Serie A 2023-24</div>
+            <button
+              onClick={() => performTestReset({ requireConfirm: true })}
+              className="text-xs font-semibold border rounded-md px-2.5 py-1 border-white/70 hover:bg-white/10"
+            >
+              Reset
+            </button>
+          </div>
+        )}
+        {/* Sticky: Header + Meter + Share */}
+        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+          {/* Top Header Panel (modal-like) */}
+          <div
+            className="w-full mx-0 mt-0 mb-2 rounded-b-2xl rounded-t-none text-white"
+            style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
+          >
+            <div className="relative px-4 pt-10 pb-6">
+              {/* Faded previous (left) - clickable */}
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-sm opacity-30">
+                {selectedWeek > 1 ? (
+                  <button
+                    onClick={() => updateWeek(selectedWeek - 1)}
+                    className="font-medium hover:opacity-60 transition-opacity cursor-pointer"
+                  >
+                    <div>Giornata {selectedWeek - 1}</div>
+                    <div className="text-xs">{/* prev range optional */}</div>
+                  </button>
+                ) : (
+                  <div className="h-6 select-none" />
+                )}
+              </div>
+
+              {/* Center current week */}
+              <div className="text-center">
+                <div className="text-2xl font-bold">Giornata {selectedWeek}</div>
+                <div className="mt-2 text-white text-opacity-90">
+                  {(() => {
+                    if (weekCards.length === 0) return null;
+                    const times = weekCards.map((m) => new Date(m.kickoff.iso).getTime());
+                    const min = new Date(Math.min(...times));
+                    const max = new Date(Math.max(...times));
+                    const toIt = (d: Date) => d.toLocaleDateString('it-IT', { day: '2-digit', month: 'numeric' });
+                    return <span>dal {toIt(min)} al {toIt(max)}</span>;
+                  })()}
+                </div>
+              </div>
+
+              {/* Faded next (right) - clickable */}
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-white text-sm opacity-60 text-right">
                 <button
-                  onClick={() => performTestReset({ requireConfirm: true })}
-                  className="text-xs font-semibold rounded-full px-2 py-0.5"
-                  style={{ backgroundColor: '#780606', color: '#ffffff' }}
-                  title={'Reimposta Test Mode'}
+                  onClick={() => updateWeek(selectedWeek + 1)}
+                  className="font-medium hover:opacity-80 transition-opacity cursor-pointer"
                 >
-                  Reset
+                  <div>Giornata {selectedWeek + 1}</div>
+                  <div className="text-xs">{nextWeekRange ? `dal ${nextWeekRange.from} al ${nextWeekRange.to}` : ''}</div>
                 </button>
               </div>
-            </div>
-          )}
-          <div className="relative px-4 pt-[max(env(safe-area-inset-top),24px)] pb-6 max-w-[420px] mx-auto w-full">
-            {/* Faded previous (left) - clickable */}
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-sm opacity-30">
-              {selectedWeek > 1 ? (
-                <button
-                  onClick={() => updateWeek(selectedWeek - 1)}
-                  className="font-medium hover:opacity-60 transition-opacity cursor-pointer"
-                >
-                  <div>Giornata {selectedWeek - 1}</div>
-                  <div className="text-xs">{/* prev range optional */}</div>
-                </button>
-              ) : (
-                <div className="h-6 select-none" />
-              )}
-            </div>
-
-            {/* Center current week */}
-            <div className="text-center">
-              <div className="text-2xl font-bold">Giornata {selectedWeek}</div>
-              <div className="mt-2 text-white text-opacity-90">
-                {(() => {
-                  if (weekCards.length === 0) return null;
-                  const times = weekCards.map((m) => new Date(m.kickoff.iso).getTime());
-                  const min = new Date(Math.min(...times));
-                  const max = new Date(Math.max(...times));
-                  const toIt = (d: Date) => d.toLocaleDateString('it-IT', { day: '2-digit', month: 'numeric' });
-                  return <span>dal {toIt(min)} al {toIt(max)}</span>;
-                })()}
-              </div>
-            </div>
-
-            {/* Faded next (right) - clickable */}
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-white text-sm opacity-60 text-right">
-              <button
-                onClick={() => updateWeek(selectedWeek + 1)}
-                className="font-medium hover:opacity-80 transition-opacity cursor-pointer"
-              >
-                <div>Giornata {selectedWeek + 1}</div>
-                <div className="text-xs">{nextWeekRange ? `dal ${nextWeekRange.from} al ${nextWeekRange.to}` : ''}</div>
-              </button>
             </div>
           </div>
+
+          {/* Success Meter area (sticky along with header) */}
+          {mode === 'test' && (
+            <div className="px-4 pb-2">
+              <CircularMeter percent={meter.percent} onShare={handleShare} shareEnabled={shareSupported} />
+            </div>
+          )}
         </div>
 
   {/* No secondary header; mode toggle stays if needed in future */}
@@ -852,12 +856,7 @@ function RisultatiPageContent() {
             exit={{ x: navDir === 0 ? 0 : -navDir * 80, opacity: 0 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
           >
-            {/* Success Meter area (replaces tabs row per design for Test Mode) */}
-      {mode === 'test' && (
-              <div className="px-4 mb-2">
-        <CircularMeter percent={meter.percent} onShare={handleShare} shareEnabled={shareSupported} />
-              </div>
-            )}
+            {/* Meter moved to sticky header above */}
 
             {/* Week Tab (Test Mode) */}
             {(mode === 'test') && (
@@ -1081,7 +1080,7 @@ function RisultatiPageContent() {
         )}
 
         {/* Bottom Navigation */}
-  <div className="fixed bottom-0 left-0 right-0 bg-white border-t pb-[max(env(safe-area-inset-bottom),0px)]">
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
           <div className="flex">
             <button
               onClick={() => {
@@ -1091,7 +1090,9 @@ function RisultatiPageContent() {
               className="flex-1 text-center py-4 border-b-2 border-purple-600"
             >
               <div className="text-purple-600 mb-1">
-                <FaMedal className="w-6 h-6 mx-auto" />
+                <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M9 11H7v6h2v-6zm4 0h-2v6h2v-6zm4 0h-2v6h2v-6zM4 22h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16v-2H4v2zm0-4h16V8H4v2zm0-6h16V2H4v2z"/>
+                </svg>
               </div>
               <span className="text-xs text-purple-600 font-medium">Risultati</span>
             </button>
@@ -1103,7 +1104,9 @@ function RisultatiPageContent() {
               className="flex-1 text-center py-4"
             >
               <div className="text-gray-400 mb-1">
-                <RiFootballLine className="w-6 h-6 mx-auto" />
+                <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
               </div>
               <span className="text-xs text-gray-500">Gioca</span>
             </button>
@@ -1112,7 +1115,9 @@ function RisultatiPageContent() {
               className="flex-1 text-center py-4"
             >
               <div className="text-gray-400 mb-1">
-                <BsFillFilePersonFill className="w-6 h-6 mx-auto" />
+                <svg className="w-6 h-6 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2c1.1 0 2 .9 2 2 0 .74-.4 1.38-1 1.72v.78h-.5c-.83 0-1.5.67-1.5 1.5v.5c0 .28-.22.5-.5.5s-.5-.22-.5-.5v-.5c0-1.38 1.12-2.5 2.5-2.5H13V5.72c-.6-.34-1-.98-1-1.72 0-1.1.9-2 2-2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+                </svg>
               </div>
               <span className="text-xs text-gray-500">Profilo</span>
             </button>

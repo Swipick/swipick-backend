@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { User } from './entities/user.entity';
 import { NotificationPreferences } from './entities/notification-preferences.entity';
+import { UserAvatar } from './entities/user-avatar.entity';
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -32,7 +33,7 @@ const dataSource = new DataSource({
   password,
   database,
   ssl: { rejectUnauthorized: false },
-  entities: [User, NotificationPreferences],
+  entities: [User, NotificationPreferences, UserAvatar],
   migrations: [useTs ? 'src/migrations/*.ts' : 'dist/migrations/*.js'],
   migrationsTableName: 'migrations',
 });

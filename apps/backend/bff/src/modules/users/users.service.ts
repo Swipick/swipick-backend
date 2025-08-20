@@ -12,6 +12,7 @@ import { User, AuthProvider } from '../../entities/user.entity';
 import { FirebaseConfigService } from '../../config/firebase.config';
 import { EmailService } from '../../services/email.service';
 import { NotificationPreferences } from '../../entities/notification-preferences.entity';
+import { UserAvatar } from '../../entities/user-avatar.entity';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
@@ -43,6 +44,8 @@ export class UsersService {
     private userRepository: Repository<User>,
     @InjectRepository(NotificationPreferences)
     private prefsRepository: Repository<NotificationPreferences>,
+    @InjectRepository(UserAvatar)
+    private avatarRepository: Repository<UserAvatar>,
     private dataSource: DataSource,
     private firebaseConfig: FirebaseConfigService,
     private emailService: EmailService,
@@ -433,6 +436,83 @@ export class UsersService {
       `Email verification updated for user ${userId}: ${emailVerified}`,
     );
     return this.transformToResponse(saved);
+  }
+
+  /**
+   * Update user's avatar URL (stored in googleProfileUrl for now)
+   */
+  async updateAvatarUrl(userId: string, url: string): Promise<UserResponseDto> {
+    // Basic URL validation and https enforcement
+    try {
+      const u = new URL(url);
+      if (u.protocol !== 'https:') {
+        throw new BadRequestException('URL immagine deve usare HTTPS');
+      }
+    } catch {
+      throw new BadRequestException('URL immagine non valido');
+    }
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Utente non trovato');
+    }
+    user.googleProfileUrl = url;
+    const saved = await this.userRepository.save(user);
+    return this.transformToResponse(saved);
+  }
+
+  /** Avatar: upsert processed bytes */
+  async setAvatarBytes(
+    userId: string,
+    mimeType: string,
+    buf: Buffer,
+  ): Promise<{ etag: string }> {
+    if (!/^image\/(webp|png|jpeg)$/.test(mimeType)) {
+      throw new BadRequestException('Tipo immagine non supportato');
+    }
+    if (buf.length <= 0 || buf.length > 4 * 1024 * 1024) {
+      throw new BadRequestException('Dimensione immagine non valida (max 4MB)');
+    }
+    const crypto = await import('node:crypto');
+    const etag = crypto.createHash('sha256').update(buf).digest('hex');
+    const existing = await this.avatarRepository.findOne({ where: { userId } });
+    if (existing) {
+      existing.mimeType = mimeType;
+      existing.size = buf.length;
+      existing.bytes = buf;
+      existing.etag = etag;
+      await this.avatarRepository.save(existing);
+    } else {
+      const rec = this.avatarRepository.create({
+        userId,
+        mimeType,
+        size: buf.length,
+        bytes: buf,
+        etag,
+      });
+      await this.avatarRepository.save(rec);
+    }
+    return { etag };
+  }
+
+  async getAvatar(userId: string): Promise<UserAvatar | null> {
+    return this.avatarRepository.findOne({ where: { userId } });
+  }
+
+  /**
+   * Presign S3/R2 upload URL (placeholder implementation)
+   * Replace with actual S3 client configured with credentials if using R2/S3.
+   */
+  async presignAvatarUpload(
+    userId: string,
+  ): Promise<{ url: string; key: string }> {
+    // For now, just return a dummy structure to be replaced when integrating S3/R2
+    // A real implementation would use @aws-sdk/s3-request-presigner with a PutObjectCommand
+    const key = `avatars/${userId}/${Date.now()}.webp`;
+    const url = `https://example-upload-endpoint.invalid/${key}`;
+    this.logger.warn(
+      'presignAvatarUpload called without S3 integration. Returning placeholder URL.',
+    );
+    return { url, key };
   }
 
   /**

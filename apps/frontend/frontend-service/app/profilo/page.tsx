@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/src/contexts/AuthContext';
+import { useGameMode } from '@/src/contexts/GameModeContext';
 import { apiClient } from '@/lib/api-client';
 import { FaMedal } from 'react-icons/fa';
 import { RiFootballLine } from 'react-icons/ri';
@@ -23,6 +24,7 @@ type NavigatorWebShare = Navigator & {
 export default function ProfiloPage() {
   const router = useRouter();
   const { firebaseUser } = useAuthContext();
+  const { mode } = useGameMode();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +57,82 @@ export default function ProfiloPage() {
     };
   }, [summary]);
 
+  // Normalize summary shapes coming from BFF (with or without { data })
+  const normalizeSummary = (raw: unknown): UserSummary => {
+    // Unwrap { data: ... } if present
+    const src = hasData<unknown>(raw) ? (raw as { data: unknown }).data : raw;
+
+    // Defaults
+    let totalPredictions = 0;
+    let correctPredictions = 0;
+    let overallAccuracy = 0;
+    let totalPoints = 0;
+    let currentWeek = 1;
+    let weeklyStats: WeeklyStats[] = [];
+
+    if (src && typeof src === 'object') {
+      const obj = src as Record<string, unknown>;
+
+      // LIVE shape (snake_case): overall_success_rate, weekly_stats
+      if ('overall_success_rate' in obj || 'weekly_stats' in obj) {
+        totalPredictions = Number((obj['total_predictions'] as number | undefined) ?? 0);
+        correctPredictions = Number((obj['correct_predictions'] as number | undefined) ?? 0);
+        overallAccuracy = Number((obj['overall_success_rate'] as number | undefined) ?? 0);
+        const ws = Array.isArray(obj['weekly_stats']) ? (obj['weekly_stats'] as Array<Record<string, unknown>>) : [];
+        weeklyStats = ws.map((w) => ({
+          week: Number((w['week'] as number | undefined) ?? 1),
+          totalPredictions: Number((w['total_predictions'] as number | undefined) ?? 0),
+          correctPredictions: Number((w['correct_predictions'] as number | undefined) ?? 0),
+          accuracy: Number((w['success_rate'] as number | undefined) ?? 0),
+          points: Number((w['points'] as number | undefined) ?? 0),
+        }));
+      }
+
+      // TEST shape (camelCase): overallPercentage, weeklyBreakdown
+      if ('overallPercentage' in obj || 'weeklyBreakdown' in obj) {
+        totalPredictions = Number((obj['totalPredictions'] as number | undefined) ?? totalPredictions);
+        correctPredictions = Number((obj['totalCorrect'] as number | undefined) ?? correctPredictions);
+        overallAccuracy = Number((obj['overallPercentage'] as number | undefined) ?? overallAccuracy);
+        const wb = Array.isArray(obj['weeklyBreakdown']) ? (obj['weeklyBreakdown'] as Array<Record<string, unknown>>) : [];
+        if (wb.length) {
+          weeklyStats = wb.map((w) => ({
+            week: Number((w['week'] as number | undefined) ?? 1),
+            totalPredictions: Number((w['totalCount'] as number | undefined) ?? 0),
+            correctPredictions: Number((w['correctCount'] as number | undefined) ?? 0),
+            accuracy: Number((w['percentage'] as number | undefined) ?? 0),
+            points: 0,
+          }));
+        }
+      }
+
+      // Generic camelCase passthrough (in case BFF already transformed)
+      totalPredictions = Number((obj['totalPredictions'] as number | undefined) ?? totalPredictions);
+      correctPredictions = Number((obj['correctPredictions'] as number | undefined) ?? correctPredictions);
+      overallAccuracy = Number((obj['overallAccuracy'] as number | undefined) ?? overallAccuracy);
+      totalPoints = Number((obj['totalPoints'] as number | undefined) ?? totalPoints);
+      currentWeek = Number((obj['currentWeek'] as number | undefined) ?? currentWeek);
+      if (Array.isArray(obj['weeklyStats'])) {
+        const ws2 = obj['weeklyStats'] as Array<Record<string, unknown>>;
+        weeklyStats = ws2.map((w) => ({
+          week: Number((w['week'] as number | undefined) ?? 1),
+          totalPredictions: Number((w['totalPredictions'] as number | undefined) ?? 0),
+          correctPredictions: Number((w['correctPredictions'] as number | undefined) ?? 0),
+          accuracy: Number((w['accuracy'] as number | undefined) ?? 0),
+          points: Number((w['points'] as number | undefined) ?? 0),
+        }));
+      }
+    }
+
+    return {
+      totalPredictions,
+      correctPredictions,
+      overallAccuracy,
+      totalPoints,
+      currentWeek,
+      weeklyStats,
+    };
+  };
+
   const loadData = useCallback(async () => {
     if (!firebaseUser?.uid) return;
     setLoading(true);
@@ -69,28 +147,16 @@ export default function ProfiloPage() {
       setEmail(u.email || firebaseUser.email || '');
       setAvatarUrl(u.googleProfileUrl || firebaseUser.photoURL || null);
 
-      // Fetch live summary for KPIs (client-side aggregation for now)
-      const sumResp = await apiClient.getUserSummary(u.id, 'live') as unknown;
-      const raw: UserSummary | null | undefined = hasData<UserSummary>(sumResp)
-        ? (sumResp as { data: UserSummary }).data
-        : (sumResp as UserSummary | null | undefined);
-      const normalized: UserSummary = {
-        totalPredictions: Number(raw?.totalPredictions ?? 0),
-        correctPredictions: Number(raw?.correctPredictions ?? 0),
-        overallAccuracy: Number(raw?.overallAccuracy ?? 0),
-        totalPoints: Number(raw?.totalPoints ?? 0),
-        currentWeek: Number(raw?.currentWeek ?? 1),
-        weeklyStats: Array.isArray(raw?.weeklyStats)
-          ? (raw!.weeklyStats as Array<Partial<WeeklyStats>>).map((w) => ({
-              week: Number(w?.week ?? 1),
-              totalPredictions: Number(w?.totalPredictions ?? 0),
-              correctPredictions: Number(w?.correctPredictions ?? 0),
-              accuracy: Number(w?.accuracy ?? 0),
-              points: Number(w?.points ?? 0),
-            }))
-          : [],
-      };
-      setSummary(normalized);
+      // Fetch both live and test summaries; prefer the one with actual plays
+      const [liveResp, testResp] = await Promise.all([
+        apiClient.getUserSummary(u.id, 'live').catch(() => null),
+        apiClient.getUserSummary(u.id, 'test').catch(() => null),
+      ]);
+  const liveSum = normalizeSummary(liveResp as unknown);
+  const testSum = normalizeSummary(testResp as unknown);
+      const testPlayed = (testSum.weeklyStats || []).filter(w => Number(w.totalPredictions) > 0).length;
+      const chosen = testPlayed > 0 ? testSum : liveSum;
+      setSummary(chosen);
     } catch (e) {
       console.error('[profilo] loadData failed', e);
       setError('Errore nel caricamento del profilo');
@@ -229,7 +295,7 @@ export default function ProfiloPage() {
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0px)' }}>
         <div className="flex">
           <button
-            onClick={() => router.push('/risultati')}
+            onClick={() => router.push(`/risultati?mode=${mode}`)}
             className="flex-1 text-center py-4"
           >
             <div className="text-gray-500 mb-1">
@@ -237,7 +303,7 @@ export default function ProfiloPage() {
             </div>
             <span className="text-xs text-black">Risultati</span>
           </button>
-          <button onClick={() => router.push('/gioca')} className="flex-1 text-center py-4">
+          <button onClick={() => router.push(`/gioca?mode=${mode}`)} className="flex-1 text-center py-4">
             <div className="text-gray-500 mb-1">
               <RiFootballLine className="w-6 h-6 mx-auto" />
             </div>

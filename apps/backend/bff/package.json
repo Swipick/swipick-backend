@@ -25,8 +25,8 @@
     "test:smoke": "node dist/src/main.js --smoke-test",
     "docker:build": "docker build -t swipick-bff .",
     "docker:run": "docker run -p 9000:9000 swipick-bff",
-  "health-check": "curl -f http://localhost:9000/health || exit 1",
-  "migrations:run": "ts-node src/run-migrations.ts"
+    "health-check": "curl -f http://localhost:9000/health || exit 1",
+    "migrations:run": "ts-node src/run-migrations.ts"
   },
   "dependencies": {
     "@nestjs/axios": "^3.0.0",
@@ -42,6 +42,7 @@
     "firebase-admin": "^13.4.0",
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.0",
+    "sharp": "^0.33.3",
     "resend": "^6.0.1",
     "rxjs": "^7.8.1",
     "typeorm": "^0.3.25"
