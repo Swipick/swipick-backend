@@ -118,6 +118,8 @@ function GiocaPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [currentFixtureIndex, setCurrentFixtureIndex] = useState(0);
   const [predictions, setPredictions] = useState<Record<number, '1' | 'X' | '2'>>({});
+  // Modal gating when Week 1 has already started (Test Mode)
+  const [missedWeekModalOpen, setMissedWeekModalOpen] = useState(false);
   const [matchCards, setMatchCards] = useState<MatchCard[]>([]);
   const controls = useAnimationControls();
   // Framer Motion values for angled swipe path
@@ -769,6 +771,35 @@ function GiocaPageContent() {
       setNextTarget(computeNextTarget(fixtures));
     }
   }, [fixtures, computeNextTarget]);
+
+  // Compute earliest kickoff normalized to current year (used to decide if the week has started in Test Mode)
+  const computeEarliestNormalized = useCallback((items: Fixture[]): Date | null => {
+    if (!items || items.length === 0) return null;
+    const now = Date.now();
+    const year = new Date(now).getFullYear();
+    const times = items.map((f) => {
+      const d = new Date(f.date);
+      const c = new Date(d.getTime());
+      c.setFullYear(year);
+      return c.getTime();
+    });
+    const minTs = times.reduce((min, ts) => (ts < min ? ts : min), Number.POSITIVE_INFINITY);
+    return Number.isFinite(minTs) ? new Date(minTs) : null;
+  }, []);
+
+  // Gate Week 1 in Test Mode: if earliest normalized kickoff is in the past, show modal offering to view results for Giornata 1 or continue to Giornata 2
+  useEffect(() => {
+    try {
+      if (currentMode !== 'test') return;
+      if (fixtures.length === 0) return;
+      if (selectedWeek !== 1) return; // scope per product guidance
+      const earliest = computeEarliestNormalized(fixtures);
+      if (!earliest) return;
+      if (Date.now() >= earliest.getTime()) {
+        setMissedWeekModalOpen(true);
+      }
+    } catch {}
+  }, [currentMode, fixtures, selectedWeek, computeEarliestNormalized]);
 
   // Countdown to the computed next kickoff
   const getTimeToNextMatch = useCallback(() => {
@@ -1503,6 +1534,37 @@ function GiocaPageContent() {
                 onClick={() => router.push('/welcome')}
               >
                 Vai a Welcome
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Week 1 missed (first fixture already started) */}
+      {currentMode === 'test' && missedWeekModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-[88%] max-w-md text-center">
+            <h3 className="text-xl font-semibold text-black mb-2">Reindirizzamento alla Giornata 2</h3>
+            <p className="text-sm text-gray-700 mb-5">La prima partita è già iniziata.</p>
+            <div className="flex gap-3 justify-center flex-wrap">
+              <button
+                onClick={() => {
+                  setMissedWeekModalOpen(false);
+                  router.push('/risultati?mode=test&week=1');
+                }}
+                className="px-5 py-2 rounded-md border border-gray-300 text-black font-medium hover:bg-gray-50"
+              >
+                Mostra risultati per Giornata 1
+              </button>
+              <button
+                onClick={() => {
+                  setMissedWeekModalOpen(false);
+                  setCurrentFixtureIndex(0);
+                  router.push('/gioca?mode=test&week=2');
+                }}
+                className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
+              >
+                Continua alla Giornata 2
               </button>
             </div>
           </div>
