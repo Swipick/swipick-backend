@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense, useCallback, useRef } from "react";
-import { motion, useAnimationControls, PanInfo, useMotionValue, useTransform } from 'framer-motion';
+import { motion, useAnimationControls, PanInfo, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { apiClient } from "@/lib/api-client";
@@ -1505,7 +1505,8 @@ function GiocaPageContent() {
           </div>
         )}
 
-        {/* Top (current) card - draggable */}
+        {/* Top (current) card - draggable (AnimatePresence enforces exit before enter) */}
+        <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={currentFixture?.id}
           drag={currentMode === 'test' ? Boolean(userKey) && !weekComplete && !isSkipAnimating : true}
@@ -1518,7 +1519,8 @@ function GiocaPageContent() {
           }}
           onDragEnd={onDragEndCommit}
           animate={controls}
-          initial={false}
+          initial={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           whileDrag={{ scale: 1.01, boxShadow: '0 12px 28px rgba(0,0,0,0.12)', transition: { type: 'spring', stiffness: 360, damping: 28 } }}
           style={{
             x: cardX,
@@ -1599,7 +1601,8 @@ function GiocaPageContent() {
               </div>
             </div>
           </div>
-        </motion.div>
+  </motion.div>
+  </AnimatePresence>
       </div>
 
       {/* Prediction Buttons - Diamond Layout (in-flow; scrolls with content) */}
