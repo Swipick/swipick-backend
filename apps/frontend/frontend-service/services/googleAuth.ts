@@ -11,10 +11,14 @@ export interface GoogleAuthResult {
 
 export const signInWithGoogle = async (): Promise<GoogleAuthResult> => {
   try {
-    // Prefer redirect on mobile browsers where popups are unreliable (iOS/Android)
+    // Prefer popup on localhost to avoid Firebase Hosting redirect handler 404s during dev
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    const isLocalDev = hostname === 'localhost' || hostname === '127.0.0.1';
+    
+    // Prefer redirect on real mobile devices in non-local environments (iOS/Android)
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
     const isMobile = /iPhone|iPad|iPod|Android/i.test(ua);
-    if (isMobile) {
+    if (isMobile && !isLocalDev) {
       await signInWithRedirect(auth, googleProvider);
       return { success: true };
     }
@@ -36,8 +40,17 @@ export const signInWithGoogle = async (): Promise<GoogleAuthResult> => {
       authError.code === 'auth/operation-not-supported-in-this-environment' ||
       authError.code === 'auth/blocked-by-user-agent'
     ) {
-      // Fallback to redirect method
+      // Fallback to redirect method only when not in local dev (to avoid /__/firebase/init.json 404)
       try {
+        const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+        const isLocalDev = hostname === 'localhost' || hostname === '127.0.0.1';
+        if (isLocalDev) {
+          return {
+            success: false,
+            error: 'Popup bloccato. In sviluppo locale abilita i popup o usa un browser diverso.',
+            code: authError.code,
+          };
+        }
         await signInWithRedirect(auth, googleProvider);
         return { success: true };
       } catch (redirectError: unknown) {
