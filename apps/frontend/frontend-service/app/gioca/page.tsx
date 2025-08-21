@@ -237,7 +237,7 @@ function GiocaPageContent() {
   let fixtureData: Fixture[] = [];
   let cardsArrLocal: MatchCard[] = [];
 
-    if (currentMode === 'test') {
+  if (currentMode === 'test') {
           // If we should be on week 2 due to rollover, avoid fetching week 1 and flip URL first
       if (selectedWeek === 1) {
             try {
@@ -262,7 +262,7 @@ function GiocaPageContent() {
                   try { sessionStorage.setItem('swipick:gioca:autoAdvanceMsg', 'Stiamo iniziando dal giorno 2,\nvisualizza i risultati della settimana 1 nella pagina dei risultati'); } catch {}
                   router.replace(url.toString());
                 }
-        if (!cancelled) setLoading(false);
+        // Keep loading spinner while redirecting to avoid empty-state flash
         return; // don't fetch week 1
               }
             } catch {}
@@ -270,7 +270,7 @@ function GiocaPageContent() {
           // In Test Mode, wait for backend user id to avoid double-fetch (w/o and with overlay)
           if (!userKey) {
             if (DEBUG_GIOCA) { try { console.log('[gioca] defer fetch until userKey is resolved'); } catch {} }
-      if (!cancelled) setLoading(false);
+      // Keep loading spinner until userKey is resolved to avoid empty-state flicker
       return;
           }
           // Fetch enriched match-cards for card stats
@@ -954,7 +954,9 @@ function GiocaPageContent() {
     return () => clearInterval(ref);
   }, [fixtures, computeNextTarget]);
 
-  if (loading) {
+  // Avoid flicker: consider unresolved Test Mode userKey as loading
+  const isLoadingScreen = loading || (currentMode === 'test' && !userKey);
+  if (isLoadingScreen) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
         <div className="text-center text-white">
@@ -1436,7 +1438,7 @@ function GiocaPageContent() {
           <div className="relative w-full max-w-xs mx-auto">
             <div className="bg-white bg-opacity-30 rounded-sm overflow-hidden" style={{ height: '18px' }}>
               <div
-                className="bg-indigo-300 h-full rounded-sm transition-all duration-300"
+                className="bg-indigo-300 h-full rounded-sm transition-all duration-350"
                 style={{ width: `${progressPct}%` }}
               />
             </div>
@@ -1450,7 +1452,7 @@ function GiocaPageContent() {
       </div>
 
       {/* Match Card Stack with Swipe */}
-  <div className="px-3 mb-8 relative max-w-[390px] mx-auto w-full">
+  <div className="px-3 mb-8 relative max-w-[390px] mx-auto w-full" style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' as React.CSSProperties['touchAction'] }}>
   {/* Next card preview to be revealed (hidden on very small screens to avoid visual spill) */}
   {effectiveFixtures[currentFixtureIndex + 1] && (
   <div className={`absolute inset-0 opacity-95 pointer-events-none ${previewOnTop ? 'z-20' : 'z-0'} scale-[0.94] sm:scale-[0.97]`}>
@@ -1518,7 +1520,17 @@ function GiocaPageContent() {
           animate={controls}
           initial={false}
           whileDrag={{ scale: 1.01, boxShadow: '0 12px 28px rgba(0,0,0,0.12)', transition: { type: 'spring', stiffness: 360, damping: 28 } }}
-          style={{ x: cardX, y: cardY, rotate: cardRotate, touchAction: 'none', cursor: 'grab' }}
+          style={{
+            x: cardX,
+            y: cardY,
+            rotate: cardRotate,
+            touchAction: 'none',
+            cursor: 'grab',
+            willChange: 'transform',
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
+            WebkitTransform: 'translateZ(0)'
+          }}
           className={`relative ${previewOnTop ? 'z-0' : 'z-10'}`}
         >
             <div className={`match-card bg-white rounded-2xl p-3 shadow-lg border border-gray-200 ${weekComplete ? 'opacity-60 pointer-events-none' : ''}`}>

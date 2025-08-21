@@ -8,6 +8,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { AuthContextType, FirebaseUser } from '../types/auth.types';
 import { authService } from '../services/auth.service';
+import { apiClient } from '@/lib/api-client';
 
 /**
  * Create AuthContext
@@ -220,6 +221,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           displayName: result.user.displayName,
           photoURL: result.user.photoURL,
         };
+        // Sync user to BFF so UUID exists before pages query by Firebase UID
+        try {
+          await apiClient.syncGoogleUser(firebaseUser.accessToken);
+        } catch (e) {
+          // Surface friendly error but keep Firebase state
+          const msg = e instanceof Error ? e.message : 'Errore di sincronizzazione utente';
+          console.warn('[auth] sync-google failed:', msg);
+        }
         setFirebaseUser(firebaseUser);
         return firebaseUser;
       } else if (result.error) {
@@ -235,6 +244,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(false);
     }
   };  /**
+
+  // Handle Google redirect result (mobile or popup fallback)
+  useEffect(() => {
+    const run = async () => {
+      try {
+        if (typeof window === 'undefined') return;
+        const handledKey = 'swipick:googleRedirectHandled';
+        if (sessionStorage.getItem(handledKey)) return;
+        const { getGoogleRedirectResult } = await import('../../services/googleAuth');
+        const res = await getGoogleRedirectResult();
+        // Mark handled regardless to avoid re-running every navigation
+        sessionStorage.setItem(handledKey, '1');
+        if (res && res.success && res.user) {
+          const accessToken = await res.user.getIdToken();
+          try {
+            await apiClient.syncGoogleUser(accessToken);
+          } catch (e) {
+            console.warn('[auth] sync-google (redirect) failed:', e);
+          }
+          setFirebaseUser({
+            uid: res.user.uid,
+            email: res.user.email,
+            emailVerified: res.user.emailVerified,
+            accessToken,
+            displayName: res.user.displayName ?? undefined,
+            photoURL: res.user.photoURL ?? undefined,
+          });
+        }
+      } catch (e) {
+        // Non-fatal; ignore when no redirect result
+      }
+    };
+    run();
+  }, []);
    * Send email verification
    */
   const sendEmailVerification = async (): Promise<void> => {

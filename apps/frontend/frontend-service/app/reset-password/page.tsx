@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { confirmPasswordReset, verifyPasswordResetCode } from 'firebase/auth';
-import { auth } from '../../src/services/firebase';
+import { auth } from '../../lib/firebase';
 import Button from '../../components/ui/Button';
 import PasswordInput from '../../components/ui/PasswordInput';
 import GradientBackground from '../../components/ui/GradientBackground';
