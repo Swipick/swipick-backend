@@ -1438,7 +1438,7 @@ function GiocaPageContent() {
           <div className="relative w-full max-w-xs mx-auto">
             <div className="bg-white bg-opacity-30 rounded-sm overflow-hidden" style={{ height: '18px' }}>
               <div
-                className="bg-indigo-300 h-full rounded-sm transition-all duration-350"
+                className="bg-indigo-300 h-full rounded-sm transition-all duration-[350ms]"
                 style={{ width: `${progressPct}%` }}
               />
             </div>
@@ -1452,7 +1452,7 @@ function GiocaPageContent() {
       </div>
 
       {/* Match Card Stack with Swipe */}
-  <div className="px-3 mb-8 relative max-w-[390px] mx-auto w-full" style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' as React.CSSProperties['touchAction'] }}>
+  <div className="px-3 mb-8 relative max-w-[390px] mx-auto w-full" style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
   {/* Next card preview to be revealed (hidden on very small screens to avoid visual spill) */}
   {effectiveFixtures[currentFixtureIndex + 1] && (
   <div className={`absolute inset-0 opacity-95 pointer-events-none ${previewOnTop ? 'z-20' : 'z-0'} scale-[0.94] sm:scale-[0.97]`}>
