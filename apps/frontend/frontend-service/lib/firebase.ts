@@ -1,5 +1,5 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import { getAuth, type Auth, GoogleAuthProvider } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -11,11 +11,14 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase (reuse if already initialized)
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+// Initialize Firebase only in the browser; avoid server/prerender init
+const isBrowser = typeof window !== 'undefined';
+const app: FirebaseApp | null = isBrowser
+  ? (getApps().length ? getApp() : initializeApp(firebaseConfig))
+  : null;
 
-// Initialize Firebase Authentication and get a reference to the service
-export const auth = getAuth(app);
+// Initialize Firebase Authentication (browser only); provide a typed placeholder on server
+export const auth: Auth = (app ? getAuth(app) : (undefined as unknown as Auth));
 
 // Configure Google Auth Provider
 export const googleProvider = new GoogleAuthProvider();
