@@ -108,12 +108,21 @@ export class TestModeService {
     if (userId) {
       const allIds = Array.from(last5IdsByTeam.values()).flat();
       if (allIds.length > 0) {
-        const preds = await this.testSpecRepository.find({
-          where: { userId, fixtureId: In(allIds) },
-        });
-        userPreds = new Map(
-          preds.map((p) => [p.fixtureId, p.choice as ResultCode]),
-        );
+        try {
+          const preds = await this.testSpecRepository.find({
+            where: { userId, fixtureId: In(allIds) },
+          });
+          userPreds = new Map(
+            preds.map((p) => [p.fixtureId, p.choice as ResultCode]),
+          );
+        } catch (e) {
+          // Most common production cause: column type mismatch (int vs varchar) before migration.
+          this.logger.error(
+            `Failed to load user predictions overlay for match cards (userId=${userId}): ${String(
+              (e as any).message || e,
+            )}`,
+          );
+        }
       }
     }
 
