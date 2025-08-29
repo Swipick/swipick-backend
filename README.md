@@ -445,3 +445,4 @@ For technical issues or questions:
 ---
 
 **🎯 Ready to build the next great football prediction game!**
+# Railway redeploy trigger - Fri Aug 29 09:42:02 CEST 2025
