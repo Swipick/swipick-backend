@@ -8,14 +8,6 @@ import {
   Index,
 } from 'typeorm';
 
-export enum MatchStatus {
-  NS = 'NS',
-  FIRST_HALF = '1H',
-  HALF_TIME = 'HT',
-  SECOND_HALF = '2H',
-  FULL_TIME = 'FT',
-}
-
 @Entity('test_fixtures')
 @Index(['week', 'date']) // Optimize for weekly queries
 @Index(['homeTeam', 'awayTeam']) // Optimize for team searches
@@ -46,10 +38,10 @@ export class TestFixture {
 
   @Column({
     type: 'enum',
-    enum: MatchStatus,
-    default: MatchStatus.FULL_TIME, // Test fixtures are always completed
+    enum: ['NS', '1H', 'HT', '2H', 'FT'],
+    default: 'FT', // Test fixtures are always completed
   })
-  status: MatchStatus;
+  status: string;
 
   @Column({ nullable: true, length: 10 })
   result: string; // '1', 'X', '2'
