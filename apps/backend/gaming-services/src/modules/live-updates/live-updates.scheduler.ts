@@ -14,12 +14,20 @@ export class LiveUpdatesScheduler {
     private readonly fixturesService: FixturesService,
   ) {}
 
-  // Every 15 seconds during match hours (12:00-23:00 UTC)
-  @Cron('*/15 * 12-23 * * *', {
+  // Every 5 minutes during match hours (12:00-23:00 UTC) - Conservative for testing
+  @Cron('*/5 * 12-23 * * *', {
     name: 'updateLiveMatches',
     timeZone: 'UTC',
   })
   async updateLiveMatches() {
+    // Skip if live updates are disabled for testing
+    if (process.env.DISABLE_LIVE_UPDATES === 'true') {
+      this.logger.debug(
+        'Live updates disabled via DISABLE_LIVE_UPDATES env var',
+      );
+      return;
+    }
+
     try {
       this.logger.debug('Starting live matches update...');
 
@@ -50,6 +58,14 @@ export class LiveUpdatesScheduler {
     timeZone: 'UTC',
   })
   async syncDailyFixtures() {
+    // Skip if live updates are disabled for testing
+    if (process.env.DISABLE_LIVE_UPDATES === 'true') {
+      this.logger.debug(
+        'Daily fixtures sync disabled via DISABLE_LIVE_UPDATES env var',
+      );
+      return;
+    }
+
     try {
       this.logger.log('Starting daily fixtures sync...');
 

@@ -21,7 +21,7 @@ export interface DailyQuota {
 export class ApiRateLimitService {
   private readonly logger = new Logger(ApiRateLimitService.name);
   private redis: Redis;
-  private readonly MAX_DAILY_CALLS = 80; // Keep 20 calls as buffer
+  private readonly MAX_DAILY_CALLS = 50; // Conservative limit for testing (was 80)
   private readonly CACHE_PRIORITIES = {
     SERIE_A_FIXTURES: { ttl: 4 * 60 * 60 * 1000, priority: 1 }, // 4 hours
     LIVE_MATCHES: { ttl: 2 * 60 * 1000, priority: 2 }, // 2 minutes
