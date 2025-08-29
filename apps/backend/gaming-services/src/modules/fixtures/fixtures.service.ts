@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { ApiFootballService } from '../api-football/api-football.service';
 import { ApiRateLimitService } from '../api-rate-limit/api-rate-limit.service';
 import { DatabasePersistenceService } from '../database-persistence/database-persistence.service';
@@ -6,6 +8,7 @@ import {
   Fixture,
   LiveMatch,
 } from '../api-football/interfaces/fixture.interface';
+import { Fixture as FixtureEntity } from '../../entities/fixture.entity';
 
 interface CacheEntry<T> {
   data: T;
@@ -22,6 +25,8 @@ export class FixturesService {
   private readonly CACHE_KEY_LIVE_MATCHES = 'live_matches';
 
   constructor(
+    @InjectRepository(FixtureEntity)
+    private readonly fixtureRepository: Repository<FixtureEntity>,
     private readonly apiFootballService: ApiFootballService,
     private readonly rateLimitService: ApiRateLimitService,
     private readonly dbPersistenceService: DatabasePersistenceService,
@@ -589,5 +594,167 @@ export class FixturesService {
         },
       },
     ];
+  }
+
+  /**
+   * Populate Serie A 2024-25 season fixtures from API-Football
+   * Gets all 380 fixtures for the season and saves to database
+   */
+  async populateSerieASeason(): Promise<{
+    totalFixtures: number;
+    saved: number;
+    errors: number;
+  }> {
+    this.logger.log('🏟️ Starting Serie A 2024-25 season population...');
+
+    let totalFixtures = 0;
+    let saved = 0;
+    let errors = 0;
+
+    try {
+      // Check API quota before making call
+      const quotaCheck = await this.rateLimitService.canMakeApiCall();
+      if (!quotaCheck.allowed) {
+        throw new Error(`API quota exceeded: ${quotaCheck.reason}`);
+      }
+
+      // Get all Serie A 2024-25 fixtures (380 total)
+      // Serie A 2024-25 season runs Aug 2024 - May 2025, API uses year 2024
+      this.logger.log(
+        '📡 Fetching Serie A 2024-25 season fixtures from API-Football...',
+      );
+      const apiFixtures = await this.apiFootballService.getSeasonFixtures(
+        135,
+        2025, // Use 2025 since current context is Aug 2025
+      );
+      totalFixtures = apiFixtures.length;
+
+      this.logger.log(
+        `📊 Retrieved ${totalFixtures} Serie A fixtures from API-Football`,
+      );
+
+      // Convert API fixtures to database entities
+      for (const apiFixture of apiFixtures) {
+        try {
+          // Check if fixture already exists by home team, away team, and date
+          const existingFixture = await this.fixtureRepository.findOne({
+            where: {
+              home_team: apiFixture.teams.home.name,
+              away_team: apiFixture.teams.away.name,
+              match_date: new Date(apiFixture.date),
+            },
+          });
+
+          if (existingFixture) {
+            this.logger.debug(
+              `⏭️ Fixture ${apiFixture.id} already exists, skipping`,
+            );
+            continue;
+          }
+
+          // Create new fixture entity
+          const fixtureEntity = new FixtureEntity();
+          fixtureEntity.week = this.extractWeekFromRound(
+            apiFixture.league.round,
+          );
+          fixtureEntity.match_date = new Date(apiFixture.date);
+          fixtureEntity.home_team = apiFixture.teams.home.name;
+          fixtureEntity.away_team = apiFixture.teams.away.name;
+          fixtureEntity.home_score = apiFixture.goals.home;
+          fixtureEntity.away_score = apiFixture.goals.away;
+          fixtureEntity.stadium = apiFixture.venue?.name || 'TBD';
+          fixtureEntity.status = this.mapApiStatusToDbStatus(
+            apiFixture.status.short,
+          ) as 'SCHEDULED' | 'LIVE' | 'FINISHED' | 'POSTPONED' | 'CANCELLED';
+          fixtureEntity.result = this.calculateResultFromScores(
+            apiFixture.goals.home,
+            apiFixture.goals.away,
+          );
+
+          // Save to database
+          await this.fixtureRepository.save(fixtureEntity);
+          saved++;
+
+          this.logger.debug(
+            `✅ Saved: ${apiFixture.teams.home.name} vs ${apiFixture.teams.away.name} (Week ${fixtureEntity.week})`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `❌ Failed to save fixture ${apiFixture.id}:`,
+            error,
+          );
+          errors++;
+        }
+      }
+
+      // Log API usage
+      await this.dbPersistenceService.logApiUsage(
+        '/fixtures/populate-season',
+        true,
+        false,
+      );
+
+      this.logger.log(`🏆 Serie A season population complete:`);
+      this.logger.log(`   Total fixtures: ${totalFixtures}`);
+      this.logger.log(`   Successfully saved: ${saved}`);
+      this.logger.log(`   Errors: ${errors}`);
+
+      return {
+        totalFixtures,
+        saved,
+        errors,
+      };
+    } catch (error) {
+      this.logger.error('💥 Failed to populate Serie A season:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Extract week number from API round string
+   * e.g. "Regular Season - 1" -> 1
+   */
+  private extractWeekFromRound(round: string): number {
+    const match = round.match(/Regular Season - (\d+)/);
+    return match ? parseInt(match[1], 10) : 1;
+  }
+
+  /**
+   * Map API status to database status
+   */
+  private mapApiStatusToDbStatus(apiStatus: string): string {
+    const statusMap: Record<string, string> = {
+      NS: 'SCHEDULED',
+      '1H': 'LIVE',
+      HT: 'LIVE',
+      '2H': 'LIVE',
+      FT: 'FINISHED',
+      AET: 'FINISHED',
+      PEN: 'FINISHED',
+      PST: 'POSTPONED',
+      CANC: 'CANCELLED',
+    };
+
+    return statusMap[apiStatus] || 'SCHEDULED';
+  }
+
+  /**
+   * Calculate result code from scores
+   */
+  private calculateResultFromScores(
+    homeScore: number | null,
+    awayScore: number | null,
+  ): '1' | 'X' | '2' | null {
+    if (homeScore === null || awayScore === null) {
+      return null;
+    }
+
+    if (homeScore > awayScore) {
+      return '1'; // Home win
+    } else if (homeScore < awayScore) {
+      return '2'; // Away win
+    } else {
+      return 'X'; // Draw
+    }
   }
 }
