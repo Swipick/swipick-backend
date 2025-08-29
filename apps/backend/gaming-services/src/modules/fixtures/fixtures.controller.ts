@@ -82,7 +82,7 @@ export class FixturesController {
     const result = await this.fixturesService.populateSerieASeason();
     return {
       success: true,
-      message: 'Serie A 2024-25 season populated successfully',
+      message: 'Serie A 2025-26 current season populated successfully',
       ...result,
     };
   }

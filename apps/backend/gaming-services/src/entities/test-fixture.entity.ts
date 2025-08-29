@@ -30,12 +30,10 @@ export class TestFixture {
   @Column({ length: 100 })
   awayTeam: string;
 
-  // DB column uses snake_case home_goals
-  @Column({ name: 'home_goals', nullable: true })
+  @Column({ nullable: true })
   homeScore: number;
 
-  // DB column uses snake_case away_goals
-  @Column({ name: 'away_goals', nullable: true })
+  @Column({ nullable: true })
   awayScore: number;
 
   @Column({
