@@ -74,7 +74,9 @@ export class TestModeController {
 
       const fixtures = await this.testModeService.getTestFixturesByWeek(week);
 
-      this.logger.log(`Successfully retrieved ${fixtures.length} test fixtures for week ${week}`);
+      this.logger.log(
+        `Successfully retrieved ${fixtures.length} test fixtures for week ${week}`,
+      );
 
       return {
         success: true,
