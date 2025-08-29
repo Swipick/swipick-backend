@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { TestFixture, MatchStatus } from '../../entities/test-fixture.entity';
+import { TestFixture } from '../../entities/test-fixture.entity';
 import { TestSpec } from '../../entities/test-spec.entity';
 import { WeeklyStats, UserSummary } from './dto/test-mode.dto';
 import {
@@ -1047,7 +1047,7 @@ export class TestModeService {
           fixtureData.stadium ||
           STADIUM_BY_TEAM[String(fixtureData.homeTeam)] ||
           null,
-        status: MatchStatus.FULL_TIME,
+        status: 'FT',
         result: this.calculateResultFromScores(
           fixtureData.homeScore,
           fixtureData.awayScore,
