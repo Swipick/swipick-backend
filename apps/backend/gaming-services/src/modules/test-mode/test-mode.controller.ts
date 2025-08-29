@@ -69,15 +69,24 @@ export class TestModeController {
 
   @Get('fixtures/week/:week')
   async getTestFixturesByWeek(@Param('week', ParseIntPipe) week: number) {
-    this.logger.log(`Getting test fixtures for week ${week}`);
+    try {
+      this.logger.log(`Getting test fixtures for week ${week}`);
 
-    const fixtures = await this.testModeService.getTestFixturesByWeek(week);
+      const fixtures = await this.testModeService.getTestFixturesByWeek(week);
 
-    return {
-      success: true,
-      data: fixtures,
-      message: `Test fixtures retrieved for week ${week}`,
-    };
+      this.logger.log(
+        `Successfully retrieved ${fixtures.length} test fixtures for week ${week}`,
+      );
+
+      return {
+        success: true,
+        data: fixtures,
+        message: `Test fixtures retrieved for week ${week}`,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get test fixtures for week ${week}:`, error);
+      throw error;
+    }
   }
 
   @Get('match-cards/week/:week')
@@ -85,17 +94,29 @@ export class TestModeController {
     @Param('week', ParseIntPipe) week: number,
     @Query('userId') userId?: string,
   ) {
-    this.logger.log(
-      `Getting match cards for week ${week}${userId ? ` (userId=${userId})` : ''}`,
-    );
+    try {
+      this.logger.log(
+        `Getting match cards for week ${week}${userId ? ` (userId=${userId})` : ''}`,
+      );
 
-    const cards = await this.testModeService.getMatchCardsByWeek(week, userId);
+      const cards = await this.testModeService.getMatchCardsByWeek(
+        week,
+        userId,
+      );
 
-    return {
-      success: true,
-      data: cards,
-      message: `Match cards retrieved for week ${week}`,
-    };
+      this.logger.log(
+        `Successfully retrieved ${cards.length} match cards for week ${week}`,
+      );
+
+      return {
+        success: true,
+        data: cards,
+        message: `Match cards retrieved for week ${week}`,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get match cards for week ${week}:`, error);
+      throw error;
+    }
   }
 
   @Get('weeks')
