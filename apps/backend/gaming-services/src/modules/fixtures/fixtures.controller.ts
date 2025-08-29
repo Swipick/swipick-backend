@@ -76,4 +76,14 @@ export class FixturesController {
       message: 'All cache cleared successfully',
     };
   }
+
+  @Post('populate-season')
+  async populateSerieASeason() {
+    const result = await this.fixturesService.populateSerieASeason();
+    return {
+      success: true,
+      message: 'Serie A 2024-25 season populated successfully',
+      ...result,
+    };
+  }
 }

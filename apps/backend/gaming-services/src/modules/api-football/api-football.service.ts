@@ -137,6 +137,36 @@ export class ApiFootballService {
     }
   }
 
+  async getSeasonFixtures(
+    leagueId: number,
+    season: number,
+  ): Promise<Fixture[]> {
+    const cacheKey = `fixtures:season:${leagueId}:${season}`;
+
+    // Try cache first
+    const cached = await this.cacheService.get<Fixture[]>(cacheKey);
+    if (cached) {
+      this.logger.debug(
+        `Cache hit for season fixtures: league ${leagueId}, season ${season}`,
+      );
+      return cached;
+    }
+
+    // Fetch from API
+    const fixtures = await this.apiFootballClient.getFixtures({
+      league: leagueId,
+      season: season,
+    });
+
+    // Cache for 7 days (season data doesn't change often)
+    await this.cacheService.set(cacheKey, fixtures, 7 * 24 * 60 * 60);
+
+    this.logger.log(
+      `Fetched ${fixtures.length} season fixtures for league ${leagueId}, season ${season}`,
+    );
+    return fixtures;
+  }
+
   async clearCache(pattern?: string): Promise<void> {
     if (pattern) {
       const keys = await this.cacheService.keys(pattern);
