@@ -356,7 +356,7 @@ function GiocaPageContent() {
               liveRaw = (liveResponse as Record<string, unknown>).data as unknown;
             }
             
-            if (Array.isArray(liveRaw)) {
+            if (Array.isArray(liveRaw) && liveRaw.length > 0) {
               // Map live fixtures to the expected Fixture format
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const mappedLive = (liveRaw as any[]).map((f: any, idx) => {
@@ -383,7 +383,10 @@ function GiocaPageContent() {
                 try { console.log('[gioca] live fixtures loaded', { count: fixtureData.length, first: fixtureData[0]?.id }); } catch {}
               }
             } else {
-              // Fallback to upcoming Serie A fixtures if live fixtures format is unexpected
+              // Fallback to upcoming Serie A fixtures if live fixtures are empty or format is unexpected
+              if (DEBUG_GIOCA) {
+                try { console.log('[gioca] live fixtures empty, falling back to upcoming Serie A fixtures'); } catch {}
+              }
               const upcomingResponse = await apiClient.getUpcomingSerieAFixtures(7);
               let upcomingRaw: unknown = upcomingResponse;
               
