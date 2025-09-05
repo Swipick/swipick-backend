@@ -12,7 +12,7 @@ export default function TeamLogo({ src, alt, size = 'md', className = '' }: Team
   const sizeClasses = {
     sm: 'w-8 h-8',
     md: 'w-12 h-12',
-    lg: 'w-20 h-20',
+    lg: 'w-[135px] h-[135px]',
   };
 
   return (
@@ -22,7 +22,7 @@ export default function TeamLogo({ src, alt, size = 'md', className = '' }: Team
         alt={alt}
         fill
         className="object-contain"
-        sizes="(max-width: 768px) 64px, 64px"
+        sizes="(max-width: 768px) 135px, 135px"
       />
     </div>
   );

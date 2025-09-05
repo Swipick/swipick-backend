@@ -341,8 +341,95 @@ function GiocaPageContent() {
               setMatchCards(cardsArrLocal);
           }
         } else {
-          // Live mode not implemented in this build; leave fixtureData empty for now.
-          if (DEBUG_GIOCA) { try { console.log('[gioca] live mode fetch skipped'); } catch {} }
+          // Live mode - fetch real fixtures
+          if (DEBUG_GIOCA) { try { console.log('[gioca] live mode - fetching real fixtures'); } catch {} }
+          
+          // For live mode, we'll create match cards from fixtures since there might not be a separate endpoint yet
+          cardsArrLocal = [];
+          
+          try {
+            // Fetch live fixtures from the backend
+            const liveResponse = await apiClient.getLiveFixtures();
+            let liveRaw: unknown = liveResponse;
+            
+            if (liveResponse && typeof liveResponse === 'object' && 'data' in (liveResponse as Record<string, unknown>)) {
+              liveRaw = (liveResponse as Record<string, unknown>).data as unknown;
+            }
+            
+            if (Array.isArray(liveRaw)) {
+              // Map live fixtures to the expected Fixture format
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const mappedLive = (liveRaw as any[]).map((f: any, idx) => {
+                const iso = typeof f.date === 'string' ? f.date : new Date(f.date || new Date()).toISOString();
+                return {
+                  id: f.id || idx + 1,
+                  date: iso,
+                  timestamp: Math.floor(new Date(iso).getTime() / 1000),
+                  venue: { id: f.id || idx + 1, name: f.venue?.name || `${f.teams?.home?.name || 'Home'} vs ${f.teams?.away?.name || 'Away'}` || 'Stadium', city: f.venue?.city || 'N/A' },
+                  status: { long: f.status?.long || 'Match Status', short: f.status?.short || '' },
+                  league: { id: f.league?.id || 135, name: f.league?.name || 'Serie A', country: f.league?.country || 'Italy', season: f.league?.season || 2024, round: f.league?.round || `Round ${selectedWeek}` },
+                  teams: {
+                    home: { id: f.teams?.home?.id || ((idx + 1) * 10) + 1, name: f.teams?.home?.name || 'Home', logo: f.teams?.home?.logo || '' },
+                    away: { id: f.teams?.away?.id || ((idx + 1) * 10) + 2, name: f.teams?.away?.name || 'Away', logo: f.teams?.away?.logo || '' },
+                  },
+                  goals: { home: f.goals?.home, away: f.goals?.away },
+                  score: { halftime: f.score?.halftime || {}, fulltime: f.score?.fulltime || { home: f.goals?.home || 0, away: f.goals?.away || 0 } },
+                } as Fixture;
+              });
+              
+              fixtureData = mappedLive.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 10);
+              
+              if (DEBUG_GIOCA) {
+                try { console.log('[gioca] live fixtures loaded', { count: fixtureData.length, first: fixtureData[0]?.id }); } catch {}
+              }
+            } else {
+              // Fallback to upcoming Serie A fixtures if live fixtures format is unexpected
+              const upcomingResponse = await apiClient.getUpcomingSerieAFixtures(7);
+              let upcomingRaw: unknown = upcomingResponse;
+              
+              if (upcomingResponse && typeof upcomingResponse === 'object' && 'data' in (upcomingResponse as Record<string, unknown>)) {
+                upcomingRaw = (upcomingResponse as Record<string, unknown>).data as unknown;
+              }
+              
+              if (Array.isArray(upcomingRaw)) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const mappedUpcoming = (upcomingRaw as any[]).map((f: any, idx) => {
+                  const iso = typeof f.date === 'string' ? f.date : new Date(f.date || new Date()).toISOString();
+                  return {
+                    id: f.id || idx + 1,
+                    date: iso,
+                    timestamp: Math.floor(new Date(iso).getTime() / 1000),
+                    venue: { id: f.id || idx + 1, name: f.venue?.name || `${f.teams?.home?.name} vs ${f.teams?.away?.name}` || 'Stadium', city: f.venue?.city || 'N/A' },
+                    status: { long: f.status?.long || 'Scheduled', short: f.status?.short || 'NS' },
+                    league: { id: f.league?.id || 135, name: f.league?.name || 'Serie A', country: f.league?.country || 'Italy', season: f.league?.season || 2024, round: f.league?.round || `Round ${selectedWeek}` },
+                    teams: {
+                      home: { id: f.teams?.home?.id || ((idx + 1) * 10) + 1, name: f.teams?.home?.name || 'Home', logo: f.teams?.home?.logo || '' },
+                      away: { id: f.teams?.away?.id || ((idx + 1) * 10) + 2, name: f.teams?.away?.name || 'Away', logo: f.teams?.away?.logo || '' },
+                    },
+                    goals: { home: f.goals?.home, away: f.goals?.away },
+                    score: { halftime: f.score?.halftime || {}, fulltime: f.score?.fulltime || { home: f.goals?.home || 0, away: f.goals?.away || 0 } },
+                  } as Fixture;
+                });
+                
+                fixtureData = mappedUpcoming.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 10);
+                
+                if (DEBUG_GIOCA) {
+                  try { console.log('[gioca] upcoming Serie A fixtures loaded as fallback', { count: fixtureData.length, first: fixtureData[0]?.id }); } catch {}
+                }
+              }
+            }
+            
+            // Apply fetched data to state
+            setFixtures(fixtureData);
+            setMatchCards(cardsArrLocal);
+            
+          } catch (liveErr) {
+            console.error('Error fetching live fixtures:', liveErr);
+            if (DEBUG_GIOCA) { try { console.log('[gioca] live mode fetch failed, showing empty state'); } catch {} }
+            // Set empty state but don't throw - show "Nessuna partita trovata" message
+            setFixtures([]);
+            setMatchCards([]);
+          }
         }
       } catch (err) {
         console.error('Error fetching fixtures:', err);
