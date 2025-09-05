@@ -209744,16 +209744,8 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 var _a, _b, _c;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.TestFixture = exports.MatchStatus = void 0;
+exports.TestFixture = void 0;
 const typeorm_1 = __webpack_require__(1305);
-var MatchStatus;
-(function (MatchStatus) {
-    MatchStatus["NS"] = "NS";
-    MatchStatus["FIRST_HALF"] = "1H";
-    MatchStatus["HALF_TIME"] = "HT";
-    MatchStatus["SECOND_HALF"] = "2H";
-    MatchStatus["FULL_TIME"] = "FT";
-})(MatchStatus || (exports.MatchStatus = MatchStatus = {}));
 let TestFixture = class TestFixture {
     calculateResult() {
         if (this.homeScore !== null && this.awayScore !== null) {
@@ -209828,8 +209820,8 @@ __decorate([
 __decorate([
     (0, typeorm_1.Column)({
         type: 'enum',
-        enum: MatchStatus,
-        default: MatchStatus.FULL_TIME,
+        enum: ['NS', '1H', 'HT', '2H', 'FT'],
+        default: 'FT',
     }),
     __metadata("design:type", String)
 ], TestFixture.prototype, "status", void 0);
@@ -220444,10 +220436,15 @@ let TestModeService = TestModeService_1 = class TestModeService {
         if (userId) {
             const allIds = Array.from(last5IdsByTeam.values()).flat();
             if (allIds.length > 0) {
-                const preds = await this.testSpecRepository.find({
-                    where: { userId, fixtureId: (0, typeorm_3.In)(allIds) },
-                });
-                userPreds = new Map(preds.map((p) => [p.fixtureId, p.choice]));
+                try {
+                    const preds = await this.testSpecRepository.find({
+                        where: { userId, fixtureId: (0, typeorm_3.In)(allIds) },
+                    });
+                    userPreds = new Map(preds.map((p) => [p.fixtureId, p.choice]));
+                }
+                catch (e) {
+                    this.logger.error(`Failed to load user predictions overlay for match cards (userId=${userId}): ${String(e.message || e)}`);
+                }
             }
         }
         for (const f of fixtures) {
@@ -221240,12 +221237,16 @@ let TestModeService = TestModeService_1 = class TestModeService {
         };
         for (const fixtureData of testFixtures) {
             const fixture = this.testFixtureRepository.create({
-                ...fixtureData,
+                week: fixtureData.week,
+                homeTeam: fixtureData.homeTeam,
+                awayTeam: fixtureData.awayTeam,
                 date: new Date(fixtureData.date),
                 stadium: fixtureData.stadium ||
                     STADIUM_BY_TEAM[String(fixtureData.homeTeam)] ||
                     null,
-                status: test_fixture_entity_1.MatchStatus.FULL_TIME,
+                status: 'FT',
+                homeScore: fixtureData.homeScore,
+                awayScore: fixtureData.awayScore,
                 result: this.calculateResultFromScores(fixtureData.homeScore, fixtureData.awayScore),
             });
             await this.testFixtureRepository.save(fixture);

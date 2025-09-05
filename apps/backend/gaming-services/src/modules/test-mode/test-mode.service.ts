@@ -1050,13 +1050,17 @@ export class TestModeService {
 
     for (const fixtureData of testFixtures) {
       const fixture = this.testFixtureRepository.create({
-        ...fixtureData,
+        week: fixtureData.week,
+        homeTeam: fixtureData.homeTeam,
+        awayTeam: fixtureData.awayTeam,
         date: new Date(fixtureData.date),
         stadium:
           fixtureData.stadium ||
           STADIUM_BY_TEAM[String(fixtureData.homeTeam)] ||
           null,
-        status: 'FT',
+        status: 'FT' as any, // Cast to MatchStatus enum
+        homeScore: fixtureData.homeScore,
+        awayScore: fixtureData.awayScore,
         result: this.calculateResultFromScores(
           fixtureData.homeScore,
           fixtureData.awayScore,
