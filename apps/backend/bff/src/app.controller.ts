@@ -86,10 +86,24 @@ export class AppController {
     return this.appService.forwardToGamingServices(endpoint);
   }
 
+  @Get('api/fixtures/next')
+  async getNextFixtures(@Req() req: Request) {
+    this.logger.log('Forwarding next fixtures request to Gaming Services');
+    const queryString = req.url.split('?')[1] || '';
+    const endpoint = `/api/fixtures/next${queryString ? `?${queryString}` : ''}`;
+    return this.appService.forwardToGamingServices(endpoint);
+  }
+
   @Get('api/fixtures/week/:weekNumber')
   async getFixturesByWeek(@Param('weekNumber') weekNumber: string) {
     this.logger.log(`Forwarding fixtures week ${weekNumber} request to Gaming Services`);
     return this.appService.forwardToGamingServices(`/api/fixtures/week/${weekNumber}`);
+  }
+
+  @Get('api/fixtures/week/:weekNumber/daterange')
+  async getWeekDateRange(@Param('weekNumber') weekNumber: string) {
+    this.logger.log(`Forwarding week ${weekNumber} date range request to Gaming Services`);
+    return this.appService.forwardToGamingServices(`/api/fixtures/week/${weekNumber}/daterange`);
   }
 
   @Get('api/fixtures/:id')
