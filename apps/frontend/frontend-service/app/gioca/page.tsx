@@ -1292,12 +1292,10 @@ function GiocaPageContent() {
   useEffect(() => {
     if (fixtures.length > 0) {
       const computed = computeNextTarget(fixtures);
-      // In live mode, only update if we get a valid target or don't have one yet
-      if (computed !== null || nextTarget === null) {
-        setNextTarget(computed);
-      }
+      // Always update with computed target to keep it fresh
+      setNextTarget(computed);
     }
-  }, [fixtures, computeNextTarget, nextTarget]);
+  }, [fixtures, computeNextTarget]);
 
   // Compute earliest kickoff normalized to current year (used to decide if the week has started in Test Mode)
   const computeEarliestNormalized = useCallback((items: Fixture[]): Date | null => {
