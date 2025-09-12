@@ -221689,12 +221689,13 @@ const typeorm_1 = __webpack_require__(1299);
 const match_cards_controller_1 = __webpack_require__(2012);
 const match_cards_service_1 = __webpack_require__(2013);
 const fixture_entity_1 = __webpack_require__(1948);
+const spec_entity_1 = __webpack_require__(1949);
 let MatchCardsModule = class MatchCardsModule {
 };
 exports.MatchCardsModule = MatchCardsModule;
 exports.MatchCardsModule = MatchCardsModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([fixture_entity_1.Fixture])],
+        imports: [typeorm_1.TypeOrmModule.forFeature([fixture_entity_1.Fixture, spec_entity_1.Spec])],
         controllers: [match_cards_controller_1.MatchCardsController],
         providers: [match_cards_service_1.MatchCardsService],
         exports: [match_cards_service_1.MatchCardsService],
@@ -221767,16 +221768,18 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 var MatchCardsService_1;
-var _a;
+var _a, _b;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.MatchCardsService = void 0;
 const common_1 = __webpack_require__(10);
 const typeorm_1 = __webpack_require__(1299);
 const typeorm_2 = __webpack_require__(1305);
 const fixture_entity_1 = __webpack_require__(1948);
+const spec_entity_1 = __webpack_require__(1949);
 let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
-    constructor(fixtureRepository) {
+    constructor(fixtureRepository, specRepository) {
         this.fixtureRepository = fixtureRepository;
+        this.specRepository = specRepository;
         this.logger = new common_1.Logger(MatchCardsService_1.name);
         this.matchCardsCache = new Map();
         this.CACHE_TTL_MS = 15 * 60 * 1000;
@@ -221807,9 +221810,33 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
         const cards = [];
         const teams = new Set(fixtures.flatMap(f => [f.home_team, f.away_team]));
         const last5ByTeam = new Map();
+        const last5IdsByTeam = new Map();
         for (const team of teams) {
-            const last5 = isWeekOne ? [] : this.computeLast5Results(priorFixtures, team);
-            last5ByTeam.set(team, last5);
+            const { results, fixtureIds } = isWeekOne ? { results: [], fixtureIds: [] } : this.computeLast5WithIds(priorFixtures, team);
+            last5ByTeam.set(team, results);
+            last5IdsByTeam.set(team, fixtureIds);
+        }
+        let userPredictions = new Map();
+        if (userId && !isWeekOne) {
+            const allFixtureIds = Array.from(last5IdsByTeam.values()).flat();
+            if (allFixtureIds.length > 0) {
+                try {
+                    const predictions = await this.specRepository.find({
+                        where: {
+                            user_id: userId,
+                            fixture_id: (0, typeorm_2.In)(allFixtureIds)
+                        },
+                    });
+                    predictions.forEach(pred => {
+                        if (pred.choice !== 'SKIP') {
+                            userPredictions.set(pred.fixture_id, pred.choice);
+                        }
+                    });
+                }
+                catch (error) {
+                    this.logger.warn(`Failed to fetch user predictions for ${userId}:`, error);
+                }
+            }
         }
         for (const fixture of fixtures) {
             const kickoff = {
@@ -221818,14 +221845,19 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
             };
             const homeLast5 = last5ByTeam.get(fixture.home_team) || [];
             const awayLast5 = last5ByTeam.get(fixture.away_team) || [];
+            const homeFixtureIds = last5IdsByTeam.get(fixture.home_team) || [];
+            const awayFixtureIds = last5IdsByTeam.get(fixture.away_team) || [];
             const homeWinRate = isWeekOne ? null : this.computeWinRate(priorFixtures, fixture.home_team, 'home');
             const awayWinRate = isWeekOne ? null : this.computeWinRate(priorFixtures, fixture.away_team, 'away');
+            const homeForm = this.createFormWithOverlay(homeLast5, homeFixtureIds, userPredictions);
+            const awayForm = this.createFormWithOverlay(awayLast5, awayFixtureIds, userPredictions);
             const homeTeam = {
                 name: fixture.home_team,
                 logo: this.getTeamLogo(fixture.home_team),
                 winRateHome: homeWinRate,
                 last5: homeLast5,
                 standingsPosition: standings.get(fixture.home_team) || null,
+                form: homeForm.length > 0 ? homeForm : undefined,
             };
             const awayTeam = {
                 name: fixture.away_team,
@@ -221833,6 +221865,7 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
                 winRateAway: awayWinRate,
                 last5: awayLast5,
                 standingsPosition: standings.get(fixture.away_team) || null,
+                form: awayForm.length > 0 ? awayForm : undefined,
             };
             const matchCard = {
                 week: weekNumber,
@@ -221934,6 +221967,41 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
         };
         return logoMap[teamName] || null;
     }
+    computeLast5WithIds(priorFixtures, teamName) {
+        const teamFixtures = priorFixtures
+            .filter(f => f.home_team === teamName || f.away_team === teamName)
+            .filter(f => f.home_score !== null && f.away_score !== null)
+            .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())
+            .slice(0, 5);
+        const results = teamFixtures.map(fixture => {
+            if (fixture.home_score > fixture.away_score) {
+                return fixture.home_team === teamName ? '1' : '2';
+            }
+            else if (fixture.home_score < fixture.away_score) {
+                return fixture.home_team === teamName ? '2' : '1';
+            }
+            else {
+                return 'X';
+            }
+        });
+        const fixtureIds = teamFixtures.map(f => f.id);
+        return { results, fixtureIds };
+    }
+    createFormWithOverlay(results, fixtureIds, userPredictions) {
+        if (!results.length || !fixtureIds.length)
+            return [];
+        return results.map((code, index) => {
+            const fixtureId = parseInt(fixtureIds[index], 10);
+            const predicted = userPredictions.get(fixtureIds[index]) || null;
+            const correct = predicted ? (predicted === code) : null;
+            return {
+                fixtureId,
+                code,
+                predicted,
+                correct,
+            };
+        });
+    }
     formatDisplayDate(date) {
         const options = {
             weekday: 'short',
@@ -221951,7 +222019,8 @@ exports.MatchCardsService = MatchCardsService;
 exports.MatchCardsService = MatchCardsService = MatchCardsService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(fixture_entity_1.Fixture)),
-    __metadata("design:paramtypes", [typeof (_a = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _a : Object])
+    __param(1, (0, typeorm_1.InjectRepository)(spec_entity_1.Spec)),
+    __metadata("design:paramtypes", [typeof (_a = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _a : Object, typeof (_b = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _b : Object])
 ], MatchCardsService);
 
 

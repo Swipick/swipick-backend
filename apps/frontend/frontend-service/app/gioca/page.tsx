@@ -464,16 +464,47 @@ function GiocaPageContent() {
                 } else if (nextResp.detectedWeek) {
                   setCurrentLiveWeek(nextResp.detectedWeek);
                 }
-                const mc: MatchCard[] = fixtureData.map(ft => ({
-                  fixtureId: ft.id,
-                  week: (() => { const m = String(ft.league?.round).match(/(\d+)/); return m ? parseInt(m[1],10) : 1; })(),
-                  kickoff: { iso: ft.date, display: ft.date },
-                  home: { name: ft.teams.home.name, logo: ft.teams.home.logo || null, winRateHome: null, last5: [] },
-                  away: { name: ft.teams.away.name, logo: ft.teams.away.logo || null, winRateAway: null, last5: [] },
-                  stadium: ft.venue?.name || 'Stadio',
-                }));
+                
+                // Get rich match cards with statistics for the detected week
+                const detectedWeek = nextResp.detectedWeek || (() => { 
+                  const firstFixture = sortedReal[0];
+                  if (firstFixture?.league?.round) {
+                    const m = String(firstFixture.league.round).match(/(\d+)/); 
+                    return m ? parseInt(m[1], 10) : 1;
+                  }
+                  return 1;
+                })();
+                
+                try {
+                  const matchCardsResp = await apiClient.getLiveMatchCardsByWeek(detectedWeek, userKey || undefined);
+                  if (matchCardsResp && Array.isArray(matchCardsResp)) {
+                    cardsArrLocal = matchCardsResp as MatchCard[];
+                    if (DEBUG_GIOCA) { try { console.log('[gioca] rich match cards loaded', { count: cardsArrLocal.length, sample: cardsArrLocal[0] }); } catch {} }
+                  } else {
+                    // Fallback to basic match cards if rich endpoint fails
+                    cardsArrLocal = fixtureData.map(ft => ({
+                      fixtureId: ft.id,
+                      week: (() => { const m = String(ft.league?.round).match(/(\d+)/); return m ? parseInt(m[1],10) : 1; })(),
+                      kickoff: { iso: ft.date, display: ft.date },
+                      home: { name: ft.teams.home.name, logo: ft.teams.home.logo || null, winRateHome: null, last5: [] },
+                      away: { name: ft.teams.away.name, logo: ft.teams.away.logo || null, winRateAway: null, last5: [] },
+                      stadium: ft.venue?.name || 'Stadio',
+                    }));
+                  }
+                } catch (matchCardError) {
+                  console.warn('[gioca] Failed to fetch rich match cards, using basic fallback:', matchCardError);
+                  // Fallback to basic match cards
+                  cardsArrLocal = fixtureData.map(ft => ({
+                    fixtureId: ft.id,
+                    week: (() => { const m = String(ft.league?.round).match(/(\d+)/); return m ? parseInt(m[1],10) : 1; })(),
+                    kickoff: { iso: ft.date, display: ft.date },
+                    home: { name: ft.teams.home.name, logo: ft.teams.home.logo || null, winRateHome: null, last5: [] },
+                    away: { name: ft.teams.away.name, logo: ft.teams.away.logo || null, winRateAway: null, last5: [] },
+                    stadium: ft.venue?.name || 'Stadio',
+                  }));
+                }
                 setFixtures(fixtureData);
-                setMatchCards(mc);
+                setMatchCards(cardsArrLocal);
                 return; // short-circuit live fetch chain
               }
             } catch (e) {

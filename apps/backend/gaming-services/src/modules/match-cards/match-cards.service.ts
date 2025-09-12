@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Fixture } from '../../entities/fixture.entity';
-import { MatchCardDto, MatchCardKickoffDto, MatchCardTeamHomeDto, MatchCardTeamAwayDto, ResultCode } from './dto/match-cards.dto';
+import { Spec } from '../../entities/spec.entity';
+import { MatchCardDto, MatchCardKickoffDto, MatchCardTeamHomeDto, MatchCardTeamAwayDto, ResultCode, Last5ItemDto } from './dto/match-cards.dto';
 
 interface CacheEntry {
   data: MatchCardDto[];
@@ -18,6 +19,8 @@ export class MatchCardsService {
   constructor(
     @InjectRepository(Fixture)
     private readonly fixtureRepository: Repository<Fixture>,
+    @InjectRepository(Spec)
+    private readonly specRepository: Repository<Spec>,
   ) {}
 
   /**
@@ -62,11 +65,36 @@ export class MatchCardsService {
     // Get all teams for last 5 calculations
     const teams = new Set<string>(fixtures.flatMap(f => [f.home_team, f.away_team]));
     const last5ByTeam = new Map<string, ResultCode[]>();
+    const last5IdsByTeam = new Map<string, string[]>();
 
-    // Calculate last 5 results for each team
+    // Calculate last 5 results and fixture IDs for each team
     for (const team of teams) {
-      const last5 = isWeekOne ? [] : this.computeLast5Results(priorFixtures, team);
-      last5ByTeam.set(team, last5);
+      const { results, fixtureIds } = isWeekOne ? { results: [], fixtureIds: [] } : this.computeLast5WithIds(priorFixtures, team);
+      last5ByTeam.set(team, results);
+      last5IdsByTeam.set(team, fixtureIds);
+    }
+
+    // Get user predictions for overlay if userId provided
+    let userPredictions = new Map<string, ResultCode>();
+    if (userId && !isWeekOne) {
+      const allFixtureIds = Array.from(last5IdsByTeam.values()).flat();
+      if (allFixtureIds.length > 0) {
+        try {
+          const predictions = await this.specRepository.find({
+            where: { 
+              user_id: userId, 
+              fixture_id: In(allFixtureIds) 
+            },
+          });
+          predictions.forEach(pred => {
+            if (pred.choice !== 'SKIP') {
+              userPredictions.set(pred.fixture_id, pred.choice as ResultCode);
+            }
+          });
+        } catch (error) {
+          this.logger.warn(`Failed to fetch user predictions for ${userId}:`, error);
+        }
+      }
     }
 
     // Generate match cards
@@ -78,9 +106,15 @@ export class MatchCardsService {
 
       const homeLast5 = last5ByTeam.get(fixture.home_team) || [];
       const awayLast5 = last5ByTeam.get(fixture.away_team) || [];
+      const homeFixtureIds = last5IdsByTeam.get(fixture.home_team) || [];
+      const awayFixtureIds = last5IdsByTeam.get(fixture.away_team) || [];
 
       const homeWinRate = isWeekOne ? null : this.computeWinRate(priorFixtures, fixture.home_team, 'home');
       const awayWinRate = isWeekOne ? null : this.computeWinRate(priorFixtures, fixture.away_team, 'away');
+
+      // Create form with user overlay
+      const homeForm = this.createFormWithOverlay(homeLast5, homeFixtureIds, userPredictions);
+      const awayForm = this.createFormWithOverlay(awayLast5, awayFixtureIds, userPredictions);
 
       const homeTeam: MatchCardTeamHomeDto = {
         name: fixture.home_team,
@@ -88,6 +122,7 @@ export class MatchCardsService {
         winRateHome: homeWinRate,
         last5: homeLast5,
         standingsPosition: standings.get(fixture.home_team) || null,
+        form: homeForm.length > 0 ? homeForm : undefined,
       };
 
       const awayTeam: MatchCardTeamAwayDto = {
@@ -96,6 +131,7 @@ export class MatchCardsService {
         winRateAway: awayWinRate,
         last5: awayLast5,
         standingsPosition: standings.get(fixture.away_team) || null,
+        form: awayForm.length > 0 ? awayForm : undefined,
       };
 
       const matchCard: MatchCardDto = {
@@ -229,6 +265,55 @@ export class MatchCardsService {
     };
     
     return logoMap[teamName] || null;
+  }
+
+  /**
+   * Compute last 5 results with fixture IDs for a team
+   */
+  private computeLast5WithIds(priorFixtures: Fixture[], teamName: string): { results: ResultCode[]; fixtureIds: string[] } {
+    const teamFixtures = priorFixtures
+      .filter(f => f.home_team === teamName || f.away_team === teamName)
+      .filter(f => f.home_score !== null && f.away_score !== null)
+      .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())
+      .slice(0, 5);
+
+    const results = teamFixtures.map(fixture => {
+      if (fixture.home_score! > fixture.away_score!) {
+        return fixture.home_team === teamName ? '1' : '2';
+      } else if (fixture.home_score! < fixture.away_score!) {
+        return fixture.home_team === teamName ? '2' : '1';
+      } else {
+        return 'X';
+      }
+    });
+
+    const fixtureIds = teamFixtures.map(f => f.id);
+    
+    return { results, fixtureIds };
+  }
+
+  /**
+   * Create form with user prediction overlay
+   */
+  private createFormWithOverlay(
+    results: ResultCode[],
+    fixtureIds: string[],
+    userPredictions: Map<string, ResultCode>
+  ): Last5ItemDto[] {
+    if (!results.length || !fixtureIds.length) return [];
+
+    return results.map((code, index) => {
+      const fixtureId = parseInt(fixtureIds[index], 10);
+      const predicted = userPredictions.get(fixtureIds[index]) || null;
+      const correct = predicted ? (predicted === code) : null;
+
+      return {
+        fixtureId,
+        code,
+        predicted,
+        correct,
+      };
+    });
   }
 
   /**
