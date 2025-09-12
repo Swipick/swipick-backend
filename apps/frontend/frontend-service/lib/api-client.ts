@@ -104,6 +104,11 @@ class ApiClient {
     return this.request(`/fixtures/week/${weekNumber}`);
   }
 
+  // Get date range for a specific week from database
+  async getWeekDateRange(weekNumber: number) {
+    return this.request(`/fixtures/week/${weekNumber}/daterange`);
+  }
+
   // Get enriched match cards by week number (live mode equivalent of test mode match cards)
   async getLiveMatchCardsByWeek(weekNumber: number, userId?: string) {
     const params = userId ? `?userId=${userId}` : '';

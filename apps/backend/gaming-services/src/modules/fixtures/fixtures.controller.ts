@@ -56,6 +56,11 @@ export class FixturesController {
     return this.fixturesService.getFixturesByWeek(weekNumber);
   }
 
+  @Get('week/:weekNumber/daterange')
+  async getWeekDateRange(@Param('weekNumber') weekNumber: number) {
+    return this.fixturesService.getWeekDateRange(weekNumber);
+  }
+
   @Get(':id')
   async getFixture(@Param('id') id: number) {
     return this.fixturesService.getFixtureById(id);

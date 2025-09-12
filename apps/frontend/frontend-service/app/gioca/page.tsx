@@ -1361,33 +1361,64 @@ function GiocaPageContent() {
     return { days, hours, minutes, seconds };
   }, [nextTarget]);
 
-  // Date range directly from current week's fixtures  
-  const [weekDateRange, setWeekDateRange] = useState<{start: Date, end: Date} | null>(null);
+  // Date range directly from database using dedicated endpoint  
+  const [weekDateRange, setWeekDateRange] = useState<{start: Date, end: Date, startFormatted?: string, endFormatted?: string} | null>(null);
   
   // Fetch actual week date range from database
   useEffect(() => {
     if (currentMode === 'live' && currentLiveWeek !== null) {
-      apiClient.getFixturesByWeek(currentLiveWeek).then(weekFixtures => {
-        if (weekFixtures && Array.isArray(weekFixtures) && weekFixtures.length > 0) {
-          const dates = weekFixtures.map((f: Record<string, unknown>) => new Date(String(f.match_date)).getTime());
-          const start = new Date(Math.min(...dates));
-          const end = new Date(Math.max(...dates));
-          setWeekDateRange({ start, end });
+      apiClient.getWeekDateRange(currentLiveWeek).then(dateRangeResponse => {
+        const dateRange = dateRangeResponse as { 
+          week: number; 
+          startDate: string; 
+          endDate: string; 
+          startDateFormatted: string; 
+          endDateFormatted: string; 
+          fixtureCount: number; 
+        } | null;
+        
+        if (dateRange) {
+          const start = new Date(dateRange.startDate);
+          const end = new Date(dateRange.endDate);
+          setWeekDateRange({ 
+            start, 
+            end, 
+            startFormatted: dateRange.startDateFormatted,
+            endFormatted: dateRange.endDateFormatted
+          });
+          console.log('[DEBUG] Week date range set from database:', { 
+            week: dateRange.week, 
+            start: dateRange.startDate, 
+            end: dateRange.endDate,
+            startFormatted: dateRange.startDateFormatted,
+            endFormatted: dateRange.endDateFormatted,
+            fixtureCount: dateRange.fixtureCount
+          });
         }
       }).catch(error => {
-        console.log('[DEBUG] Failed to fetch week fixtures:', error);
-        // Fallback to calculation
-        const seasonStart = new Date(2025, 7, 24);
-        const weekStart = new Date(seasonStart);
-        weekStart.setDate(seasonStart.getDate() + (currentLiveWeek - 1) * 7);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 2);
-        setWeekDateRange({ start: weekStart, end: weekEnd });
+        console.log('[DEBUG] Failed to fetch week date range:', error);
+        // Fallback to old logic if new API fails
+        apiClient.getFixturesByWeek(currentLiveWeek).then(weekFixtures => {
+          if (weekFixtures && Array.isArray(weekFixtures) && weekFixtures.length > 0) {
+            const dates = weekFixtures.map((f: Record<string, unknown>) => new Date(String(f.match_date)).getTime());
+            const start = new Date(Math.min(...dates));
+            const end = new Date(Math.max(...dates));
+            setWeekDateRange({ start, end });
+          }
+        }).catch(() => {
+          // Final fallback to calculation
+          const seasonStart = new Date(2025, 7, 24);
+          const weekStart = new Date(seasonStart);
+          weekStart.setDate(seasonStart.getDate() + (currentLiveWeek - 1) * 7);
+          const weekEnd = new Date(weekStart);
+          weekEnd.setDate(weekStart.getDate() + 2);
+          setWeekDateRange({ start: weekStart, end: weekEnd });
+        });
       });
     }
   }, [currentMode, currentLiveWeek]);
 
-  const getWeekDateRange = () => {
+  const getWeekDateRange = (): {start: Date, end: Date, startFormatted?: string, endFormatted?: string} | null => {
     if (currentMode === 'live' && weekDateRange) {
       return weekDateRange;
     }
@@ -1396,7 +1427,7 @@ function GiocaPageContent() {
     const times = fixtures.map((f) => new Date(f.date).getTime());
     const start = new Date(Math.min(...times));
     const end = new Date(Math.max(...times));
-    return { start, end } as const;
+    return { start, end };
   };
 
   const [timeToMatch, setTimeToMatch] = useState(getTimeToNextMatch());
@@ -1715,8 +1746,9 @@ function GiocaPageContent() {
           <div className="text-center px-4 pt-2">
             {(() => {
               const range = getWeekDateRange();
-              const from = range?.start?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
-              const to = range?.end?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
+              // Use pre-formatted dates from backend when available, otherwise format manually
+              const from = range?.startFormatted || range?.start?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
+              const to = range?.endFormatted || range?.end?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
               return (
                 <p className="text-base md:text-lg mb-1 whitespace-nowrap">
                   Giornata {getWeekNumber()} <span className="opacity-90">{from && to ? `dal ${from} al ${to}` : ''}</span>
@@ -1873,8 +1905,9 @@ function GiocaPageContent() {
         <div className="text-center pt-6 px-4">
           {(() => {
             const range = getWeekDateRange();
-            const from = range?.start?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
-            const to = range?.end?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
+            // Use pre-formatted dates from backend when available, otherwise format manually
+            const from = range?.startFormatted || range?.start?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
+            const to = range?.endFormatted || range?.end?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
             return (
               <p className="text-base md:text-lg  mb-1 whitespace-nowrap">
                 Giornata {getWeekNumber()}&nbsp;

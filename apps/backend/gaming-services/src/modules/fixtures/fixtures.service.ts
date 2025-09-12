@@ -209,6 +209,63 @@ export class FixturesService {
     }
   }
 
+  /**
+   * Get date range for a specific week from database fixtures
+   */
+  async getWeekDateRange(weekNumber: number): Promise<{
+    week: number;
+    startDate: string;
+    endDate: string;
+    startDateFormatted: string;
+    endDateFormatted: string;
+    fixtureCount: number;
+  } | null> {
+    try {
+      const fixtures = await this.fixtureRepository.find({
+        where: { week: weekNumber },
+        order: { match_date: 'ASC' },
+      });
+
+      if (fixtures.length === 0) {
+        this.logger.debug(`No fixtures found for week ${weekNumber}`);
+        return null;
+      }
+
+      // Get min and max dates
+      const dates = fixtures.map((f) => new Date(f.match_date));
+      const startDate = new Date(Math.min(...dates.map(d => d.getTime())));
+      const endDate = new Date(Math.max(...dates.map(d => d.getTime())));
+
+      // Format dates for Italian display (dd/mm)
+      const formatItalian = (date: Date) => {
+        return date.toLocaleDateString('it-IT', { 
+          day: '2-digit', 
+          month: '2-digit',
+          timeZone: 'Europe/Rome'
+        });
+      };
+
+      this.logger.debug(
+        `Week ${weekNumber} date range: ${startDate.toISOString()} to ${endDate.toISOString()}`
+      );
+
+      return {
+        week: weekNumber,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        startDateFormatted: formatItalian(startDate),
+        endDateFormatted: formatItalian(endDate),
+        fixtureCount: fixtures.length,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to get date range for week ${weekNumber}`,
+        error,
+      );
+      throw error;
+    }
+  }
+
   async getUpcomingSerieAFixtures(days: number = 7): Promise<Fixture[]> {
     try {
       // 1. Check Redis cache first (fastest)
