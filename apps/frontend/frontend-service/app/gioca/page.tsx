@@ -427,9 +427,9 @@ function GiocaPageContent() {
                 const mappedReal: Fixture[] = nextResp.fixtures.map((fRaw, idx: number) => {
                   const r = fRaw as Record<string, unknown>;
                   const dateVal = typeof r.date === 'string' ? r.date : new Date().toISOString();
-                  const teamsVal = (r.teams && typeof r.teams === 'object') ? (r.teams as Record<string, any>) : {}; // unavoidable minimal any because external shape unknown
-                  const homeObj = (teamsVal.home && typeof teamsVal.home === 'object') ? teamsVal.home : { name: 'Home', logo: '' };
-                  const awayObj = (teamsVal.away && typeof teamsVal.away === 'object') ? teamsVal.away : { name: 'Away', logo: '' };
+                  const teamsVal = (r.teams && typeof r.teams === 'object') ? (r.teams as Record<string, unknown>) : {};
+                  const homeObj = (teamsVal.home && typeof teamsVal.home === 'object') ? (teamsVal.home as Record<string, unknown>) : { name: 'Home', logo: '' };
+                  const awayObj = (teamsVal.away && typeof teamsVal.away === 'object') ? (teamsVal.away as Record<string, unknown>) : { name: 'Away', logo: '' };
                   const leagueVal = (r.league && typeof r.league === 'object') ? (r.league as Record<string, unknown>) : {};
                   const roundStr = typeof leagueVal.round === 'string' ? leagueVal.round : `Regular Season - ${nextResp.detectedWeek || 1}`;
                   const goalsVal = (r.goals && typeof r.goals === 'object') ? (r.goals as Record<string, unknown>) : {};
@@ -438,15 +438,15 @@ function GiocaPageContent() {
                     id: typeof r.id === 'number' ? r.id : idx + 1,
                     date: dateVal,
                     timestamp: Math.floor(new Date(dateVal).getTime() / 1000),
-                    venue: (r.venue && typeof r.venue === 'object') ? (r.venue as any) : { id: idx + 1, name: `${homeObj.name} vs ${awayObj.name}`, city: 'N/A' },
-                    status: (r.status && typeof r.status === 'object') ? (r.status as any) : { long: 'Scheduled', short: 'NS' },
+                    venue: (r.venue && typeof r.venue === 'object') ? { id: idx + 1, name: String((r.venue as Record<string, unknown>).name || `${homeObj.name} vs ${awayObj.name}`), city: String((r.venue as Record<string, unknown>).city || 'N/A') } : { id: idx + 1, name: `${homeObj.name} vs ${awayObj.name}`, city: 'N/A' },
+                    status: (r.status && typeof r.status === 'object') ? { long: String((r.status as Record<string, unknown>).long || 'Scheduled'), short: String((r.status as Record<string, unknown>).short || 'NS') } : { long: 'Scheduled', short: 'NS' },
                     league: { id: 135, name: 'Serie A', country: 'Italy', season: new Date().getFullYear(), round: roundStr },
                     teams: {
                       home: { id: homeObj.id || (idx + 1) * 10 + 1, name: String(homeObj.name), logo: String(homeObj.logo || '') },
                       away: { id: awayObj.id || (idx + 1) * 10 + 2, name: String(awayObj.name), logo: String(awayObj.logo || '') },
                     },
                     goals: { home: typeof goalsVal.home === 'number' ? goalsVal.home : 0, away: typeof goalsVal.away === 'number' ? goalsVal.away : 0 },
-                    score: scoreVal as any,
+                    score: { halftime: {}, fulltime: {} },
                   } as Fixture;
                 });
                 const sortedReal = mappedReal.sort((a,b)=> new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -1260,14 +1260,7 @@ function GiocaPageContent() {
     
     if (currentMode === 'live') {
       // Live mode: use actual fixture dates, find next upcoming match
-      console.log('[DEBUG] Live mode - checking fixtures:', items.map(f => ({ 
-        id: f.id, 
-        date: f.date, 
-        parsedDate: new Date(f.date).toISOString(),
-        isPast: new Date(f.date).getTime() <= now,
-        timestamp: new Date(f.date).getTime(),
-        nowTimestamp: now
-      })));
+      console.log('[DEBUG] Live mode - checking fixtures:', items.length, 'fixtures');
       
       const upcomingMatches = items
         .map(f => new Date(f.date))
@@ -1376,7 +1369,7 @@ function GiocaPageContent() {
     if (currentMode === 'live' && currentLiveWeek !== null) {
       apiClient.getFixturesByWeek(currentLiveWeek).then(weekFixtures => {
         if (weekFixtures && Array.isArray(weekFixtures) && weekFixtures.length > 0) {
-          const dates = weekFixtures.map((f: any) => new Date(f.match_date).getTime());
+          const dates = weekFixtures.map((f: Record<string, unknown>) => new Date(String(f.match_date)).getTime());
           const start = new Date(Math.min(...dates));
           const end = new Date(Math.max(...dates));
           setWeekDateRange({ start, end });
