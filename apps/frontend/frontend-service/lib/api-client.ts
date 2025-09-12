@@ -90,6 +90,20 @@ class ApiClient {
     return this.request(`/fixtures/upcoming/serie-a?days=${days}`);
   }
 
+  // Real fixtures table (live mode) - return next upcoming fixtures
+  async getNextFixtures(limit: number = 10, fromDate?: string) {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', String(limit));
+    if (fromDate) params.set('from', fromDate);
+    const qs = params.toString();
+    return this.request(`/fixtures/next${qs ? `?${qs}` : ''}`);
+  }
+
+  // Get fixtures by week number from database
+  async getFixturesByWeek(weekNumber: number) {
+    return this.request(`/fixtures/week/${weekNumber}`);
+  }
+
   // Teams API
   async getTeams() {
     return this.request('/teams');
