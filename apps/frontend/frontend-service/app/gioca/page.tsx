@@ -475,19 +475,7 @@ function GiocaPageContent() {
                   return 1;
                 })();
                 
-                // TODO: Re-enable rich match cards once backend is deployed
-                // For now, use basic match cards to prevent loading issues
-                if (DEBUG_GIOCA) { try { console.log('[gioca] using basic match cards (rich cards temporarily disabled)'); } catch {} }
-                cardsArrLocal = fixtureData.map(ft => ({
-                  fixtureId: ft.id,
-                  week: (() => { const m = String(ft.league?.round).match(/(\d+)/); return m ? parseInt(m[1],10) : 1; })(),
-                  kickoff: { iso: ft.date, display: ft.date },
-                  home: { name: ft.teams.home.name, logo: ft.teams.home.logo || null, winRateHome: null, last5: [] },
-                  away: { name: ft.teams.away.name, logo: ft.teams.away.logo || null, winRateAway: null, last5: [] },
-                  stadium: ft.venue?.name || 'Stadio',
-                }));
-                
-                /* Rich match cards implementation (re-enable after backend deployment):
+                // Try to get rich match cards with statistics
                 try {
                   const matchCardsResp = await apiClient.getLiveMatchCardsByWeek(detectedWeek, userKey || undefined);
                   if (matchCardsResp && Array.isArray(matchCardsResp)) {
@@ -495,6 +483,7 @@ function GiocaPageContent() {
                     if (DEBUG_GIOCA) { try { console.log('[gioca] rich match cards loaded', { count: cardsArrLocal.length, sample: cardsArrLocal[0] }); } catch {} }
                   } else {
                     // Fallback to basic match cards if rich endpoint fails
+                    if (DEBUG_GIOCA) { try { console.log('[gioca] rich match cards endpoint returned invalid data, using basic fallback'); } catch {} }
                     cardsArrLocal = fixtureData.map(ft => ({
                       fixtureId: ft.id,
                       week: (() => { const m = String(ft.league?.round).match(/(\d+)/); return m ? parseInt(m[1],10) : 1; })(),
@@ -516,7 +505,6 @@ function GiocaPageContent() {
                     stadium: ft.venue?.name || 'Stadio',
                   }));
                 }
-                */
                 setFixtures(fixtureData);
                 setMatchCards(cardsArrLocal);
                 return; // short-circuit live fetch chain
