@@ -303,7 +303,14 @@ function GiocaPageContent() {
     fetchGuardRef.current = fetchKey;
     const fetchFixtures = async () => {
       try {
-        setLoading(true);
+        // Only set loading true for the first fetch
+        const isFirstFetch = fixtures.length === 0;
+        if (isFirstFetch) {
+          setLoading(true);
+          if (DEBUG_GIOCA) { try { console.log('[gioca] setting loading=true for first fetch', { fetchKey }); } catch {} }
+        } else {
+          if (DEBUG_GIOCA) { try { console.log('[gioca] skipping loading=true, already have fixtures', { fetchKey, fixtureCount: fixtures.length }); } catch {} }
+        }
         setError(null);
   let fixtureData: Fixture[] = [];
   let cardsArrLocal: MatchCard[] = [];
@@ -715,7 +722,10 @@ function GiocaPageContent() {
         console.error('Error fetching fixtures:', err);
         setError(err instanceof Error ? err.message : 'Errore nel caricamento delle partite');
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          if (DEBUG_GIOCA) { try { console.log('[gioca] setting loading=false in finally block', { fetchKey }); } catch {} }
+        }
       }
     };
 
