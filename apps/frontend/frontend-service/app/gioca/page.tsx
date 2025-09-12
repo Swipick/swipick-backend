@@ -477,13 +477,16 @@ function GiocaPageContent() {
                 
                 // Try to get rich match cards with statistics
                 try {
+                  if (DEBUG_GIOCA) { try { console.log('[gioca] requesting rich match cards', { week: detectedWeek, userKey: userKey || 'none' }); } catch {} }
                   const matchCardsResp = await apiClient.getLiveMatchCardsByWeek(detectedWeek, userKey || undefined);
+                  if (DEBUG_GIOCA) { try { console.log('[gioca] rich match cards response', { type: typeof matchCardsResp, isArray: Array.isArray(matchCardsResp), length: Array.isArray(matchCardsResp) ? matchCardsResp.length : 'N/A' }); } catch {} }
+                  
                   if (matchCardsResp && Array.isArray(matchCardsResp)) {
                     cardsArrLocal = matchCardsResp as MatchCard[];
                     if (DEBUG_GIOCA) { try { console.log('[gioca] rich match cards loaded', { count: cardsArrLocal.length, sample: cardsArrLocal[0] }); } catch {} }
                   } else {
                     // Fallback to basic match cards if rich endpoint fails
-                    if (DEBUG_GIOCA) { try { console.log('[gioca] rich match cards endpoint returned invalid data, using basic fallback'); } catch {} }
+                    if (DEBUG_GIOCA) { try { console.log('[gioca] rich match cards endpoint returned invalid data, using basic fallback', { response: matchCardsResp }); } catch {} }
                     cardsArrLocal = fixtureData.map(ft => ({
                       fixtureId: ft.id,
                       week: (() => { const m = String(ft.league?.round).match(/(\d+)/); return m ? parseInt(m[1],10) : 1; })(),
@@ -494,7 +497,7 @@ function GiocaPageContent() {
                     }));
                   }
                 } catch (matchCardError) {
-                  console.warn('[gioca] Failed to fetch rich match cards, using basic fallback:', matchCardError);
+                  console.error('[gioca] Failed to fetch rich match cards, using basic fallback:', matchCardError);
                   // Fallback to basic match cards
                   cardsArrLocal = fixtureData.map(ft => ({
                     fixtureId: ft.id,
