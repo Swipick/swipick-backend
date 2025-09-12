@@ -136,7 +136,7 @@ export class MatchCardsService {
 
       const matchCard: MatchCardDto = {
         week: weekNumber,
-        fixtureId: Number(fixture.id),
+        fixtureId: fixture.id,
         kickoff,
         stadium: fixture.stadium,
         home: homeTeam,
@@ -248,20 +248,36 @@ export class MatchCardsService {
   }
 
   /**
-   * Get team logo URL (placeholder - you can implement proper logo mapping)
+   * Get team logo URL - maps database team names to actual logo paths
    */
   private getTeamLogo(teamName: string): string | null {
-    // Map team names to logo URLs
+    // Map exact database team names to logo URLs (matching frontend public/teams/ folder)
     const logoMap: Record<string, string> = {
+      // Core Serie A teams from fixtures
       'Juventus': '/teams/JuventusFcLogo.png',
-      'Inter': '/teams/FcInternazionaleMilano.png',
+      'Inter': '/teams/FcInternazionaleMilano.png', 
       'Milan': '/teams/AcMilanLogo.png',
       'Roma': '/teams/AsRomaLogo.png',
       'Napoli': '/teams/NapolLogo.png',
       'Lazio': '/teams/StemmaLazioCentenarioLogo.png',
       'Atalanta': '/teams/AtalantaBcLogo.png',
       'Fiorentina': '/teams/AcfFiorentinaLogo.png',
-      // Add more teams as needed
+      'Bologna': '/teams/BolognaFcLogo.png',
+      'Torino': '/teams/TorinoFcLogo.png',
+      'Genoa': '/teams/GenoaCfcLogo.png',
+      'Lecce': '/teams/UsLecceLogo.png',
+      'Sassuolo': '/teams/SassuoloCalcioLogo.png',
+      'Cagliari': '/teams/CagliariCalcioLogo.png',
+      'Como': '/teams/ComoCalcioLogo.png',
+      'Parma': '/teams/ParmaCalcioLogo.png',
+      'Cremonese': '/teams/UsCremoneselogo.png',
+      'Udinese': '/teams/UdineseCalcioLogo.png',
+      'Venezia': '/teams/VeneziaFcLogo.png',
+      'Monza': '/teams/AcMonzaLogo.png',
+      'Empoli': '/teams/EmpoliFcLogo.png',
+      'Verona': '/teams/HellasveronaFcLogo.png',
+      'Pisa': '/teams/PisaCalcioLogo.png',
+      // Add more teams as they appear in fixtures
     };
     
     return logoMap[teamName] || null;
@@ -303,7 +319,7 @@ export class MatchCardsService {
     if (!results.length || !fixtureIds.length) return [];
 
     return results.map((code, index) => {
-      const fixtureId = parseInt(fixtureIds[index], 10);
+      const fixtureId = fixtureIds[index]; // Keep as string
       const predicted = userPredictions.get(fixtureIds[index]) || null;
       const correct = predicted ? (predicted === code) : null;
 

@@ -2,7 +2,7 @@ export type OneXTwo = '1' | 'X' | '2';
 export type ResultCode = OneXTwo;
 
 export interface Last5ItemDto {
-  fixtureId: number;
+  fixtureId: number | string;
   code: ResultCode;
   predicted: ResultCode | null; // user prediction if exists
   correct: boolean | null; // null when no prediction
@@ -33,7 +33,7 @@ export interface MatchCardTeamAwayDto {
 
 export interface MatchCardDto {
   week: number;
-  fixtureId: number;
+  fixtureId: number | string;
   kickoff: MatchCardKickoffDto;
   stadium: string | null;
   home: MatchCardTeamHomeDto;
