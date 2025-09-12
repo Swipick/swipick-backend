@@ -86,6 +86,12 @@ export class AppController {
     return this.appService.forwardToGamingServices(endpoint);
   }
 
+  @Get('api/fixtures/week/:weekNumber')
+  async getFixturesByWeek(@Param('weekNumber') weekNumber: string) {
+    this.logger.log(`Forwarding fixtures week ${weekNumber} request to Gaming Services`);
+    return this.appService.forwardToGamingServices(`/api/fixtures/week/${weekNumber}`);
+  }
+
   @Get('api/fixtures/:id')
   async getFixtureById(@Param('id') id: string) {
     this.logger.log(`Forwarding fixture ${id} request to Gaming Services`);
@@ -212,6 +218,17 @@ export class AppController {
       `/api/test-mode/reset/${userId}`,
       'DELETE',
     );
+  }
+
+  // Match Cards Endpoints
+  @Get('api/match-cards/week/:weekNumber')
+  async getMatchCardsByWeek(
+    @Param('weekNumber') weekNumber: string,
+    @Query('userId') userId?: string,
+  ) {
+    this.logger.log(`Getting match cards for week ${weekNumber}`);
+    const endpoint = `/api/match-cards/week/${weekNumber}${userId ? `?userId=${userId}` : ''}`;
+    return this.appService.forwardToGamingServices(endpoint);
   }
 
   // Test Mode Fixture Endpoints

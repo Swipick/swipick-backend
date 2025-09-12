@@ -104,6 +104,12 @@ class ApiClient {
     return this.request(`/fixtures/week/${weekNumber}`);
   }
 
+  // Get enriched match cards by week number (live mode equivalent of test mode match cards)
+  async getLiveMatchCardsByWeek(weekNumber: number, userId?: string) {
+    const params = userId ? `?userId=${userId}` : '';
+    return this.request(`/match-cards/week/${weekNumber}${params}`);
+  }
+
   // Teams API
   async getTeams() {
     return this.request('/teams');

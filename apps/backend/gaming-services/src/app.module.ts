@@ -18,6 +18,7 @@ import { CacheServiceModule } from './modules/cache/cache.module';
 import { HealthModule } from './modules/health/health.module';
 import { SpecsModule } from './modules/specs/specs.module';
 import { TestModeModule } from './modules/test-mode/test-mode.module';
+import { MatchCardsModule } from './modules/match-cards/match-cards.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { TestModeModule } from './modules/test-mode/test-mode.module';
     HealthModule,
     SpecsModule,
     TestModeModule,
+    MatchCardsModule,
   ],
 })
 export class AppModule {}
