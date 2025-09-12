@@ -100,7 +100,7 @@ export class MatchCardsService {
 
       const matchCard: MatchCardDto = {
         week: weekNumber,
-        fixtureId: fixture.id,
+        fixtureId: Number(fixture.id),
         kickoff,
         stadium: fixture.stadium,
         home: homeTeam,
