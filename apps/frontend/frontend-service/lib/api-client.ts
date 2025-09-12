@@ -23,33 +23,48 @@ class ApiClient {
     const url = `${this.apiUrl}${endpoint}`;
     console.log(`🔗 API Request: ${options.method || 'GET'} ${url}`);
     
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
-
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
+    // Add timeout to prevent hanging requests
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+      });
       
-      try {
-        const errorData = await response.json();
-        // Extract meaningful error message from backend response
-        if (errorData.message) {
-          errorMessage = errorData.message;
-        } else if (errorData.error) {
-          errorMessage = errorData.error;
+      clearTimeout(timeoutId);
+      console.log(`🔗 API Response: ${response.status} ${url}`);
+      
+      // Handle response
+      if (!response.ok) {
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        
+        try {
+          const errorData = await response.json();
+          // Extract meaningful error message from backend response
+          if (errorData.message) {
+            errorMessage = errorData.message;
+          } else if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // If we can't parse the error response, use the default message
         }
-      } catch {
-        // If we can't parse the error response, use the default message
+        
+        throw new Error(errorMessage);
       }
-      
-      throw new Error(errorMessage);
-    }
 
-    return response.json();
+      return response.json();
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error(`🔗 API Error: ${url}`, error);
+      throw error;
+    }
   }
 
   // Health Checks
