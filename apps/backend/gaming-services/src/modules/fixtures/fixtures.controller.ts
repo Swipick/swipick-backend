@@ -41,6 +41,21 @@ export class FixturesController {
     return this.fixturesService.getUpcomingSerieAFixtures(daysToFetch);
   }
 
+  // New: unified upcoming endpoint backed directly by real fixtures table (not cache/mock)
+  @Get('next')
+  async getNextFixtures(
+    @Query('limit') limit?: number,
+    @Query('from') fromDate?: string,
+  ) {
+    const lim = !limit || limit < 1 || limit > 20 ? 10 : limit;
+    return this.fixturesService.getNextRealFixtures(lim, fromDate);
+  }
+
+  @Get('week/:weekNumber')
+  async getFixturesByWeek(@Param('weekNumber') weekNumber: number) {
+    return this.fixturesService.getFixturesByWeek(weekNumber);
+  }
+
   @Get(':id')
   async getFixture(@Param('id') id: number) {
     return this.fixturesService.getFixtureById(id);

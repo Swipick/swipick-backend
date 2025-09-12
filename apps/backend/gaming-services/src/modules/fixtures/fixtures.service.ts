@@ -185,6 +185,30 @@ export class FixturesService {
     }
   }
 
+  /**
+   * Get fixtures by week number from local database
+   */
+  async getFixturesByWeek(weekNumber: number): Promise<FixtureEntity[]> {
+    try {
+      const fixtures = await this.fixtureRepository.find({
+        where: { week: weekNumber },
+        order: { match_date: 'ASC' },
+      });
+
+      this.logger.debug(
+        `Retrieved ${fixtures.length} fixtures for week ${weekNumber} from database`,
+      );
+
+      return fixtures;
+    } catch (error) {
+      this.logger.error(
+        `Failed to get fixtures for week ${weekNumber}`,
+        error,
+      );
+      throw error;
+    }
+  }
+
   async getUpcomingSerieAFixtures(days: number = 7): Promise<Fixture[]> {
     try {
       // 1. Check Redis cache first (fastest)
@@ -300,6 +324,99 @@ export class FixturesService {
       // Fallback to mock data
       return this.getSerieAMockData();
     }
+  }
+
+  /**
+   * Get next real fixtures from the actual persisted fixtures table (not the cache/mock path).
+   * Returns upcoming SCHEDULED/LIVE fixtures ordered by date, limited (default 10).
+   * Optionally a fromDate (ISO date) can be provided; otherwise now is used.
+   */
+  async getNextRealFixtures(limit: number = 10, fromDate?: string) {
+    try {
+      const start = fromDate ? new Date(fromDate) : new Date();
+      // Query TypeORM repository for upcoming fixtures (scheduled or live but not finished)
+      const qb = this.fixtureRepository
+        .createQueryBuilder('fx')
+        .where('fx.match_date >= :start', { start })
+        .andWhere('fx.status IN (:...statuses)', {
+          statuses: ['SCHEDULED', 'LIVE'],
+        })
+        .orderBy('fx.match_date', 'ASC')
+        .limit(limit);
+
+      const entities = await qb.getMany();
+
+      // If none in future, fallback to last finished (still return something) but flag empty state
+      if (entities.length === 0) {
+        const recent = await this.fixtureRepository
+          .createQueryBuilder('fx')
+          .orderBy('fx.match_date', 'DESC')
+          .limit(Math.min(5, limit))
+          .getMany();
+        return {
+          success: true,
+          fromCache: false,
+          source: 'fixtures_table',
+          fixtures: recent.map((e) => this.mapEntityToApiFixture(e)),
+          note: 'No future fixtures found; returning last finished fixtures',
+        };
+      }
+
+      return {
+        success: true,
+        fromCache: false,
+        source: 'fixtures_table',
+        fixtures: entities.map((e) => this.mapEntityToApiFixture(e)),
+        detectedWeek: entities[0]?.week || null,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get next real fixtures', error);
+      return { success: false, error: 'FAILED_NEXT_FIXTURES' };
+    }
+  }
+
+  /** Map DB fixture entity into the public (subset) Fixture API shape the frontend already expects */
+  private mapEntityToApiFixture(e: FixtureEntity): Fixture {
+    // Minimal mapping; fill league.round as Regular Season - {week}
+    return {
+      id:
+        Number(e.external_api_id) ||
+        undefined ||
+        Date.parse(e.match_date.toISOString()),
+      timezone: 'Europe/Rome',
+      date: e.match_date.toISOString(),
+      timestamp: Math.floor(e.match_date.getTime() / 1000),
+      venue: { id: undefined, name: e.stadium || 'Stadio', city: '' },
+      status: { long: e.status, short: this.mapDbStatusToApiShort(e.status) },
+      league: {
+        id: 135,
+        name: 'Serie A',
+        country: 'Italy',
+        logo: 'https://media.api-sports.io/football/leagues/135.png',
+        season: new Date().getFullYear(),
+        round: `Regular Season - ${e.week}`,
+      },
+      teams: {
+        home: { id: undefined, name: e.home_team, logo: '' },
+        away: { id: undefined, name: e.away_team, logo: '' },
+      },
+      goals: { home: e.home_score ?? 0, away: e.away_score ?? 0 },
+      score: {
+        halftime: { home: e.home_score ?? 0, away: e.away_score ?? 0 },
+        fulltime: { home: e.home_score ?? 0, away: e.away_score ?? 0 },
+      },
+    } as unknown as Fixture;
+  }
+
+  private mapDbStatusToApiShort(status: string): string {
+    const map: Record<string, string> = {
+      SCHEDULED: 'NS',
+      LIVE: '1H',
+      FINISHED: 'FT',
+      POSTPONED: 'PST',
+      CANCELLED: 'CANC',
+    };
+    return map[status] || 'NS';
   }
 
   /**

@@ -84,6 +84,57 @@ interface TestFixtureAPI {
   stadium?: string | null;
 }
 
+// Raw API fixture data structure (from external APIs like API-Football)
+interface RawFixtureData {
+  id?: number;
+  date?: string | number | Date;
+  timestamp?: number;
+  venue?: {
+    id?: number;
+    name?: string;
+    city?: string;
+  };
+  status?: {
+    long?: string;
+    short?: string;
+    elapsed?: number;
+  };
+  league?: {
+    id?: number;
+    name?: string;
+    country?: string;
+    logo?: string;
+    season?: number;
+    round?: string;
+  };
+  teams?: {
+    home?: {
+      id?: number;
+      name?: string;
+      logo?: string;
+    };
+    away?: {
+      id?: number;
+      name?: string;
+      logo?: string;
+    };
+  };
+  goals?: {
+    home?: number;
+    away?: number;
+  };
+  score?: {
+    halftime?: {
+      home?: number;
+      away?: number;
+    };
+    fulltime?: {
+      home?: number;
+      away?: number;
+    };
+  };
+}
+
 // Match-cards API types
 interface MatchCardKickoff { iso: string; display: string; }
 interface Last5Item {
@@ -124,10 +175,17 @@ function GiocaPageContent() {
   
   // Get mode from URL parameters or context
   const currentMode = ((searchParams?.get('mode') as 'live' | 'test' | null) ?? null) || mode;
-  // Selected week for test mode (defaults to 1)
+  // Selected week for test mode (defaults to 1), for live mode determine from fixtures
+  const [currentLiveWeek, setCurrentLiveWeek] = useState<number | null>(null);
   const selectedWeek = (() => {
-    const w = Number(searchParams?.get('week') ?? NaN);
-    return Number.isFinite(w) && w >= 1 && w <= 38 ? w : 1;
+    if (currentMode === 'live') {
+      // In live mode, use detected current week or fall back to 1
+      return currentLiveWeek || 1;
+    } else {
+      // In test mode, use URL parameter or default to 1
+      const w = Number(searchParams?.get('week') ?? NaN);
+      return Number.isFinite(w) && w >= 1 && w <= 38 ? w : 1;
+    }
   })();
   
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
@@ -163,6 +221,12 @@ function GiocaPageContent() {
   const [rolledWeek1Once, setRolledWeek1Once] = useState(false);
   const didDefaultWeekRef = useRef(false);
   const mismatchLogOnceRef = useRef(false);
+  // Live mode: track if we've already widened the search window for upcoming fixtures
+  const liveExtendedFetchRef = useRef(false);
+  // Prevent multiple expensive 365-day broad fetch attempts
+  const broadAttemptedRef = useRef(false);
+  // Guard to avoid duplicate fetch cycles (e.g. StrictMode double invoke or state churn)
+  const fetchGuardRef = useRef<string | null>(null);
   // Local flag to avoid noisy 404 on week-2 stats before any picks exist
   const hasWeekPredsKey = useCallback((week: number, u?: string | null) => {
     return `swipick:gioca:hasPreds:test:week:${week}:user:${u ?? 'anon'}`;
@@ -230,6 +294,13 @@ function GiocaPageContent() {
 
   useEffect(() => {
     let cancelled = false;
+    // Build a stable key representing the desired dataset; for live we don't include currentLiveWeek
+    const fetchKey = `${currentMode}:${currentMode === 'test' ? selectedWeek : 'live'}:${userKey || 'anon'}`;
+    if (fetchGuardRef.current === fetchKey) {
+      // Already fetched for this key; skip to prevent loops
+      return;
+    }
+    fetchGuardRef.current = fetchKey;
     const fetchFixtures = async () => {
       try {
         setLoading(true);
@@ -348,6 +419,59 @@ function GiocaPageContent() {
           cardsArrLocal = [];
           
           try {
+            // First, try new real fixtures endpoint (direct DB fixtures table)
+            try {
+              const nextResp = await apiClient.getNextFixtures(10) as unknown as { success?: boolean; fixtures?: Array<Record<string, unknown>>; detectedWeek?: number };
+              if (nextResp && nextResp.success && Array.isArray(nextResp.fixtures) && nextResp.fixtures.length > 0) {
+                if (DEBUG_GIOCA) { try { console.log('[gioca] next real fixtures endpoint hit', { count: nextResp.fixtures.length, week: nextResp.detectedWeek }); } catch {} }
+                const mappedReal: Fixture[] = nextResp.fixtures.map((fRaw, idx: number) => {
+                  const r = fRaw as Record<string, unknown>;
+                  const dateVal = typeof r.date === 'string' ? r.date : new Date().toISOString();
+                  const teamsVal = (r.teams && typeof r.teams === 'object') ? (r.teams as Record<string, any>) : {}; // unavoidable minimal any because external shape unknown
+                  const homeObj = (teamsVal.home && typeof teamsVal.home === 'object') ? teamsVal.home : { name: 'Home', logo: '' };
+                  const awayObj = (teamsVal.away && typeof teamsVal.away === 'object') ? teamsVal.away : { name: 'Away', logo: '' };
+                  const leagueVal = (r.league && typeof r.league === 'object') ? (r.league as Record<string, unknown>) : {};
+                  const roundStr = typeof leagueVal.round === 'string' ? leagueVal.round : `Regular Season - ${nextResp.detectedWeek || 1}`;
+                  const goalsVal = (r.goals && typeof r.goals === 'object') ? (r.goals as Record<string, unknown>) : {};
+                  const scoreVal = (r.score && typeof r.score === 'object') ? (r.score as Record<string, unknown>) : {};
+                  return {
+                    id: typeof r.id === 'number' ? r.id : idx + 1,
+                    date: dateVal,
+                    timestamp: Math.floor(new Date(dateVal).getTime() / 1000),
+                    venue: (r.venue && typeof r.venue === 'object') ? (r.venue as any) : { id: idx + 1, name: `${homeObj.name} vs ${awayObj.name}`, city: 'N/A' },
+                    status: (r.status && typeof r.status === 'object') ? (r.status as any) : { long: 'Scheduled', short: 'NS' },
+                    league: { id: 135, name: 'Serie A', country: 'Italy', season: new Date().getFullYear(), round: roundStr },
+                    teams: {
+                      home: { id: homeObj.id || (idx + 1) * 10 + 1, name: String(homeObj.name), logo: String(homeObj.logo || '') },
+                      away: { id: awayObj.id || (idx + 1) * 10 + 2, name: String(awayObj.name), logo: String(awayObj.logo || '') },
+                    },
+                    goals: { home: typeof goalsVal.home === 'number' ? goalsVal.home : 0, away: typeof goalsVal.away === 'number' ? goalsVal.away : 0 },
+                    score: scoreVal as any,
+                  } as Fixture;
+                });
+                const sortedReal = mappedReal.sort((a,b)=> new Date(a.date).getTime() - new Date(b.date).getTime());
+                fixtureData = sortedReal.slice(0,10);
+                const firstFutureReal = sortedReal.find(fr => new Date(fr.date).getTime() > Date.now()+60_000) || sortedReal[0];
+                if (firstFutureReal?.league?.round) {
+                  const m = String(firstFutureReal.league.round).match(/(\d+)/); if (m) { const wk = parseInt(m[1],10); if (wk>=1 && wk<=38) setCurrentLiveWeek(wk); }
+                } else if (nextResp.detectedWeek) {
+                  setCurrentLiveWeek(nextResp.detectedWeek);
+                }
+                const mc: MatchCard[] = fixtureData.map(ft => ({
+                  fixtureId: ft.id,
+                  week: (() => { const m = String(ft.league?.round).match(/(\d+)/); return m ? parseInt(m[1],10) : 1; })(),
+                  kickoff: { iso: ft.date, display: ft.date },
+                  home: { name: ft.teams.home.name, logo: ft.teams.home.logo || null, winRateHome: null, last5: [] },
+                  away: { name: ft.teams.away.name, logo: ft.teams.away.logo || null, winRateAway: null, last5: [] },
+                  stadium: ft.venue?.name || 'Stadio',
+                }));
+                setFixtures(fixtureData);
+                setMatchCards(mc);
+                return; // short-circuit live fetch chain
+              }
+            } catch (e) {
+              if (DEBUG_GIOCA) { try { console.log('[gioca] next real fixtures endpoint failed or empty'); } catch {} }
+            }
             // Fetch live fixtures from the backend
             const liveResponse = await apiClient.getLiveFixtures();
             let liveRaw: unknown = liveResponse;
@@ -356,10 +480,9 @@ function GiocaPageContent() {
               liveRaw = (liveResponse as Record<string, unknown>).data as unknown;
             }
             
-            if (Array.isArray(liveRaw)) {
+            if (Array.isArray(liveRaw) && liveRaw.length > 0) {
               // Map live fixtures to the expected Fixture format
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const mappedLive = (liveRaw as any[]).map((f: any, idx) => {
+              const mappedLive = (liveRaw as RawFixtureData[]).map((f: RawFixtureData, idx) => {
                 const iso = typeof f.date === 'string' ? f.date : new Date(f.date || new Date()).toISOString();
                 return {
                   id: f.id || idx + 1,
@@ -377,13 +500,31 @@ function GiocaPageContent() {
                 } as Fixture;
               });
               
-              fixtureData = mappedLive.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 10);
-              
+              let sortedLive = mappedLive.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+              const nowLive = Date.now();
+              const futureLive = sortedLive.filter(f => new Date(f.date).getTime() > nowLive - 60_000);
+              if (futureLive.length > 0) sortedLive = futureLive;
+              fixtureData = sortedLive.slice(0, 10);
+              // Detect current week from first future (or first sorted)
+              const firstForWeek = futureLive[0] || sortedLive[0];
+              if (firstForWeek?.league?.round) {
+                const wkMatch = String(firstForWeek.league.round).match(/(\d+)/);
+                if (wkMatch) {
+                  const wk = parseInt(wkMatch[1], 10);
+                  if (wk >= 1 && wk <= 38) {
+                    setCurrentLiveWeek(wk);
+                    if (DEBUG_GIOCA) { try { console.log('[gioca] detected live week', { wk }); } catch {} }
+                  }
+                }
+              }
               if (DEBUG_GIOCA) {
                 try { console.log('[gioca] live fixtures loaded', { count: fixtureData.length, first: fixtureData[0]?.id }); } catch {}
               }
             } else {
-              // Fallback to upcoming Serie A fixtures if live fixtures format is unexpected
+              // Fallback to upcoming Serie A fixtures if live fixtures are empty or format is unexpected
+              if (DEBUG_GIOCA) {
+                try { console.log('[gioca] live fixtures empty, falling back to upcoming Serie A fixtures'); } catch {}
+              }
               const upcomingResponse = await apiClient.getUpcomingSerieAFixtures(7);
               let upcomingRaw: unknown = upcomingResponse;
               
@@ -392,8 +533,7 @@ function GiocaPageContent() {
               }
               
               if (Array.isArray(upcomingRaw)) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const mappedUpcoming = (upcomingRaw as any[]).map((f: any, idx) => {
+                const mappedUpcoming = (upcomingRaw as RawFixtureData[]).map((f: RawFixtureData, idx) => {
                   const iso = typeof f.date === 'string' ? f.date : new Date(f.date || new Date()).toISOString();
                   return {
                     id: f.id || idx + 1,
@@ -411,7 +551,121 @@ function GiocaPageContent() {
                   } as Fixture;
                 });
                 
-                fixtureData = mappedUpcoming.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 10);
+                let sortedUpcoming = mappedUpcoming.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                const nowUpcoming = Date.now();
+                let futureUpcoming = sortedUpcoming.filter(f => new Date(f.date).getTime() > nowUpcoming + 60_000); // strictly future (+1m)
+
+                // If no strictly-future fixtures, progressively widen day window (only once)
+                if (currentMode === 'live' && futureUpcoming.length === 0 && !liveExtendedFetchRef.current) {
+                  liveExtendedFetchRef.current = true;
+                  const dayWindows = [14, 30, 45, 60];
+                  for (const dw of dayWindows) {
+                    try {
+                      if (DEBUG_GIOCA) { try { console.log('[gioca] widening upcoming search window', { days: dw }); } catch {} }
+                      const moreResp = await apiClient.getUpcomingSerieAFixtures(dw);
+                      let moreRaw: unknown = moreResp;
+                      if (moreResp && typeof moreResp === 'object' && 'data' in (moreResp as Record<string, unknown>)) {
+                        moreRaw = (moreResp as Record<string, unknown>).data as unknown;
+                      }
+                      if (Array.isArray(moreRaw) && (moreRaw as RawFixtureData[]).length > 0) {
+                        const mappedMore = (moreRaw as RawFixtureData[]).map((f: RawFixtureData, idx2) => {
+                          const iso2 = typeof f.date === 'string' ? f.date : new Date(f.date || new Date()).toISOString();
+                          return {
+                            id: f.id || idx2 + 1,
+                            date: iso2,
+                            timestamp: Math.floor(new Date(iso2).getTime() / 1000),
+                            venue: { id: f.id || idx2 + 1, name: f.venue?.name || `${f.teams?.home?.name} vs ${f.teams?.away?.name}` || 'Stadium', city: f.venue?.city || 'N/A' },
+                            status: { long: f.status?.long || 'Scheduled', short: f.status?.short || 'NS' },
+                            league: { id: f.league?.id || 135, name: f.league?.name || 'Serie A', country: f.league?.country || 'Italy', season: f.league?.season || 2024, round: f.league?.round || 'Round ?' },
+                            teams: {
+                              home: { id: f.teams?.home?.id || ((idx2 + 1) * 10) + 1, name: f.teams?.home?.name || 'Home', logo: f.teams?.home?.logo || '' },
+                              away: { id: f.teams?.away?.id || ((idx2 + 1) * 10) + 2, name: f.teams?.away?.name || 'Away', logo: f.teams?.away?.logo || '' },
+                            },
+                            goals: { home: f.goals?.home, away: f.goals?.away },
+                            score: { halftime: f.score?.halftime || {}, fulltime: f.score?.fulltime || { home: f.goals?.home || 0, away: f.goals?.away || 0 } },
+                          } as Fixture;
+                        });
+                        const futureMore = mappedMore.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                          .filter(fm => new Date(fm.date).getTime() > nowUpcoming + 60_000);
+                        if (futureMore.length > 0) {
+                          futureUpcoming = futureMore;
+                          if (DEBUG_GIOCA) { try { console.log('[gioca] found future fixtures with widened window', { days: dw, count: futureMore.length }); } catch {} }
+                          break;
+                        }
+                      }
+                    } catch (e) {
+                      if (DEBUG_GIOCA) { try { console.log('[gioca] error while widening window', { days: dw }); } catch {} }
+                    }
+                  }
+                }
+
+                if (futureUpcoming.length > 0) sortedUpcoming = futureUpcoming; // prefer future
+                fixtureData = sortedUpcoming.slice(0, 10);
+
+                if (currentMode === 'live') {
+                  const weekSource = futureUpcoming[0] || sortedUpcoming[0];
+                  if (weekSource?.league?.round) {
+                    const roundMatch = String(weekSource.league.round).match(/(\d+)/);
+                    if (roundMatch) {
+                      const detectedWeek = parseInt(roundMatch[1], 10);
+                      if (detectedWeek >= 1 && detectedWeek <= 38) {
+                        setCurrentLiveWeek(detectedWeek);
+                        if (DEBUG_GIOCA) { try { console.log('[gioca] detected live week (fallback)', { detectedWeek }); } catch {} }
+                      }
+                    }
+                  }
+                  // If still week 1 and all fixtures are past or zero countdown, try one last broad fetch (365 days) to get future season fixtures
+                  const allPast = sortedUpcoming.every(f => new Date(f.date).getTime() <= nowUpcoming);
+                  if (allPast && !broadAttemptedRef.current) {
+                    broadAttemptedRef.current = true; // ensure single attempt
+                    try {
+                      if (DEBUG_GIOCA) { try { console.log('[gioca] all fetched fixtures appear past; attempting broad 365-day fetch'); } catch {} }
+                      const broadResp = await apiClient.getUpcomingSerieAFixtures(365);
+                      let broadRaw: unknown = broadResp;
+                      if (broadResp && typeof broadResp === 'object' && 'data' in (broadResp as Record<string, unknown>)) {
+                        broadRaw = (broadResp as Record<string, unknown>).data as unknown;
+                      }
+                      if (Array.isArray(broadRaw)) {
+                        const mappedBroad = (broadRaw as RawFixtureData[]).map((f: RawFixtureData, idx3) => {
+                          const isoB = typeof f.date === 'string' ? f.date : new Date(f.date || new Date()).toISOString();
+                          return {
+                            id: f.id || idx3 + 1,
+                            date: isoB,
+                            timestamp: Math.floor(new Date(isoB).getTime() / 1000),
+                            venue: { id: f.id || idx3 + 1, name: f.venue?.name || `${f.teams?.home?.name} vs ${f.teams?.away?.name}` || 'Stadium', city: f.venue?.city || 'N/A' },
+                            status: { long: f.status?.long || 'Scheduled', short: f.status?.short || 'NS' },
+                            league: { id: f.league?.id || 135, name: f.league?.name || 'Serie A', country: f.league?.country || 'Italy', season: f.league?.season || 2024, round: f.league?.round || 'Round ?' },
+                            teams: {
+                              home: { id: f.teams?.home?.id || ((idx3 + 1) * 10) + 1, name: f.teams?.home?.name || 'Home', logo: f.teams?.home?.logo || '' },
+                              away: { id: f.teams?.away?.id || ((idx3 + 1) * 10) + 2, name: f.teams?.away?.name || 'Away', logo: f.teams?.away?.logo || '' },
+                            },
+                            goals: { home: f.goals?.home, away: f.goals?.away },
+                            score: { halftime: f.score?.halftime || {}, fulltime: f.score?.fulltime || { home: f.goals?.home || 0, away: f.goals?.away || 0 } },
+                          } as Fixture;
+                        }).sort((a,b)=> new Date(a.date).getTime() - new Date(b.date).getTime());
+                        const futureBroad = mappedBroad.filter(f => new Date(f.date).getTime() > nowUpcoming + 60_000);
+                        if (futureBroad.length > 0) {
+                          fixtureData = futureBroad.slice(0,10);
+                          const wkSrc = futureBroad[0];
+                          if (wkSrc?.league?.round) {
+                            const rm = String(wkSrc.league.round).match(/(\d+)/);
+                            if (rm) {
+                              const dw = parseInt(rm[1],10);
+                              if (dw>=1 && dw<=38) {
+                                setCurrentLiveWeek(dw);
+                                if (DEBUG_GIOCA) { try { console.log('[gioca] detected live week (broad fetch)', { dw }); } catch {} }
+                              }
+                            }
+                          }
+                        } else if (DEBUG_GIOCA) {
+                          try { console.log('[gioca] broad 365-day fetch found no future fixtures'); } catch {}
+                        }
+                      }
+                    } catch (e) {
+                      if (DEBUG_GIOCA) { try { console.log('[gioca] broad 365-day fetch failed'); } catch {} }
+                    }
+                  }
+                }
                 
                 if (DEBUG_GIOCA) {
                   try { console.log('[gioca] upcoming Serie A fixtures loaded as fallback', { count: fixtureData.length, first: fixtureData[0]?.id }); } catch {}
@@ -419,6 +673,32 @@ function GiocaPageContent() {
               }
             }
             
+            // Final safeguard: if still only past fixtures, synthesize week & countdown so UI isn't stuck at 0
+            if (currentMode === 'live' && fixtureData.length > 0) {
+              const nowTs = Date.now();
+              const allPastNow = fixtureData.every(f => new Date(f.date).getTime() <= nowTs);
+              if (allPastNow) {
+                // Estimate current week from season start (24 Aug of current year)
+                const today = new Date();
+                const seasonStart = new Date(today.getFullYear(), 7, 24); // Aug=7
+                let estWeek = 1 + Math.floor((today.getTime() - seasonStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
+                if (estWeek < 1) estWeek = 1; if (estWeek > 38) estWeek = 38;
+                if (!currentLiveWeek || currentLiveWeek < estWeek) {
+                  setCurrentLiveWeek(estWeek);
+                  if (DEBUG_GIOCA) { try { console.log('[gioca] synthetic live week applied', { estWeek }); } catch {} }
+                }
+                // Compute next Saturday 14:00 local as synthetic target
+                const fallbackTarget = new Date();
+                const day = fallbackTarget.getDay(); // 0=Sun
+                let daysUntilSat = (6 - day + 7) % 7;
+                if (daysUntilSat === 0) daysUntilSat = 7; // always future
+                fallbackTarget.setDate(fallbackTarget.getDate() + daysUntilSat);
+                fallbackTarget.setHours(14,0,0,0);
+                setNextTarget(fallbackTarget);
+                if (DEBUG_GIOCA) { try { console.log('[gioca] synthetic countdown target set', { target: fallbackTarget.toISOString() }); } catch {} }
+              }
+            }
+
             // Apply fetched data to state
             setFixtures(fixtureData);
             setMatchCards(cardsArrLocal);
@@ -441,6 +721,7 @@ function GiocaPageContent() {
 
     fetchFixtures();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMode, selectedWeek, firebaseUser?.uid, userKey, router, safeReadState]);
 
   // Persist UI state whenever key pieces change and after initial hydration is done
@@ -701,23 +982,39 @@ function GiocaPageContent() {
   useEffect(() => {
     if (!DEBUG_GIOCA) return;
     const canShowVeilNow = (() => {
-      if (currentMode !== 'test') return false;
-      if (weekComplete !== true) return false;
-      if (selectedWeek === 1 && rolledWeek1Once) return false;
-      if (selectedWeek === 2) {
-        try {
-          const k = hasWeekPredsKey(2, userKey);
-          const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
-          return hasAny;
-        } catch { return false; }
+      if (currentMode === 'test') {
+        if (weekComplete !== true) return false;
+        if (selectedWeek === 1 && rolledWeek1Once) return false;
+        if (selectedWeek === 2) {
+          try {
+            const k = hasWeekPredsKey(2, userKey);
+            const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
+            return hasAny;
+          } catch { return false; }
+        }
+        return true;
+      } else if (currentMode === 'live') {
+        // Live mode: show veil if matches have started/finished and user hasn't made predictions
+        if (fixtures.length === 0) return false;
+        
+        const now = Date.now();
+        const hasStartedMatches = fixtures.some(f => new Date(f.date).getTime() <= now);
+        
+        // If matches have started but user has no predictions, show veil suggesting they catch up
+        if (hasStartedMatches) {
+          // TODO: Check if user has any live predictions - for now, assume they need to catch up
+          return true;
+        }
+        
+        return false;
       }
-      return true;
+      return false;
     })();
     if (prevVeilRef.current !== canShowVeilNow) {
       prevVeilRef.current = canShowVeilNow;
   try { console.log('[gioca] veil state', { canShowVeil: canShowVeilNow, weekComplete, selectedWeek, mode: currentMode }); } catch {}
     }
-  }, [weekComplete, selectedWeek, currentMode, rolledWeek1Once, hasWeekPredsKey, userKey]);
+  }, [weekComplete, selectedWeek, currentMode, rolledWeek1Once, hasWeekPredsKey, userKey, fixtures]);
 
   const [localComplete, setLocalComplete] = useState(false);
 
@@ -936,39 +1233,78 @@ function GiocaPageContent() {
 
   // Week number derived from fixtures or URL
   const getWeekNumber = () => {
+    // In live mode, use the detected current live week
+    if (currentMode === 'live' && currentLiveWeek !== null) {
+      return currentLiveWeek;
+    }
+    
     if (fixtures.length === 0) return selectedWeek;
-    const round = fixtures[0]?.league?.round;
+    const now = Date.now();
+    let candidate = fixtures[0];
+    if (currentMode === 'live') {
+      const future = fixtures.find(f => new Date(f.date).getTime() > now);
+      if (future) candidate = future;
+    }
+    const round = candidate?.league?.round;
     const m = String(round).match(/(\d+)/);
     return m ? parseInt(m[1], 10) : selectedWeek;
   };
 
-  // Compute the next kickoff among the 10 fixtures, normalized to this or next year
+  // Compute the next kickoff among the 10 fixtures, normalized to this or next year for test mode, real dates for live mode
   const computeNextTarget = useCallback((items: Fixture[]): Date | null => {
-    if (!items || items.length === 0) return null;
+    if (!items || items.length === 0) {
+      console.log('[DEBUG] computeNextTarget: No fixtures available');
+      return null;
+    }
     const now = Date.now();
-    const year = new Date(now).getFullYear();
-    const candidates = items.map((f) => {
-      const d = new Date(f.date);
-      // Normalize to this year to keep a forward-looking countdown in test mode
-      const c = new Date(d.getTime());
-      c.setFullYear(year);
-      if (c.getTime() <= now) {
-        c.setFullYear(year + 1);
-      }
-      return c.getTime();
-    });
-    const nextTs = candidates.reduce((min, ts) => (ts < min ? ts : min), Number.POSITIVE_INFINITY);
-    return Number.isFinite(nextTs) ? new Date(nextTs) : null;
-  }, []);
+    
+    if (currentMode === 'live') {
+      // Live mode: use actual fixture dates, find next upcoming match
+      console.log('[DEBUG] Live mode - checking fixtures:', items.map(f => ({ 
+        id: f.id, 
+        date: f.date, 
+        parsedDate: new Date(f.date).toISOString(),
+        isPast: new Date(f.date).getTime() <= now,
+        timestamp: new Date(f.date).getTime(),
+        nowTimestamp: now
+      })));
+      
+      const upcomingMatches = items
+        .map(f => new Date(f.date))
+        .filter(d => d.getTime() > now)
+        .sort((a, b) => a.getTime() - b.getTime());
+      
+      console.log('[DEBUG] Upcoming matches found:', upcomingMatches.length, upcomingMatches[0]?.toISOString());
+      return upcomingMatches.length > 0 ? upcomingMatches[0] : null;
+    } else {
+      // Test mode: normalize to this year to keep a forward-looking countdown in test mode
+      const year = new Date(now).getFullYear();
+      const candidates = items.map((f) => {
+        const d = new Date(f.date);
+        const c = new Date(d.getTime());
+        c.setFullYear(year);
+        if (c.getTime() <= now) {
+          c.setFullYear(year + 1);
+        }
+        return c.getTime();
+      });
+      const nextTs = candidates.reduce((min, ts) => (ts < min ? ts : min), Number.POSITIVE_INFINITY);
+      return Number.isFinite(nextTs) ? new Date(nextTs) : null;
+    }
+  }, [currentMode]);
 
   const [nextTarget, setNextTarget] = useState<Date | null>(null);
 
   // Recompute next target whenever fixtures change
   useEffect(() => {
     if (fixtures.length > 0) {
-      setNextTarget(computeNextTarget(fixtures));
+      const computed = computeNextTarget(fixtures);
+      // In live mode, only update if we get a valid target or don't have one yet
+      if (computed !== null || nextTarget === null) {
+        setNextTarget(computed);
+      }
     }
-  }, [fixtures, computeNextTarget]);
+  }, [fixtures, computeNextTarget, nextTarget]);
 
   // Compute earliest kickoff normalized to current year (used to decide if the week has started in Test Mode)
   const computeEarliestNormalized = useCallback((items: Fixture[]): Date | null => {
@@ -986,35 +1322,83 @@ function GiocaPageContent() {
   }, []);
 
   // Gate missed weeks in Test Mode (configurable): if earliest normalized kickoff is in the past, show modal
+  // For Live Mode: if matches have started, show modal suggesting to catch up
   useEffect(() => {
     try {
-      if (currentMode !== 'test') return;
-      if (fixtures.length === 0) return;
-      const gatingApplies = MISSED_WEEK_GATING ? (selectedWeek >= 1 && selectedWeek <= TERMINAL_WEEK) : (selectedWeek === 1);
-      if (!gatingApplies) return;
-      const earliest = computeEarliestNormalized(fixtures);
-      if (!earliest) return;
-      if (Date.now() >= earliest.getTime()) {
-        setMissedWeekModalOpen(true);
+      if (currentMode === 'test') {
+        if (fixtures.length === 0) return;
+        const gatingApplies = MISSED_WEEK_GATING ? (selectedWeek >= 1 && selectedWeek <= TERMINAL_WEEK) : (selectedWeek === 1);
+        if (!gatingApplies) return;
+        const earliest = computeEarliestNormalized(fixtures);
+        if (!earliest) return;
+        if (Date.now() >= earliest.getTime()) {
+          setMissedWeekModalOpen(true);
+        }
+      } else if (currentMode === 'live') {
+        if (fixtures.length === 0) return;
+        const now = Date.now();
+        const hasStartedMatches = fixtures.some(f => new Date(f.date).getTime() <= now);
+        if (hasStartedMatches) {
+          // In live mode, if matches have started, show modal suggesting user catch up
+          setMissedWeekModalOpen(true);
+        }
       }
     } catch {}
   }, [currentMode, fixtures, selectedWeek, computeEarliestNormalized]);
 
   // Countdown to the computed next kickoff
   const getTimeToNextMatch = useCallback(() => {
-    if (!nextTarget) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    if (!nextTarget) {
+      console.log('[DEBUG] getTimeToNextMatch: nextTarget is null');
+      return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    }
     const now = Date.now();
     const diff = nextTarget.getTime() - now;
-    if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    console.log('[DEBUG] Countdown calculation:', { nextTarget: nextTarget.toISOString(), now: new Date(now).toISOString(), diff });
+    
+    if (diff <= 0) {
+      console.log('[DEBUG] Target date has passed, showing zeros');
+      return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    }
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    console.log('[DEBUG] Countdown result:', { days, hours, minutes, seconds });
     return { days, hours, minutes, seconds };
   }, [nextTarget]);
 
-  // Date range directly from current week's fixtures
+  // Date range directly from current week's fixtures  
+  const [weekDateRange, setWeekDateRange] = useState<{start: Date, end: Date} | null>(null);
+  
+  // Fetch actual week date range from database
+  useEffect(() => {
+    if (currentMode === 'live' && currentLiveWeek !== null) {
+      apiClient.getFixturesByWeek(currentLiveWeek).then(weekFixtures => {
+        if (weekFixtures && Array.isArray(weekFixtures) && weekFixtures.length > 0) {
+          const dates = weekFixtures.map((f: any) => new Date(f.match_date).getTime());
+          const start = new Date(Math.min(...dates));
+          const end = new Date(Math.max(...dates));
+          setWeekDateRange({ start, end });
+        }
+      }).catch(error => {
+        console.log('[DEBUG] Failed to fetch week fixtures:', error);
+        // Fallback to calculation
+        const seasonStart = new Date(2025, 7, 24);
+        const weekStart = new Date(seasonStart);
+        weekStart.setDate(seasonStart.getDate() + (currentLiveWeek - 1) * 7);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 2);
+        setWeekDateRange({ start: weekStart, end: weekEnd });
+      });
+    }
+  }, [currentMode, currentLiveWeek]);
+
   const getWeekDateRange = () => {
+    if (currentMode === 'live' && weekDateRange) {
+      return weekDateRange;
+    }
+    
     if (fixtures.length === 0) return null;
     const times = fixtures.map((f) => new Date(f.date).getTime());
     const start = new Date(Math.min(...times));
@@ -1035,7 +1419,14 @@ function GiocaPageContent() {
   useEffect(() => {
     const ref = setInterval(() => {
       if (fixtures.length > 0) {
-        setNextTarget(computeNextTarget(fixtures));
+        const computed = computeNextTarget(fixtures);
+        // Same logic: only update if we get a valid target or don't have one yet
+        setNextTarget(current => {
+          if (computed !== null || current === null) {
+            return computed;
+          }
+          return current; // Keep existing synthetic target
+        });
       }
     }, 15000); // every 15s
     return () => clearInterval(ref);
@@ -1233,7 +1624,7 @@ function GiocaPageContent() {
   })();
 
   // Helper to render last-5 bubbles (pick vs result)
-  const renderLastFive = (list: Array<'1' | 'X' | '2'>, side: 'home' | 'away', form?: Last5Item[]) => {
+  const renderLastFive = (list: Array<'1' | 'X' | '2'>, form?: Last5Item[]) => {
     // Normalize to Last5Item[], pad to 5, then render right-to-left (most recent on the right)
     const base: (Last5Item | null)[] = (form && form.length)
       ? form
@@ -1567,7 +1958,7 @@ function GiocaPageContent() {
                         <p className="text-[11px] text-black mt-1">Vittorie in casa</p>
                         <p className="text-sm font-bold text-black">{nc?.home.winRateHome != null ? `${nc.home.winRateHome}%` : '—'}</p>
                         <p className="text-[11px] text-black mt-1">Ultimi 5 risultati</p>
-                        {nc ? renderLastFive(nc.home.last5, 'home', nc.home.form) : renderLastFive([], 'home')}
+                        {nc ? renderLastFive(nc.home.last5, nc.home.form) : renderLastFive([])}
                       </div>
                       {/* VS removed for cleaner layout per design */}
                       <div className="flex-1 text-center opacity-95">
@@ -1582,7 +1973,7 @@ function GiocaPageContent() {
                         <p className="text-[11px] text-black mt-1">Vittorie in trasferta</p>
                         <p className="text-sm font-bold text-black">{nc?.away.winRateAway != null ? `${nc.away.winRateAway}%` : '—'}</p>
                         <p className="text-[11px] text-black mt-1">Ultimi 5 risultati</p>
-                        {nc ? renderLastFive(nc.away.last5, 'away', nc.away.form) : renderLastFive([], 'away')}
+                        {nc ? renderLastFive(nc.away.last5, nc.away.form) : renderLastFive([])}
                       </div>
                     </div>
                   </>
@@ -1655,7 +2046,7 @@ function GiocaPageContent() {
                 <p className="text-xs text-black mt-1">Vittorie in casa</p>
                 <p className="font-bold text-black">{currentCard?.home.winRateHome != null ? `${currentCard.home.winRateHome}%` : '—'}</p>
                 <p className="text-xs text-black mt-1">Ultimi 5 risultati</p>
-                {currentCard ? renderLastFive(currentCard.home.last5, 'home', currentCard.home.form) : renderLastFive([], 'home')}
+                {currentCard ? renderLastFive(currentCard.home.last5, currentCard.home.form) : renderLastFive([])}
               </div>
 
               {/* VS removed for cleaner layout per design */}
@@ -1684,7 +2075,7 @@ function GiocaPageContent() {
                 <p className="text-xs text-black mt-1">Vittorie in trasferta</p>
                 <p className="font-bold text-black">{currentCard?.away.winRateAway != null ? `${currentCard.away.winRateAway}%` : '—'}</p>
                 <p className="text-xs text-black mt-1">Ultimi 5 risultati</p>
-                {currentCard ? renderLastFive(currentCard.away.last5, 'away', currentCard.away.form) : renderLastFive([], 'away')}
+                {currentCard ? renderLastFive(currentCard.away.last5, currentCard.away.form) : renderLastFive([])}
               </div>
             </div>
           </div>
@@ -1794,7 +2185,7 @@ function GiocaPageContent() {
       )}
 
       {/* Modal: Missed week (first fixture already started) */}
-      {currentMode === 'test' && missedWeekModalOpen && (
+      {missedWeekModalOpen && (
         <div className="fixed inset-0 z-50 pointer-events-none">
           <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
           <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-1/2 -translate-x-1/2 w-[88%] max-w-md pointer-events-auto">
@@ -1807,32 +2198,64 @@ function GiocaPageContent() {
             >
               ×
             </button>
-            <h3 className="text-xl font-semibold text-black mb-2">Giornata {selectedWeek} già iniziata</h3>
-            <p className="text-sm text-gray-700 mb-5">La prima partita è già iniziata.</p>
-            <div className="flex gap-3 justify-center flex-wrap">
-              <button
-                onClick={() => {
-                  setMissedWeekModalOpen(false);
-                  router.push(`/risultati?mode=test&week=${selectedWeek}&missed=1`);
-                }}
-                className="px-5 py-2 rounded-md border border-gray-300 text-black font-medium hover:bg-gray-50"
-              >
-                Mostra risultati per Giornata {selectedWeek}
-              </button>
-              {selectedWeek < TERMINAL_WEEK && (
-                <button
-                  onClick={() => {
-                    setMissedWeekModalOpen(false);
-                    setCurrentFixtureIndex(0);
-                    try { sessionStorage.setItem('swipick:gioca:autoAdvanceMsg', 'Stiamo iniziando dal giorno 2,\nvisualizza i risultati della settimana 1 nella pagina dei risultati'); } catch {}
-                    router.push(`/gioca?mode=test&week=${selectedWeek + 1}`);
-                  }}
-                  className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
-                >
-                  Continua alla Giornata {selectedWeek + 1}
-                </button>
-              )}
-            </div>
+            {currentMode === 'test' ? (
+              <>
+                <h3 className="text-xl font-semibold text-black mb-2">Giornata {selectedWeek} già iniziata</h3>
+                <p className="text-sm text-gray-700 mb-5">La prima partita è già iniziata.</p>
+                <div className="flex gap-3 justify-center flex-wrap">
+                  <button
+                    onClick={() => {
+                      setMissedWeekModalOpen(false);
+                      router.push(`/risultati?mode=test&week=${selectedWeek}&missed=1`);
+                    }}
+                    className="px-5 py-2 rounded-md border border-gray-300 text-black font-medium hover:bg-gray-50"
+                  >
+                    Mostra risultati per Giornata {selectedWeek}
+                  </button>
+                  {selectedWeek < TERMINAL_WEEK && (
+                    <button
+                      onClick={() => {
+                        setMissedWeekModalOpen(false);
+                        setCurrentFixtureIndex(0);
+                        try { sessionStorage.setItem('swipick:gioca:autoAdvanceMsg', 'Stiamo iniziando dal giorno 2,\nvisualizza i risultati della settimana 1 nella pagina dei risultati'); } catch {}
+                        router.push(`/gioca?mode=test&week=${selectedWeek + 1}`);
+                      }}
+                      className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
+                    >
+                      Continua alla Giornata {selectedWeek + 1}
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-xl font-semibold text-black mb-2">Alcune partite sono già iniziate</h3>
+                <p className="text-sm text-gray-700 mb-5">Puoi ancora fare previsioni per le prossime partite.</p>
+                <div className="flex gap-3 justify-center flex-wrap">
+                  <button
+                    onClick={() => {
+                      setMissedWeekModalOpen(false);
+                      // In live mode, navigate to the current live week
+                      if (mode === 'live' && currentLiveWeek && currentLiveWeek !== selectedWeek) {
+                        router.push(`/gioca?mode=live&week=${currentLiveWeek}`);
+                      }
+                    }}
+                    className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
+                  >
+                    Continua a giocare
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMissedWeekModalOpen(false);
+                      router.push('/risultati?mode=live');
+                    }}
+                    className="px-5 py-2 rounded-md border border-gray-300 text-black font-medium hover:bg-gray-50"
+                  >
+                    Mostra risultati
+                  </button>
+                </div>
+              </>
+            )}
             </div>
           </div>
           </div>
