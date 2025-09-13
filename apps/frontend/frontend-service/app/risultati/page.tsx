@@ -310,8 +310,8 @@ function RisultatiPageContent() {
 
   // If no explicit tab was set via query, align the visible tab to the current mode
   useEffect(() => {
-    if (mode === 'live' && activeTab !== 'overview') {
-      setActiveTab('overview');
+    if (mode === 'live' && activeTab !== 'week') {
+      setActiveTab('week');
     } else if (mode === 'test' && activeTab !== 'week') {
       setActiveTab('week');
     }
@@ -428,16 +428,16 @@ function RisultatiPageContent() {
   // ---------- Week Tab Logic (Test Mode) ----------
   // Whether reveals are allowed for the current selection based on weekly stats (Test Mode: weeks > 1 require 10 predictions)
   const allowRevealThisWeek = useMemo(() => {
-    if (mode !== 'test') return true;
-    if (selectedWeek <= 1) return true;
+    if (mode === 'live') return true; // Live mode: always allow reveals
+    if (mode === 'test' && selectedWeek <= 1) return true;
     const total = Number(weeklyStats?.totalPredictions ?? 0);
     return total >= 10; // if unknown/missing stats, treat as not allowed until click-time check
   }, [mode, selectedWeek, weeklyStats]);
 
   // LocalStorage key for reveal state
   const revealKey = useMemo(() => {
-    return userId ? `swipick:risultati:reveal:test:week:${selectedWeek}:user:${userId}` : null;
-  }, [userId, selectedWeek]);
+    return userId ? `swipick:risultati:reveal:${mode}:week:${selectedWeek}:user:${userId}` : null;
+  }, [userId, selectedWeek, mode]);
 
   // If redirected due to a missed first match (missed=1) in Test Mode (week gating),
   // auto-reveal all fixtures, disable buttons, and persist the reveal state.
@@ -446,7 +446,7 @@ function RisultatiPageContent() {
       if (!searchParams) return;
       const missed = searchParams.get('missed') === '1';
       if (!missed) return;
-      if (mode !== 'test') return;
+      if (mode !== 'test') return; // This auto-reveal logic is test-mode specific
       const gatingApplies = MISSED_WEEK_GATING ? (selectedWeek >= 1 && selectedWeek <= TERMINAL_WEEK) : (selectedWeek === 1);
       if (!gatingApplies) return;
       if (weekCards.length === 0) return;
@@ -528,22 +528,21 @@ function RisultatiPageContent() {
 
   // Legacy auto-rollover flag removed
 
-  // Fetch week match-cards when in Test Mode
+  // Fetch week match-cards for both Test and Live Mode
   useEffect(() => {
     const run = async () => {
-      if (mode !== 'test') {
-        setWeekCards([]);
-        setWeeklyStats(null);
-        setNextWeekRange(null);
-        return;
-      }
       try {
-  const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, userId ?? undefined) as unknown as { data?: MatchCard[] } | MatchCard[];
+        let mcResponse;
+        if (mode === 'test') {
+          mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, userId ?? undefined) as unknown as { data?: MatchCard[] } | MatchCard[];
+        } else {
+          mcResponse = await apiClient.getLiveMatchCardsByWeek(selectedWeek, userId ?? undefined) as unknown as { data?: MatchCard[] } | MatchCard[];
+        }
         const data = Array.isArray(mcResponse) ? mcResponse : mcResponse?.data ?? [];
         const sorted = (data as MatchCard[]).slice().sort((a, b) => new Date(a.kickoff.iso).getTime() - new Date(b.kickoff.iso).getTime());
         setWeekCards(sorted.slice(0, 10));
         if (DEBUG_RISULTATI) {
-          try { console.log('[risultati] weekCards loaded', { week: selectedWeek, count: sorted.length, first: sorted[0]?.fixtureId, userId }); } catch {}
+          try { console.log('[risultati] weekCards loaded', { mode, week: selectedWeek, count: sorted.length, first: sorted[0]?.fixtureId, userId }); } catch {}
         }
       } catch (e) {
         console.warn('Failed to load match-cards for week', selectedWeek, e);
@@ -556,11 +555,14 @@ function RisultatiPageContent() {
   // Preload next week's range for the header (placeholder only)
   useEffect(() => {
     const run = async () => {
-      if (mode !== 'test') { setNextWeekRange(null); return; }
       const nxt = selectedWeek + 1;
       try {
-
-        const resp = await apiClient.getTestMatchCardsByWeek(nxt, userId ?? undefined) as unknown as { data?: MatchCard[] } | MatchCard[];
+        let resp;
+        if (mode === 'test') {
+          resp = await apiClient.getTestMatchCardsByWeek(nxt, userId ?? undefined) as unknown as { data?: MatchCard[] } | MatchCard[];
+        } else {
+          resp = await apiClient.getLiveMatchCardsByWeek(nxt, userId ?? undefined) as unknown as { data?: MatchCard[] } | MatchCard[];
+        }
         const arr = Array.isArray(resp) ? resp : resp?.data ?? [];
         if (Array.isArray(arr) && arr.length) {
           const times = (arr as MatchCard[]).map((m) => new Date(m.kickoff.iso).getTime());
@@ -579,9 +581,14 @@ function RisultatiPageContent() {
   // Fetch raw fixtures with scores for the selected week (fallback for result display)
   useEffect(() => {
     const run = async () => {
-      if (mode !== 'test') { setFixtureScores(new Map()); return; }
       try {
-  const resp = await apiClient.getTestFixturesByWeek(selectedWeek) as unknown as { data?: Array<FixtureRow> } | Array<FixtureRow>;
+        let resp;
+        if (mode === 'test') {
+          resp = await apiClient.getTestFixturesByWeek(selectedWeek) as unknown as { data?: Array<FixtureRow> } | Array<FixtureRow>;
+        } else {
+          // For live mode, we can try getLiveFixtures or use match cards data
+          resp = await apiClient.getLiveFixtures() as unknown as { data?: Array<FixtureRow> } | Array<FixtureRow>;
+        }
         const arr: FixtureRow[] = Array.isArray(resp) ? resp : (resp?.data ?? []);
         const map = new Map<number, { homeScore: number | null; awayScore: number | null; actual?: Choice }>();
 
@@ -635,29 +642,35 @@ function RisultatiPageContent() {
 
   // Helper: load weekly stats when needed
   const loadWeeklyStats = useCallback(async (week: number) => {
-    if (mode !== 'test' || !userId) { setWeeklyStats(null); return; }
+    if (!userId) { setWeeklyStats(null); return; }
     try {
-  const resp = await apiClient.getTestWeeklyStats(userId, week);
+      let resp;
+      if (mode === 'test') {
+        resp = await apiClient.getTestWeeklyStats(userId, week);
+      } else {
+        // For live mode, use weekly predictions endpoint 
+        resp = await apiClient.getUserWeeklyPredictions(userId, 'live');
+      }
 
       const stats: TestWeeklyStatsResp | null = (resp && typeof resp === 'object' && 'data' in (resp as Record<string, unknown>))
         ? (resp as { data: TestWeeklyStatsResp }).data
         : (resp as unknown as TestWeeklyStatsResp | null);
       setWeeklyStats(stats ?? null);
       if (DEBUG_RISULTATI) {
-        try { console.log('[risultati] weeklyStats loaded', { week, total: Number(stats?.totalPredictions ?? 0) }); } catch {}
+        try { console.log('[risultati] weeklyStats loaded', { mode, week, total: Number(stats?.totalPredictions ?? 0) }); } catch {}
       }
     } catch {
       // Quietly ignore (e.g., 404 when no predictions yet)
       setWeeklyStats(null);
       if (DEBUG_RISULTATI) {
-        try { console.log('[risultati] weeklyStats not available', { week }); } catch {}
+        try { console.log('[risultati] weeklyStats not available', { mode, week }); } catch {}
       }
     }
   }, [mode, userId]);
 
-  // Fetch weekly stats for selected week (Test Mode)
+  // Fetch weekly stats for selected week (both Test and Live Mode)
   useEffect(() => {
-    if (mode !== 'test' || !userId) { setWeeklyStats(null); return; }
+    if (!userId) { setWeeklyStats(null); return; }
     loadWeeklyStats(selectedWeek);
   }, [mode, selectedWeek, userId, loadWeeklyStats]);
 
@@ -691,7 +704,7 @@ function RisultatiPageContent() {
 
   // Compute meter
   const meter = useMemo(() => {
-    if (mode !== 'test' || weekCards.length === 0) return { revealed: 0, correct: 0, percent: 0 };
+    if (weekCards.length === 0) return { revealed: 0, correct: 0, percent: 0 };
     let revealedCount = 0;
     let correctCount = 0;
     for (const m of weekCards) {
@@ -971,7 +984,7 @@ function RisultatiPageContent() {
           </div>
 
           {/* Success Meter area (sticky along with header) */}
-          {mode === 'test' && (
+          {(mode === 'test' || mode === 'live') && (
             <div className="px-4 pb-2 pointer-events-auto">
               <CircularMeter percent={meter.percent} onShare={handleShare} shareEnabled={shareSupported} />
             </div>
@@ -1004,8 +1017,8 @@ function RisultatiPageContent() {
           >
             {/* Meter moved to sticky header above */}
 
-            {/* Week Tab (Test Mode) */}
-            {(mode === 'test') && (
+            {/* Week Tab (Test and Live Mode) */}
+            {(mode === 'test' || mode === 'live') && (
               <div className="px-4 space-y-6">
             {/* Small helper row under meter */}
             <div className="flex items-center justify-between text-black text-sm px-1">
