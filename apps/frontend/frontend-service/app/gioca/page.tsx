@@ -138,7 +138,7 @@ interface RawFixtureData {
 // Match-cards API types
 interface MatchCardKickoff { iso: string; display: string; }
 interface Last5Item {
-  fixtureId: number;
+  fixtureId: number | string;
   code: '1'|'X'|'2';
   // Optional: user prediction metadata (when applicable)
   predicted: '1'|'X'|'2'|null;
@@ -146,8 +146,8 @@ interface Last5Item {
   // Optional: backend-provided, team-perspective outcome for this historical item
   // 'W' = team won, 'D' = draw, 'L' = team lost
   outcome?: 'W'|'D'|'L' | null;
-  // Optional: whether this team was the home side in that specific historical match
-  teamWasHome?: boolean | null;
+  // Whether this team was the home side in that specific historical match
+  wasHome: boolean;
 }
 interface MatchCardTeamHome { name: string; logo: string | null; winRateHome: number | null; last5: Array<'1' | 'X' | '2'>; standingsPosition?: number|null; form?: Last5Item[]; }
 interface MatchCardTeamAway { name: string; logo: string | null; winRateAway: number | null; last5: Array<'1' | 'X' | '2'>; standingsPosition?: number|null; form?: Last5Item[]; }
@@ -1697,7 +1697,7 @@ function GiocaPageContent() {
     // Normalize to Last5Item[], pad to 5, then render right-to-left (most recent on the right)
     const base: (Last5Item | null)[] = (form && form.length)
       ? form
-      : list.map((code) => ({ fixtureId: 0, code, predicted: null, correct: null }));
+      : list.map((code) => ({ fixtureId: 0, code, predicted: null, correct: null, wasHome: false }));
     const filled: Array<Last5Item | null> = base.slice(0, 5);
     while (filled.length < 5) filled.push(null);
 
@@ -1719,18 +1719,41 @@ function GiocaPageContent() {
           }
           let color = 'bg-gray-100 text-gray-700';
           let titleStr: string = it.code;
-          const pick = it.predicted;
-          if (pick === '1' || pick === 'X' || pick === '2') {
-            if (pick === it.code) {
-              color = 'bg-[#ccffb3] text-[#2a8000]';
-              titleStr = `${it.code} — Corretto`;
+          
+          // Color based on team perspective (win/loss/draw)
+          if (it.code === 'X') {
+            // Draw - gray for both teams
+            color = 'bg-gray-100 text-gray-700';
+            titleStr = 'X — Pareggio';
+          } else if (it.wasHome !== undefined) {
+            // Win/Loss based on whether team was home/away in this specific match
+            // it.code: '1' = home won, '2' = away won
+            // it.wasHome: true = this team was home, false = this team was away
+            const isGoodResult = (it.wasHome && it.code === '1') || (!it.wasHome && it.code === '2');
+            if (isGoodResult) {
+              // Win - green with darker green text
+              color = 'bg-green-100 text-green-800 font-bold';
+              titleStr = `${it.code} — Vittoria`;
             } else {
-              color = 'bg-[#ffb3b3] text-[#cc0000]';
-              titleStr = `${it.code} — Errato`;
+              // Loss - red with darker red text  
+              color = 'bg-red-100 text-red-800 font-bold';
+              titleStr = `${it.code} — Sconfitta`;
             }
           } else {
-            color = 'bg-gray-100 text-gray-700';
-            titleStr = it.code;
+            // Fallback to prediction-based coloring if team perspective unknown
+            const pick = it.predicted;
+            if (pick === '1' || pick === 'X' || pick === '2') {
+              if (pick === it.code) {
+                color = 'bg-[#ccffb3] text-[#2a8000]';
+                titleStr = `${it.code} — Corretto`;
+              } else {
+                color = 'bg-[#ffb3b3] text-[#cc0000]';
+                titleStr = `${it.code} — Errato`;
+              }
+            } else {
+              color = 'bg-gray-100 text-gray-700';
+              titleStr = it.code;
+            }
           }
           return (
             <div

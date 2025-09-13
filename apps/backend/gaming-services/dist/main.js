@@ -119272,10 +119272,12 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
         const teams = new Set(fixtures.flatMap(f => [f.home_team, f.away_team]));
         const last5ByTeam = new Map();
         const last5IdsByTeam = new Map();
+        const wasHomeFlagsByTeam = new Map();
         for (const team of teams) {
-            const { results, fixtureIds } = isWeekOne ? { results: [], fixtureIds: [] } : this.computeLast5WithIds(priorFixtures, team);
+            const { results, fixtureIds, wasHomeFlags } = isWeekOne ? { results: [], fixtureIds: [], wasHomeFlags: [] } : this.computeLast5WithIds(priorFixtures, team);
             last5ByTeam.set(team, results);
             last5IdsByTeam.set(team, fixtureIds);
+            wasHomeFlagsByTeam.set(team, wasHomeFlags);
         }
         let userPredictions = new Map();
         if (userId && !isWeekOne) {
@@ -119308,10 +119310,12 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
             const awayLast5 = last5ByTeam.get(fixture.away_team) || [];
             const homeFixtureIds = last5IdsByTeam.get(fixture.home_team) || [];
             const awayFixtureIds = last5IdsByTeam.get(fixture.away_team) || [];
+            const homeWasHomeFlags = wasHomeFlagsByTeam.get(fixture.home_team) || [];
+            const awayWasHomeFlags = wasHomeFlagsByTeam.get(fixture.away_team) || [];
             const homeWinRate = isWeekOne ? null : this.computeWinRate(priorFixtures, fixture.home_team, 'home');
             const awayWinRate = isWeekOne ? null : this.computeWinRate(priorFixtures, fixture.away_team, 'away');
-            const homeForm = this.createFormWithOverlay(homeLast5, homeFixtureIds, userPredictions);
-            const awayForm = this.createFormWithOverlay(awayLast5, awayFixtureIds, userPredictions);
+            const homeForm = this.createFormWithOverlay(homeLast5, homeFixtureIds, userPredictions, homeWasHomeFlags);
+            const awayForm = this.createFormWithOverlay(awayLast5, awayFixtureIds, userPredictions, awayWasHomeFlags);
             const homeTeam = {
                 name: fixture.home_team,
                 logo: this.getTeamLogo(fixture.home_team),
@@ -119461,20 +119465,23 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
             }
         });
         const fixtureIds = teamFixtures.map(f => f.id);
-        return { results, fixtureIds };
+        const wasHomeFlags = teamFixtures.map(f => f.home_team === teamName);
+        return { results, fixtureIds, wasHomeFlags };
     }
-    createFormWithOverlay(results, fixtureIds, userPredictions) {
+    createFormWithOverlay(results, fixtureIds, userPredictions, wasHomeFlags) {
         if (!results.length || !fixtureIds.length)
             return [];
         return results.map((code, index) => {
             const fixtureId = fixtureIds[index];
             const predicted = userPredictions.get(fixtureIds[index]) || null;
             const correct = predicted ? (predicted === code) : null;
+            const wasHome = wasHomeFlags[index] || false;
             return {
                 fixtureId,
                 code,
                 predicted,
                 correct,
+                wasHome,
             };
         });
     }
