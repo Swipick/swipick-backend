@@ -119442,7 +119442,7 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
             'Venezia': '/teams/VeneziaFcLogo.png',
             'Monza': '/teams/AcMonzaLogo.png',
             'Empoli': '/teams/EmpoliFcLogo.png',
-            'Verona': '/teams/HellasveronaFcLogo.png',
+            'Verona': '/teams/HellasVeronaFcLogo.png',
             'Pisa': '/teams/PisaLogo.png',
         };
         return logoMap[teamName] || null;
