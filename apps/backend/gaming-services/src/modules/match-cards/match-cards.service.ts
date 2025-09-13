@@ -342,7 +342,7 @@ export class MatchCardsService {
       month: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
-      timeZone: 'Europe/Rome',
+      // No timeZone conversion - database already stores Italian time
     };
     
     const formatted = date.toLocaleString('it-IT', options);
