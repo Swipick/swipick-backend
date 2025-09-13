@@ -217,11 +217,11 @@ export class MatchCardsService {
 
     return teamFixtures.map(fixture => {
       if (fixture.home_score! > fixture.away_score!) {
-        return fixture.home_team === teamName ? '1' : '2';
+        return '1'; // Home team won
       } else if (fixture.home_score! < fixture.away_score!) {
-        return fixture.home_team === teamName ? '2' : '1';
+        return '2'; // Away team won
       } else {
-        return 'X';
+        return 'X'; // Draw
       }
     });
   }
@@ -295,11 +295,11 @@ export class MatchCardsService {
 
     const results = teamFixtures.map(fixture => {
       if (fixture.home_score! > fixture.away_score!) {
-        return fixture.home_team === teamName ? '1' : '2';
+        return '1'; // Home team won
       } else if (fixture.home_score! < fixture.away_score!) {
-        return fixture.home_team === teamName ? '2' : '1';
+        return '2'; // Away team won
       } else {
-        return 'X';
+        return 'X'; // Draw
       }
     });
 
