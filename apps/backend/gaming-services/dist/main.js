@@ -119485,7 +119485,6 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
             month: '2-digit',
             hour: '2-digit',
             minute: '2-digit',
-            timeZone: 'Europe/Rome',
         };
         const formatted = date.toLocaleString('it-IT', options);
         return formatted.replace(',', ' –');
