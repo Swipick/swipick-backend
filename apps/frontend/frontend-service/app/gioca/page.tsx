@@ -195,6 +195,8 @@ function GiocaPageContent() {
   const [predictions, setPredictions] = useState<Record<number, '1' | 'X' | '2'>>({});
   // Modal gating when Week 1 has already started (Test Mode)
   const [missedWeekModalOpen, setMissedWeekModalOpen] = useState(false);
+  // Testing modal with reset functionality
+  const [testingModalOpen, setTestingModalOpen] = useState(false);
   const [matchCards, setMatchCards] = useState<MatchCard[]>([]);
   const controls = useAnimationControls();
   // Framer Motion values for angled swipe path
@@ -1013,6 +1015,11 @@ function GiocaPageContent() {
   if (DEBUG_GIOCA) { try { console.log('[gioca] reset weekComplete due to week/mode change', { week: selectedWeek, mode: currentMode }); } catch {} }
   }, [selectedWeek, currentMode]);
 
+  // Reset motion controls when current fixture changes to prevent animation artifacts
+  useEffect(() => {
+    controls.set({ x: 0, y: 0 });
+  }, [currentFixtureIndex, controls]);
+
   // Compare fixtures and matchCards alignment to detect overlap/mismatch
   useEffect(() => {
     if (!DEBUG_GIOCA) return;
@@ -1203,22 +1210,7 @@ function GiocaPageContent() {
     const dominant: 'horizontal' | 'vertical' = ax >= ay ? 'horizontal' : 'vertical';
     const dir = dominant === 'horizontal' ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
 
-    // Live mode: allow swipe gesture but don't commit; nudge and snap back with toast
-    if (currentMode === 'live') {
-      const NUDGE = 80;
-      const targetLive = {
-        x: dir === 'left' ? -NUDGE : dir === 'right' ? NUDGE : 0,
-        y: dir === 'up' ? -NUDGE : dir === 'down' ? NUDGE : 0,
-        transition: { type: 'tween', ease: 'easeOut', duration: 0.18 },
-      } as const;
-      try {
-        await controls.start(targetLive);
-      } finally {
-        await controls.start({ x: 0, y: 0, transition: { type: 'spring', stiffness: 420, damping: 30 } });
-        setToast((t) => t ?? 'Le partite live non sono ancora iniziate. Prova a giocare in Modalità Test.');
-      }
-      return;
-    }
+    // Live mode now works the same as test mode - no restrictions
 
     // Animate out in chosen direction, then commit
     const distance = 900; // off-screen
@@ -1263,8 +1255,7 @@ function GiocaPageContent() {
       } else {
         await handlePrediction(currentFixture.id, '2');
       }
-      // Reset for next card
-      controls.set({ x: 0 });
+      // No need to reset controls - next card will have its own position
     }
   };
 
@@ -1563,19 +1554,7 @@ function GiocaPageContent() {
   const animateAndCommit = async (dir: 'left' | 'right' | 'up' | 'down') => {
     if (!currentFixture) return;
     if (currentMode === 'test' && weekComplete) return;
-    // Live mode: show playful nudge and toast instead of committing
-    if (currentMode === 'live') {
-      const NUDGE = 80;
-      const targetLive = {
-        x: dir === 'left' ? -NUDGE : dir === 'right' ? NUDGE : 0,
-        y: dir === 'up' ? -NUDGE : dir === 'down' ? NUDGE : 0,
-        transition: { type: 'tween', ease: 'easeOut', duration: 0.18 },
-      } as const;
-      await controls.start(targetLive);
-      await controls.start({ x: 0, y: 0, transition: { type: 'spring', stiffness: 420, damping: 30 } });
-      setToast((t) => t ?? 'Le partite live non sono ancora iniziate. Prova a giocare in Modalità Test.');
-      return;
-    }
+    // Live mode now works the same as test mode - no restrictions
     if (isSkipAnimating) return;
     const distance = 900;
     if (dir === 'down') {
@@ -1609,7 +1588,7 @@ function GiocaPageContent() {
     } else if (dir === 'right') {
       await handlePrediction(currentFixture.id, '2');
     }
-    controls.set({ x: 0, y: 0 });
+    // No need to reset controls - next card will have its own position
   };
 
   const buttonStyle: React.CSSProperties = {
@@ -1709,7 +1688,7 @@ function GiocaPageContent() {
             return (
               <div
                 key={idx}
-                className="w-5 h-5 rounded-md text-[10px] leading-none flex items-center justify-center bg-gray-100 text-gray-700"
+                className="w-5 h-5 rounded-md text-[10px] leading-none flex items-center justify-center bg-gray-100 text-gray-700 border border-gray-700"
                 aria-label="no data"
                 title="—"
               >
@@ -1717,13 +1696,13 @@ function GiocaPageContent() {
               </div>
             );
           }
-          let color = 'bg-gray-100 text-gray-700';
+          let color = 'bg-gray-100 text-gray-700 border border-gray-700';
           let titleStr: string = it.code;
           
           // Color based on team perspective (win/loss/draw)
           if (it.code === 'X') {
             // Draw - gray for both teams
-            color = 'bg-gray-100 text-gray-700';
+            color = 'bg-gray-100 text-gray-700 border border-gray-700';
             titleStr = 'X — Pareggio';
           } else if (it.wasHome !== undefined) {
             // Win/Loss based on whether team was home/away in this specific match
@@ -1731,12 +1710,12 @@ function GiocaPageContent() {
             // it.wasHome: true = this team was home, false = this team was away
             const isGoodResult = (it.wasHome && it.code === '1') || (!it.wasHome && it.code === '2');
             if (isGoodResult) {
-              // Win - green with darker green text
-              color = 'bg-green-100 text-green-800 font-bold';
+              // Win - green with darker green text and border
+              color = 'bg-green-100 text-green-800 font-bold border border-green-800';
               titleStr = `${it.code} — Vittoria`;
             } else {
-              // Loss - red with darker red text  
-              color = 'bg-red-100 text-red-800 font-bold';
+              // Loss - red with darker red text and border
+              color = 'bg-red-100 text-red-800 font-bold border border-red-800';
               titleStr = `${it.code} — Sconfitta`;
             }
           } else {
@@ -1751,7 +1730,7 @@ function GiocaPageContent() {
                 titleStr = `${it.code} — Errato`;
               }
             } else {
-              color = 'bg-gray-100 text-gray-700';
+              color = 'bg-gray-100 text-gray-700 border border-gray-700';
               titleStr = it.code;
             }
           }
@@ -1800,13 +1779,13 @@ function GiocaPageContent() {
               >
                 <span className="text-[11px] font-semibold truncate">MODALITÀ TEST - Dati storici Serie A 2023-24</span>
                 <button
-                  onClick={handleTestReset}
+                  onClick={() => setTestingModalOpen(true)}
                   disabled={!userKey}
                   className={`text-xs font-semibold rounded-full px-2 py-0.5 ${userKey ? '' : 'opacity-60 cursor-not-allowed'}`}
                   style={{ backgroundColor: '#780606', color: '#ffffff' }}
-                  title={userKey ? 'Reimposta Test Mode' : 'Attendere il caricamento utente'}
+                  title={userKey ? 'Apri pannello testing' : 'Attendere il caricamento utente'}
                 >
-                  Reset
+                  Testing
                 </button>
               </div>
             </div>
@@ -1959,13 +1938,13 @@ function GiocaPageContent() {
             >
               <span className="text-[11px] font-semibold truncate">MODALITÀ TEST - Dati storici Serie A 2023-24</span>
               <button
-                onClick={handleTestReset}
+                onClick={() => setTestingModalOpen(true)}
                 disabled={!userKey}
                 className={`text-xs font-semibold rounded-full px-2 py-0.5 ${userKey ? '' : 'opacity-60 cursor-not-allowed'}`}
                 style={{ backgroundColor: '#780606', color: '#ffffff' }}
-                title={userKey ? 'Reimposta Test Mode' : 'Attendere il caricamento utente'}
+                title={userKey ? 'Apri pannello testing' : 'Attendere il caricamento utente'}
               >
-                Reset
+                Testing
               </button>
             </div>
           </div>
@@ -2050,7 +2029,7 @@ function GiocaPageContent() {
                         <p className="text-[11px] text-black">Posizione in classifica</p>
                         <p className="text-sm font-bold text-black">{nc?.home.standingsPosition ?? '—'}</p>
                         <p className="text-[11px] text-black mt-1">Vittorie in casa</p>
-                        <p className="text-sm font-bold text-black">{nc?.home.winRateHome != null ? `${nc.home.winRateHome}%` : '—'}</p>
+                        <p className="text-sm font-bold text-black">{`${nc?.home.winRateHome ?? 0}%`}</p>
                         <p className="text-[11px] text-black mt-1">Ultimi 5 risultati</p>
                         {nc ? renderLastFive(nc.home.last5, nc.home.form) : renderLastFive([])}
                       </div>
@@ -2065,7 +2044,7 @@ function GiocaPageContent() {
                         <p className="text-[11px] text-black">Posizione in classifica</p>
                         <p className="text-sm font-bold text-black">{nc?.away.standingsPosition ?? '—'}</p>
                         <p className="text-[11px] text-black mt-1">Vittorie in trasferta</p>
-                        <p className="text-sm font-bold text-black">{nc?.away.winRateAway != null ? `${nc.away.winRateAway}%` : '—'}</p>
+                        <p className="text-sm font-bold text-black">{`${nc?.away.winRateAway ?? 0}%`}</p>
                         <p className="text-[11px] text-black mt-1">Ultimi 5 risultati</p>
                         {nc ? renderLastFive(nc.away.last5, nc.away.form) : renderLastFive([])}
                       </div>
@@ -2078,7 +2057,7 @@ function GiocaPageContent() {
         )}
 
         {/* Top (current) card - draggable (AnimatePresence enforces exit before enter) */}
-        <AnimatePresence mode="wait" initial={false}>
+        <AnimatePresence mode="popLayout" initial={false}>
         <motion.div
           key={currentFixture?.id}
           drag={currentMode === 'test' ? Boolean(userKey) && !weekComplete && !isSkipAnimating : true}
@@ -2092,7 +2071,6 @@ function GiocaPageContent() {
           onDragEnd={onDragEndCommit}
           animate={controls}
           initial={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
           whileDrag={{ scale: 1.01, boxShadow: '0 12px 28px rgba(0,0,0,0.12)', transition: { type: 'spring', stiffness: 360, damping: 28 } }}
           style={{
             x: cardX,
@@ -2138,7 +2116,7 @@ function GiocaPageContent() {
                 <p className="text-xs text-black">Posizione in classifica</p>
                 <p className="font-bold text-black">{currentCard?.home.standingsPosition ?? '—'}</p>
                 <p className="text-xs text-black mt-1">Vittorie in casa</p>
-                <p className="font-bold text-black">{currentCard?.home.winRateHome != null ? `${currentCard.home.winRateHome}%` : '—'}</p>
+                <p className="font-bold text-black">{`${currentCard?.home.winRateHome ?? 0}%`}</p>
                 <p className="text-xs text-black mt-1">Ultimi 5 risultati</p>
                 {currentCard ? renderLastFive(currentCard.home.last5, currentCard.home.form) : renderLastFive([])}
               </div>
@@ -2167,7 +2145,7 @@ function GiocaPageContent() {
                 <p className="text-xs text-black">Posizione in classifica</p>
                 <p className="font-bold text-black">{currentCard?.away.standingsPosition ?? '—'}</p>
                 <p className="text-xs text-black mt-1">Vittorie in trasferta</p>
-                <p className="font-bold text-black">{currentCard?.away.winRateAway != null ? `${currentCard.away.winRateAway}%` : '—'}</p>
+                <p className="font-bold text-black">{`${currentCard?.away.winRateAway ?? 0}%`}</p>
                 <p className="text-xs text-black mt-1">Ultimi 5 risultati</p>
                 {currentCard ? renderLastFive(currentCard.away.last5, currentCard.away.form) : renderLastFive([])}
               </div>
@@ -2266,6 +2244,17 @@ function GiocaPageContent() {
               >
                 Chiudi
               </button>
+              {userKey && (
+                <button
+                  className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700"
+                  onClick={async () => {
+                    setUserMissingModal({ show: false });
+                    await handleTestReset();
+                  }}
+                >
+                  Reset Test
+                </button>
+              )}
               <button
                 className="px-4 py-2 text-sm rounded-md bg-purple-600 text-white"
                 onClick={() => router.push('/welcome')}
@@ -2353,6 +2342,51 @@ function GiocaPageContent() {
             </div>
           </div>
           </div>
+      )}
+
+      {/* Testing Modal */}
+      {testingModalOpen && (
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" />
+          <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-1/2 -translate-x-1/2 w-[88%] max-w-md pointer-events-auto">
+            <div className="bg-white rounded-xl p-6 shadow-xl">
+              <h3 className="text-lg font-semibold text-black mb-4">Testing Panel</h3>
+              
+              <div className="space-y-4">
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <h4 className="font-medium text-black mb-2">Game Progress</h4>
+                  <p className="text-sm text-gray-600 mb-2">Predictions: {Object.keys(predictions).length}/10</p>
+                  <p className="text-sm text-gray-600">Current Week: {selectedWeek}</p>
+                </div>
+                
+                <div className="flex flex-col gap-3">
+                  <button
+                    className="px-4 py-3 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 font-medium"
+                    onClick={async () => {
+                      setTestingModalOpen(false);
+                      await handleTestReset();
+                    }}
+                  >
+                    🔄 Reset Game to 0/10 (Week 1)
+                  </button>
+                  
+                  <div className="text-xs text-gray-500 text-center">
+                    This will clear all predictions and return to week 1
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 justify-end mt-6">
+                <button
+                  className="px-4 py-2 text-sm rounded-md border border-gray-300 text-black"
+                  onClick={() => setTestingModalOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
         {/* Veil when week is completed (Test Mode). Hidden for Week 1 once rollover occurred, to avoid blocking UI when user navigates back. */}
