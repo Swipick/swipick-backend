@@ -1,8 +1,8 @@
 import { Injectable, Logger, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Fixture } from '../../../entities/fixture.entity';
-import { Spec } from '../../../entities/spec.entity';
+import { Fixture } from '../../entities/fixture.entity';
+import { Spec } from '../../entities/spec.entity';
 import { CreatePredictionDto } from './dto/create-prediction.dto';
 
 @Injectable()

@@ -119674,8 +119674,8 @@ exports.PredictionsService = void 0;
 const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
 const typeorm_1 = __webpack_require__(/*! @nestjs/typeorm */ "../../../node_modules/@nestjs/typeorm/index.js");
 const typeorm_2 = __webpack_require__(/*! typeorm */ "../../../node_modules/typeorm/index.js");
-const fixture_entity_1 = __webpack_require__(Object(function webpackMissingModule() { var e = new Error("Cannot find module '../../../entities/fixture.entity'"); e.code = 'MODULE_NOT_FOUND'; throw e; }()));
-const spec_entity_1 = __webpack_require__(Object(function webpackMissingModule() { var e = new Error("Cannot find module '../../../entities/spec.entity'"); e.code = 'MODULE_NOT_FOUND'; throw e; }()));
+const fixture_entity_1 = __webpack_require__(/*! ../../entities/fixture.entity */ "./src/entities/fixture.entity.ts");
+const spec_entity_1 = __webpack_require__(/*! ../../entities/spec.entity */ "./src/entities/spec.entity.ts");
 let PredictionsService = PredictionsService_1 = class PredictionsService {
     constructor(fixtureRepository, specRepository) {
         this.fixtureRepository = fixtureRepository;
