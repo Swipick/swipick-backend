@@ -1092,74 +1092,86 @@ function GiocaPageContent() {
       setLocalComplete(true);
     }
 
-    // Persist to backend in Test Mode only
+    // Persist to backend
     try {
-      if (currentMode === 'test' && userKey) {
-        // Use unified BFF route: POST /api/predictions with mode='test'
-        await apiClient.createTestModePrediction({
-          userId: userKey,
-          fixtureId,
-          choice: prediction,
-        });
-        // Mark that the user has at least one prediction for this week (to enable weekly-stats checks later)
-        try {
-          const k = hasWeekPredsKey(selectedWeek, userKey);
-          localStorage.setItem(k, '1');
-        } catch {}
-        // After posting, re-check completion via test weekly-stats to engage veil immediately after 10th pick
-        try {
-          const weekly = await apiClient.getTestWeeklyStats(userKey, selectedWeek);
-          const totalPreds = (() => {
-            const r = weekly as unknown;
-            if (r && typeof r === 'object') {
-              const ro = r as Record<string, unknown>;
-              if ('data' in ro && ro.data && typeof ro.data === 'object') {
-                const d = ro.data as Record<string, unknown>;
-                const tp = d.totalPredictions;
+      if (userKey) {
+        // Use unified endpoint for both live and test predictions
+        await apiClient.savePrediction(
+          {
+            userId: userKey,
+            fixtureId,
+            choice: prediction,
+          },
+          currentMode,
+        );
+
+        // Test-mode specific follow-up actions
+        if (currentMode === 'test') {
+          // Mark that the user has at least one prediction for this week (to enable weekly-stats checks later)
+          try {
+            const k = hasWeekPredsKey(selectedWeek, userKey);
+            localStorage.setItem(k, '1');
+          } catch {}
+          // After posting, re-check completion via test weekly-stats to engage veil immediately after 10th pick
+          try {
+            const weekly = await apiClient.getTestWeeklyStats(userKey, selectedWeek);
+            const totalPreds = (() => {
+              const r = weekly as unknown;
+              if (r && typeof r === 'object') {
+                const ro = r as Record<string, unknown>;
+                if ('data' in ro && ro.data && typeof ro.data === 'object') {
+                  const d = ro.data as Record<string, unknown>;
+                  const tp = d.totalPredictions;
+                  return typeof tp === 'number' ? tp : 0;
+                }
+                const tp = ro.totalPredictions;
                 return typeof tp === 'number' ? tp : 0;
               }
-              const tp = ro.totalPredictions;
-              return typeof tp === 'number' ? tp : 0;
+              return 0;
+            })();
+            if (totalPreds >= 10) {
+              setWeekComplete(true);
             }
-            return 0;
-          })();
-          if (totalPreds >= 10) {
-            setWeekComplete(true);
-          }
-        } catch {}
-        // Optionally refresh match-cards to show overlay correctness if any prior fixtures are involved.
-        // IMPORTANT: Preserve the current deck order (which may have been rotated by Skip) by
-        // reordering the incoming cards to match the current fixtures array by fixtureId.
-        // Skip this refresh if we've just completed all 10 locally to avoid unnecessary churn.
-        try {
-          if (nowComplete) {
-            // Optimistically mark as complete; weekly stats check below will confirm and set veil where applicable.
-            // No need to refresh match-cards anymore.
-          } else {
-          const userIdForOverlay = userKey ?? undefined;
-          const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, userIdForOverlay) as unknown as { success?: boolean; data?: MatchCard[] } | MatchCard[];
-          const mcRaw: MatchCard[] | undefined = Array.isArray(mcResponse)
-            ? mcResponse
-            : (mcResponse as { data?: MatchCard[] })?.data;
-          if (Array.isArray(mcRaw)) {
-            const arr = mcRaw.slice().sort((a, b) => new Date(a.kickoff.iso).getTime() - new Date(b.kickoff.iso).getTime());
-            // Reorder to fixtures order
-            const orderMap = new Map<number, number>();
-            fixtures.forEach((f, i) => orderMap.set(f.id, i));
-            const byId = new Map<number, MatchCard>();
-            arr.forEach((c) => byId.set(c.fixtureId, c));
-            const reordered: MatchCard[] = fixtures.map((f) => byId.get(f.id)).filter(Boolean) as MatchCard[];
-            // Fallback: if any missing, append remaining in original sorted order
-            if (reordered.length < arr.length) {
-              const seen = new Set(reordered.map((c) => c.fixtureId));
-              for (const c of arr) {
-                if (!seen.has(c.fixtureId)) reordered.push(c);
+          } catch {}
+          // Optionally refresh match-cards to show overlay correctness if any prior fixtures are involved.
+          // IMPORTANT: Preserve the current deck order (which may have been rotated by Skip) by
+          // reordering the incoming cards to match the current fixtures array by fixtureId.
+          // Skip this refresh if we've just completed all 10 locally to avoid unnecessary churn.
+          try {
+            if (nowComplete) {
+              // Optimistically mark as complete; weekly stats check below will confirm and set veil where applicable.
+              // No need to refresh match-cards anymore.
+            } else {
+              const userIdForOverlay = userKey ?? undefined;
+              const mcResponse = (await apiClient.getTestMatchCardsByWeek(
+                selectedWeek,
+                userIdForOverlay,
+              )) as unknown as { success?: boolean; data?: MatchCard[] } | MatchCard[];
+              const mcRaw: MatchCard[] | undefined = Array.isArray(mcResponse)
+                ? mcResponse
+                : (mcResponse as { data?: MatchCard[] })?.data;
+              if (Array.isArray(mcRaw)) {
+                const arr = mcRaw
+                  .slice()
+                  .sort((a, b) => new Date(a.kickoff.iso).getTime() - new Date(b.kickoff.iso).getTime());
+                // Reorder to fixtures order
+                const orderMap = new Map<number, number>();
+                fixtures.forEach((f, i) => orderMap.set(f.id, i));
+                const byId = new Map<number, MatchCard>();
+                arr.forEach((c) => byId.set(c.fixtureId, c));
+                const reordered: MatchCard[] = fixtures.map((f) => byId.get(f.id)).filter(Boolean) as MatchCard[];
+                // Fallback: if any missing, append remaining in original sorted order
+                if (reordered.length < arr.length) {
+                  const seen = new Set(reordered.map((c) => c.fixtureId));
+                  for (const c of arr) {
+                    if (!seen.has(c.fixtureId)) reordered.push(c);
+                  }
+                }
+                setMatchCards(reordered);
               }
             }
-            setMatchCards(reordered);
-          }
-          }
-        } catch {}
+          } catch {}
+        }
       }
     } catch (e) {
       console.error('Prediction persist failed', e);
@@ -1210,54 +1222,8 @@ function GiocaPageContent() {
     const dominant: 'horizontal' | 'vertical' = ax >= ay ? 'horizontal' : 'vertical';
     const dir = dominant === 'horizontal' ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
 
-    // Live mode now works the same as test mode - no restrictions
-
-    // Animate out in chosen direction, then commit
-    const distance = 900; // off-screen
-    const threshold = 60; // minimum swipe
-    // If the movement is too small in both axes, snap back
-    if (ax < threshold && ay < threshold) {
-      await controls.start({ x: 0, transition: { type: 'spring', stiffness: 400, damping: 30 } });
-      return;
-    }
-    const target = {
-      x: dir === 'left' ? -distance : dir === 'right' ? distance : 0,
-      // y follows x via cardY during drag; for vertical gestures still allow a direct vertical exit
-      y: dir === 'up' ? -distance : undefined,
-      // rotation is derived from x via cardRotate; don't override here to keep it natural
-      transition: { type: 'tween', ease: 'easeOut', duration: 0.28 },
-    } as const;
-    try {
-      if (dir === 'down') {
-        // Full exit downwards, then snap back behind and reorder
-        setIsSkipAnimating(true);
-        setPreviewOnTop(true);
-        const yBottom = (() => {
-          try { return Math.min(900, (typeof window !== 'undefined' ? window.innerHeight : 800) - 40); } catch { return 820; }
-        })();
-        // Animate the card fully towards the bottom
-  await controls.start({ y: yBottom, transition: { type: 'tween', ease: 'easeOut', duration: DOWN_EXIT_DURATION } });
-  // Snap back to center while remaining visually under the preview card (slowed spring)
-  await controls.start({ x: 0, y: 0, transition: { type: 'spring', stiffness: SNAP_BACK_STIFFNESS, damping: SNAP_BACK_DAMPING } });
-      } else {
-        await controls.start(target);
-      }
-    } finally {
-      if (dir === 'down') {
-        // Move card to end of deck and restore flags
-        skipFixture();
-        setPreviewOnTop(false);
-        setIsSkipAnimating(false);
-      } else if (dir === 'up') {
-        await handlePrediction(currentFixture.id, 'X');
-      } else if (dir === 'left') {
-        await handlePrediction(currentFixture.id, '1');
-      } else {
-        await handlePrediction(currentFixture.id, '2');
-      }
-      // No need to reset controls - next card will have its own position
-    }
-  };
+    // Live mode is now enabled for predictions
+    if (currentMode === 'live' && false) {
 
   // Programmatic swipe will be defined after currentFixture for proper dependencies
 
@@ -1554,6 +1520,8 @@ function GiocaPageContent() {
   const animateAndCommit = async (dir: 'left' | 'right' | 'up' | 'down') => {
     if (!currentFixture) return;
     if (currentMode === 'test' && weekComplete) return;
+    // Live mode is now enabled for predictions
+    if (currentMode === 'live' && false) {
     // Live mode now works the same as test mode - no restrictions
     if (isSkipAnimating) return;
     const distance = 900;
