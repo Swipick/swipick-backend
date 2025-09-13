@@ -510,6 +510,7 @@ function GiocaPageContent() {
                 }
                 setFixtures(fixtureData);
                 setMatchCards(cardsArrLocal);
+                setLoading(false);
                 return; // short-circuit live fetch chain
               }
             } catch (e) {
