@@ -272,15 +272,15 @@ export class MatchCardsService {
       'Lecce': '/teams/LecceLogo.png',
       'Sassuolo': '/teams/SassuoloLogo.png',
       'Cagliari': '/teams/CagliariCalcioLogo.png',
-      'Como': '/teams/ComoCalcioLogo.png',
+      'Como': '/teams/ComoLogo.png',
       'Parma': '/teams/ParmaLogo.png',
-      'Cremonese': '/teams/UsCremoneselogo.png',
-      'Udinese': '/teams/UdineseCalcioLogo.png',
+      'Cremonese': '/teams/CremoneseLogo.png',
+      'Udinese': '/teams/UdineseLogo.png',
       'Venezia': '/teams/VeneziaFcLogo.png',
       'Monza': '/teams/AcMonzaLogo.png',
       'Empoli': '/teams/EmpoliFcLogo.png',
       'Verona': '/teams/HellasveronaFcLogo.png',
-      'Pisa': '/teams/PisaCalcioLogo.png',
+      'Pisa': '/teams/PisaLogo.png',
       // Add more teams as they appear in fixtures
     };
     
