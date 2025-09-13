@@ -119390,10 +119390,10 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
             .slice(0, 5);
         return teamFixtures.map(fixture => {
             if (fixture.home_score > fixture.away_score) {
-                return fixture.home_team === teamName ? '1' : '2';
+                return '1';
             }
             else if (fixture.home_score < fixture.away_score) {
-                return fixture.home_team === teamName ? '2' : '1';
+                return '2';
             }
             else {
                 return 'X';
@@ -119451,10 +119451,10 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
             .slice(0, 5);
         const results = teamFixtures.map(fixture => {
             if (fixture.home_score > fixture.away_score) {
-                return fixture.home_team === teamName ? '1' : '2';
+                return '1';
             }
             else if (fixture.home_score < fixture.away_score) {
-                return fixture.home_team === teamName ? '2' : '1';
+                return '2';
             }
             else {
                 return 'X';
