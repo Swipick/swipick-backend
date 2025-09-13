@@ -19,6 +19,7 @@ import { HealthModule } from './modules/health/health.module';
 import { SpecsModule } from './modules/specs/specs.module';
 import { TestModeModule } from './modules/test-mode/test-mode.module';
 import { MatchCardsModule } from './modules/match-cards/match-cards.module';
+import { PredictionsModule } from './modules/predictions/predictions.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { MatchCardsModule } from './modules/match-cards/match-cards.module';
     SpecsModule,
     TestModeModule,
     MatchCardsModule,
+    PredictionsModule,
   ],
 })
 export class AppModule {}

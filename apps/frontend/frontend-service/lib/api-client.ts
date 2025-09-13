@@ -262,27 +262,14 @@ class ApiClient {
     return this.request(`/predictions/weekly/${userId}?mode=${mode}`);
   }
 
-  async createPrediction(data: {
+  async savePrediction(data: {
     userId: string;
     fixtureId: number;
-    prediction: string;
-    mode?: 'live' | 'test';
-  }) {
-    return this.request('/predictions', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  // Test Mode predictions via BFF unified route
-  async createTestModePrediction(data: {
-    userId: string; // UUID supported by BFF
-    fixtureId: number;
     choice: '1' | 'X' | '2';
-  }) {
+  }, mode: 'live' | 'test') {
     return this.request('/predictions', {
       method: 'POST',
-      body: JSON.stringify({ ...data, mode: 'test' as const }),
+      body: JSON.stringify({ ...data, mode }),
     });
   }
 

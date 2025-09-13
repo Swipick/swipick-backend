@@ -115761,6 +115761,7 @@ const health_module_1 = __webpack_require__(/*! ./modules/health/health.module *
 const specs_module_1 = __webpack_require__(/*! ./modules/specs/specs.module */ "./src/modules/specs/specs.module.ts");
 const test_mode_module_1 = __webpack_require__(/*! ./modules/test-mode/test-mode.module */ "./src/modules/test-mode/test-mode.module.ts");
 const match_cards_module_1 = __webpack_require__(/*! ./modules/match-cards/match-cards.module */ "./src/modules/match-cards/match-cards.module.ts");
+const predictions_module_1 = __webpack_require__(/*! ./modules/predictions/predictions.module */ "./src/modules/predictions/predictions.module.ts");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -115789,6 +115790,7 @@ exports.AppModule = AppModule = __decorate([
             specs_module_1.SpecsModule,
             test_mode_module_1.TestModeModule,
             match_cards_module_1.MatchCardsModule,
+            predictions_module_1.PredictionsModule,
         ],
     })
 ], AppModule);
@@ -119504,6 +119506,229 @@ exports.MatchCardsService = MatchCardsService = MatchCardsService_1 = __decorate
     __param(1, (0, typeorm_1.InjectRepository)(spec_entity_1.Spec)),
     __metadata("design:paramtypes", [typeof (_a = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _a : Object, typeof (_b = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _b : Object])
 ], MatchCardsService);
+
+
+/***/ }),
+
+/***/ "./src/modules/predictions/dto/create-prediction.dto.ts":
+/*!**************************************************************!*\
+  !*** ./src/modules/predictions/dto/create-prediction.dto.ts ***!
+  \**************************************************************/
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var _a, _b;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CreatePredictionDto = exports.PREDICTION_CHOICES = exports.GAME_MODES = void 0;
+const class_validator_1 = __webpack_require__(/*! class-validator */ "../../../node_modules/class-validator/esm5/index.js");
+exports.GAME_MODES = ['live', 'test'];
+exports.PREDICTION_CHOICES = ['1', 'X', '2'];
+class CreatePredictionDto {
+}
+exports.CreatePredictionDto = CreatePredictionDto;
+__decorate([
+    (0, class_validator_1.IsUUID)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", String)
+], CreatePredictionDto.prototype, "userId", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", String)
+], CreatePredictionDto.prototype, "fixtureId", void 0);
+__decorate([
+    (0, class_validator_1.IsIn)(exports.PREDICTION_CHOICES),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", typeof (_a = typeof PredictionChoice !== "undefined" && PredictionChoice) === "function" ? _a : Object)
+], CreatePredictionDto.prototype, "choice", void 0);
+__decorate([
+    (0, class_validator_1.IsIn)(exports.GAME_MODES),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", typeof (_b = typeof GameMode !== "undefined" && GameMode) === "function" ? _b : Object)
+], CreatePredictionDto.prototype, "mode", void 0);
+
+
+/***/ }),
+
+/***/ "./src/modules/predictions/predictions.controller.ts":
+/*!***********************************************************!*\
+  !*** ./src/modules/predictions/predictions.controller.ts ***!
+  \***********************************************************/
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+var _a, _b;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PredictionsController = void 0;
+const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
+const predictions_service_1 = __webpack_require__(/*! ./predictions.service */ "./src/modules/predictions/predictions.service.ts");
+const create_prediction_dto_1 = __webpack_require__(/*! ./dto/create-prediction.dto */ "./src/modules/predictions/dto/create-prediction.dto.ts");
+let PredictionsController = class PredictionsController {
+    constructor(predictionsService) {
+        this.predictionsService = predictionsService;
+    }
+    create(createPredictionDto) {
+        return this.predictionsService.create(createPredictionDto);
+    }
+};
+exports.PredictionsController = PredictionsController;
+__decorate([
+    (0, common_1.Post)(),
+    (0, common_1.UsePipes)(new common_1.ValidationPipe({ transform: true, whitelist: true })),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [typeof (_b = typeof create_prediction_dto_1.CreatePredictionDto !== "undefined" && create_prediction_dto_1.CreatePredictionDto) === "function" ? _b : Object]),
+    __metadata("design:returntype", void 0)
+], PredictionsController.prototype, "create", null);
+exports.PredictionsController = PredictionsController = __decorate([
+    (0, common_1.Controller)('predictions'),
+    __metadata("design:paramtypes", [typeof (_a = typeof predictions_service_1.PredictionsService !== "undefined" && predictions_service_1.PredictionsService) === "function" ? _a : Object])
+], PredictionsController);
+
+
+/***/ }),
+
+/***/ "./src/modules/predictions/predictions.module.ts":
+/*!*******************************************************!*\
+  !*** ./src/modules/predictions/predictions.module.ts ***!
+  \*******************************************************/
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PredictionsModule = void 0;
+const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
+const typeorm_1 = __webpack_require__(/*! @nestjs/typeorm */ "../../../node_modules/@nestjs/typeorm/index.js");
+const predictions_controller_1 = __webpack_require__(/*! ./predictions.controller */ "./src/modules/predictions/predictions.controller.ts");
+const predictions_service_1 = __webpack_require__(/*! ./predictions.service */ "./src/modules/predictions/predictions.service.ts");
+const spec_entity_1 = __webpack_require__(/*! ../../entities/spec.entity */ "./src/entities/spec.entity.ts");
+const fixture_entity_1 = __webpack_require__(/*! ../../entities/fixture.entity */ "./src/entities/fixture.entity.ts");
+let PredictionsModule = class PredictionsModule {
+};
+exports.PredictionsModule = PredictionsModule;
+exports.PredictionsModule = PredictionsModule = __decorate([
+    (0, common_1.Module)({
+        imports: [typeorm_1.TypeOrmModule.forFeature([spec_entity_1.Spec, fixture_entity_1.Fixture])],
+        controllers: [predictions_controller_1.PredictionsController],
+        providers: [predictions_service_1.PredictionsService],
+    })
+], PredictionsModule);
+
+
+/***/ }),
+
+/***/ "./src/modules/predictions/predictions.service.ts":
+/*!********************************************************!*\
+  !*** ./src/modules/predictions/predictions.service.ts ***!
+  \********************************************************/
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+var PredictionsService_1;
+var _a, _b;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PredictionsService = void 0;
+const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
+const typeorm_1 = __webpack_require__(/*! @nestjs/typeorm */ "../../../node_modules/@nestjs/typeorm/index.js");
+const typeorm_2 = __webpack_require__(/*! typeorm */ "../../../node_modules/typeorm/index.js");
+const fixture_entity_1 = __webpack_require__(Object(function webpackMissingModule() { var e = new Error("Cannot find module '../../../entities/fixture.entity'"); e.code = 'MODULE_NOT_FOUND'; throw e; }()));
+const spec_entity_1 = __webpack_require__(Object(function webpackMissingModule() { var e = new Error("Cannot find module '../../../entities/spec.entity'"); e.code = 'MODULE_NOT_FOUND'; throw e; }()));
+let PredictionsService = PredictionsService_1 = class PredictionsService {
+    constructor(fixtureRepository, specRepository) {
+        this.fixtureRepository = fixtureRepository;
+        this.specRepository = specRepository;
+        this.logger = new common_1.Logger(PredictionsService_1.name);
+    }
+    async create(createPredictionDto) {
+        const { userId, fixtureId, choice, mode } = createPredictionDto;
+        const fixture = await this.fixtureRepository.findOne({ where: { id: fixtureId } });
+        if (!fixture) {
+            this.logger.warn(`Attempted to create prediction for non-existent fixture: ${fixtureId}`);
+            throw new common_1.NotFoundException(`Fixture with ID '${fixtureId}' not found.`);
+        }
+        if (mode === 'live') {
+            const now = new Date();
+            const matchDate = new Date(fixture.match_date);
+            if (now >= matchDate) {
+                this.logger.warn(`Attempted to predict on a live match that has already started: Fixture ${fixtureId}`);
+                throw new common_1.ForbiddenException('Predictions are locked for matches that have already started.');
+            }
+        }
+        const newSpec = this.specRepository.create({
+            user_id: userId,
+            fixture_id: fixtureId,
+            choice,
+            test_mode: mode === 'test',
+        });
+        try {
+            const savedSpec = await this.specRepository.save(newSpec);
+            this.logger.log(`Saved prediction for User ${userId}, Fixture ${fixtureId}, Mode '${mode}'`);
+            return savedSpec;
+        }
+        catch (error) {
+            if (error.code === '23505') {
+                this.logger.warn(`User ${userId} already has a prediction for Fixture ${fixtureId}. Attempting to update.`);
+                const existingSpec = await this.specRepository.findOne({ where: { user_id: userId, fixture_id: fixtureId } });
+                if (existingSpec) {
+                    existingSpec.choice = choice;
+                    return this.specRepository.save(existingSpec);
+                }
+            }
+            this.logger.error('Failed to save prediction', error.stack);
+            throw new common_1.BadRequestException('Could not save prediction.');
+        }
+    }
+};
+exports.PredictionsService = PredictionsService;
+exports.PredictionsService = PredictionsService = PredictionsService_1 = __decorate([
+    (0, common_1.Injectable)(),
+    __param(0, (0, typeorm_1.InjectRepository)(fixture_entity_1.Fixture)),
+    __param(1, (0, typeorm_1.InjectRepository)(spec_entity_1.Spec)),
+    __metadata("design:paramtypes", [typeof (_a = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _a : Object, typeof (_b = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _b : Object])
+], PredictionsService);
 
 
 /***/ }),

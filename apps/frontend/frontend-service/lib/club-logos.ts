@@ -40,6 +40,12 @@ const map: Record<string, string> = {
   udinese: '/teams/UdineseLogo.png',
   fiorentina: '/teams/AcfFiorentinaLogo.png',
   acffiorentina: '/teams/AcfFiorentinaLogo.png',
+  pisa: '/teams/PisaCalcioLogo.png',
+  pisacalcio: '/teams/PisaCalcioLogo.png',
+  cremonese: '/teams/UsCremoneselogo.png',
+  uscremonese: '/teams/UsCremoneselogo.png',
+  como: '/teams/ComoCalcioLogo.png',
+  comocalcio: '/teams/ComoCalcioLogo.png',
 };
 
 function normalize(name: string): string {
