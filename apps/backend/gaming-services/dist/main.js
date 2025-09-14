@@ -119632,13 +119632,14 @@ const typeorm_1 = __webpack_require__(/*! @nestjs/typeorm */ "../../../node_modu
 const predictions_controller_1 = __webpack_require__(/*! ./predictions.controller */ "./src/modules/predictions/predictions.controller.ts");
 const predictions_service_1 = __webpack_require__(/*! ./predictions.service */ "./src/modules/predictions/predictions.service.ts");
 const spec_entity_1 = __webpack_require__(/*! ../../entities/spec.entity */ "./src/entities/spec.entity.ts");
+const test_spec_entity_1 = __webpack_require__(/*! ../../entities/test-spec.entity */ "./src/entities/test-spec.entity.ts");
 const fixture_entity_1 = __webpack_require__(/*! ../../entities/fixture.entity */ "./src/entities/fixture.entity.ts");
 let PredictionsModule = class PredictionsModule {
 };
 exports.PredictionsModule = PredictionsModule;
 exports.PredictionsModule = PredictionsModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([spec_entity_1.Spec, fixture_entity_1.Fixture])],
+        imports: [typeorm_1.TypeOrmModule.forFeature([spec_entity_1.Spec, test_spec_entity_1.TestSpec, fixture_entity_1.Fixture])],
         controllers: [predictions_controller_1.PredictionsController],
         providers: [predictions_service_1.PredictionsService],
     })
@@ -119668,7 +119669,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 var PredictionsService_1;
-var _a, _b;
+var _a, _b, _c;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PredictionsService = void 0;
 const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
@@ -119676,10 +119677,12 @@ const typeorm_1 = __webpack_require__(/*! @nestjs/typeorm */ "../../../node_modu
 const typeorm_2 = __webpack_require__(/*! typeorm */ "../../../node_modules/typeorm/index.js");
 const fixture_entity_1 = __webpack_require__(Object(function webpackMissingModule() { var e = new Error("Cannot find module '../../../entities/fixture.entity'"); e.code = 'MODULE_NOT_FOUND'; throw e; }()));
 const spec_entity_1 = __webpack_require__(Object(function webpackMissingModule() { var e = new Error("Cannot find module '../../../entities/spec.entity'"); e.code = 'MODULE_NOT_FOUND'; throw e; }()));
+const test_spec_entity_1 = __webpack_require__(Object(function webpackMissingModule() { var e = new Error("Cannot find module '../../../entities/test-spec.entity'"); e.code = 'MODULE_NOT_FOUND'; throw e; }()));
 let PredictionsService = PredictionsService_1 = class PredictionsService {
-    constructor(fixtureRepository, specRepository) {
+    constructor(fixtureRepository, specRepository, testSpecRepository) {
         this.fixtureRepository = fixtureRepository;
         this.specRepository = specRepository;
+        this.testSpecRepository = testSpecRepository;
         this.logger = new common_1.Logger(PredictionsService_1.name);
     }
     async create(createPredictionDto) {
@@ -119697,28 +119700,59 @@ let PredictionsService = PredictionsService_1 = class PredictionsService {
                 throw new common_1.ForbiddenException('Predictions are locked for matches that have already started.');
             }
         }
-        const newSpec = this.specRepository.create({
-            user_id: userId,
-            fixture_id: fixtureId,
-            choice,
-            test_mode: mode === 'test',
-        });
-        try {
-            const savedSpec = await this.specRepository.save(newSpec);
-            this.logger.log(`Saved prediction for User ${userId}, Fixture ${fixtureId}, Mode '${mode}'`);
-            return savedSpec;
-        }
-        catch (error) {
-            if (error.code === '23505') {
-                this.logger.warn(`User ${userId} already has a prediction for Fixture ${fixtureId}. Attempting to update.`);
-                const existingSpec = await this.specRepository.findOne({ where: { user_id: userId, fixture_id: fixtureId } });
-                if (existingSpec) {
-                    existingSpec.choice = choice;
-                    return this.specRepository.save(existingSpec);
-                }
+        if (mode === 'test') {
+            const newTestSpec = this.testSpecRepository.create({
+                userId,
+                fixtureId,
+                choice,
+                week: fixture.week || 1,
+            });
+            try {
+                const savedTestSpec = await this.testSpecRepository.save(newTestSpec);
+                this.logger.log(`Saved test prediction for User ${userId}, Fixture ${fixtureId}, Week ${fixture.week || 1}`);
+                return savedTestSpec;
             }
-            this.logger.error('Failed to save prediction', error.stack);
-            throw new common_1.BadRequestException('Could not save prediction.');
+            catch (error) {
+                if (error.code === '23505') {
+                    this.logger.warn(`User ${userId} already has a test prediction for Fixture ${fixtureId}. Attempting to update.`);
+                    const existingTestSpec = await this.testSpecRepository.findOne({
+                        where: { userId, fixtureId }
+                    });
+                    if (existingTestSpec) {
+                        existingTestSpec.choice = choice;
+                        return this.testSpecRepository.save(existingTestSpec);
+                    }
+                }
+                this.logger.error('Failed to save test prediction', error.stack);
+                throw new common_1.BadRequestException('Could not save test prediction.');
+            }
+        }
+        else {
+            const newSpec = this.specRepository.create({
+                user_id: userId,
+                fixture_id: fixtureId,
+                choice,
+                week: fixture.week || 1,
+            });
+            try {
+                const savedSpec = await this.specRepository.save(newSpec);
+                this.logger.log(`Saved live prediction for User ${userId}, Fixture ${fixtureId}, Week ${fixture.week || 1}`);
+                return savedSpec;
+            }
+            catch (error) {
+                if (error.code === '23505') {
+                    this.logger.warn(`User ${userId} already has a live prediction for Fixture ${fixtureId}. Attempting to update.`);
+                    const existingSpec = await this.specRepository.findOne({
+                        where: { user_id: userId, fixture_id: fixtureId }
+                    });
+                    if (existingSpec) {
+                        existingSpec.choice = choice;
+                        return this.specRepository.save(existingSpec);
+                    }
+                }
+                this.logger.error('Failed to save live prediction', error.stack);
+                throw new common_1.BadRequestException('Could not save live prediction.');
+            }
         }
     }
 };
@@ -119727,7 +119761,8 @@ exports.PredictionsService = PredictionsService = PredictionsService_1 = __decor
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(fixture_entity_1.Fixture)),
     __param(1, (0, typeorm_1.InjectRepository)(spec_entity_1.Spec)),
-    __metadata("design:paramtypes", [typeof (_a = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _a : Object, typeof (_b = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _b : Object])
+    __param(2, (0, typeorm_1.InjectRepository)(test_spec_entity_1.TestSpec)),
+    __metadata("design:paramtypes", [typeof (_a = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _a : Object, typeof (_b = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _b : Object, typeof (_c = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _c : Object])
 ], PredictionsService);
 
 

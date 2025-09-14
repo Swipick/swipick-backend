@@ -213,10 +213,97 @@ export function useFixtures({
         }
         
       } else {
-        // Live mode logic - this would be expanded with the live mode fetching logic
-        // For now, keeping it simple
-        fixtureData = [];
-        cardsArrLocal = [];
+        // Live mode logic
+        try {
+          // Fetch match cards for live mode
+          if (userKey) {
+            const userIdForOverlay = userKey;
+            const mcRaw = await apiClient.getMatchCardsForWeek(selectedWeek, userIdForOverlay);
+            const arr = mcRaw?.data;
+            
+            if (Array.isArray(arr) && arr.length > 0) {
+              cardsArrLocal = arr.slice().sort((a, b) => a.fixtureId - b.fixtureId);
+              if (DEBUG_GIOCA) {
+                console.log('[gioca] live match-cards loaded', { 
+                  week: selectedWeek, 
+                  count: arr.length, 
+                  first: arr[0]?.fixtureId, 
+                  userIdForOverlay 
+                });
+              }
+            }
+          }
+        } catch {
+          cardsArrLocal = [];
+          if (DEBUG_GIOCA) {
+            console.log('[gioca] live match-cards fetch failed');
+          }
+        }
+
+        // Fetch live fixtures from the backend
+        const liveResponse = await apiClient.getLiveFixtures();
+        let liveRaw: unknown = liveResponse;
+        
+        if (DEBUG_GIOCA) {
+          console.log('[gioca] live fixtures raw response:', { liveResponse, type: typeof liveResponse });
+        }
+        
+        if (liveResponse && typeof liveResponse === 'object' && 'data' in (liveResponse as Record<string, unknown>)) {
+          liveRaw = (liveResponse as Record<string, unknown>).data as unknown;
+        }
+        
+        if (DEBUG_GIOCA) {
+          console.log('[gioca] live fixtures after data extraction:', { liveRaw, isArray: Array.isArray(liveRaw), length: Array.isArray(liveRaw) ? liveRaw.length : 'N/A' });
+        }
+        
+        if (Array.isArray(liveRaw) && liveRaw.length > 0) {
+          // Map live fixtures to the expected Fixture format
+          const mappedLive = (liveRaw as any[]).map((f: any, idx) => {
+            const iso = typeof f.date === 'string' ? f.date : new Date(f.date || new Date()).toISOString();
+            return {
+              id: typeof f.id === 'number' ? f.id : idx + 1,
+              date: iso,
+              timestamp: Math.floor(new Date(iso).getTime() / 1000),
+              venue: { 
+                id: typeof f.id === 'number' ? f.id : idx + 1, 
+                name: String(f.venue?.name || `${f.teams?.home?.name} vs ${f.teams?.away?.name}`), 
+                city: 'N/A' 
+              },
+              teams: {
+                home: { 
+                  id: f.teams?.home?.id || idx + 1, 
+                  name: String(f.teams?.home?.name || 'Home'), 
+                  logo: getLogoForTeam(String(f.teams?.home?.name || '')) || '' 
+                },
+                away: { 
+                  id: f.teams?.away?.id || idx + 100, 
+                  name: String(f.teams?.away?.name || 'Away'), 
+                  logo: getLogoForTeam(String(f.teams?.away?.name || '')) || '' 
+                },
+              },
+              goals: { home: f.goals?.home, away: f.goals?.away },
+              score: {
+                halftime: { home: f.score?.halftime?.home, away: f.score?.halftime?.away },
+                fulltime: { home: f.goals?.home, away: f.goals?.away },
+              },
+            };
+          });
+          
+          if (DEBUG_GIOCA) {
+            console.log('[gioca] live fixtures mapped:', { mappedCount: mappedLive.length, first: mappedLive[0] });
+          }
+          
+          fixtureData = mappedLive.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 10);
+          
+          if (DEBUG_GIOCA) {
+            console.log('[gioca] live fixtures final after sort/slice:', { finalCount: fixtureData.length, first: fixtureData[0] });
+          }
+        } else {
+          if (DEBUG_GIOCA) {
+            console.log('[gioca] live fixtures - no data or empty array, setting empty fixtures');
+          }
+          fixtureData = [];
+        }
       }
 
       // Update state

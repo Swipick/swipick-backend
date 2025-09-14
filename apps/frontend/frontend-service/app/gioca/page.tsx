@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useCallback, Suspense } from "react";
+import { useState, useCallback, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAnimationControls, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { Toast } from '@/src/components/Toast';
+import { apiClient } from "@/lib/api-client";
 import { useGameMode } from "@/src/contexts/GameModeContext";
+import { useAuthContext } from "@/src/contexts/AuthContext";
 
 // Hooks
 import { useFixtures } from './hooks/useFixtures';
@@ -29,6 +31,7 @@ function GiocaPageContent() {
   
   // Game state management (simplified for this demo)
   const { mode } = useGameMode();
+  const { firebaseUser } = useAuthContext();
   
   // Get mode from URL parameters or context
   const currentMode = ((searchParams?.get('mode') as 'live' | 'test' | null) ?? null) || mode;
@@ -47,7 +50,8 @@ function GiocaPageContent() {
   })();
   
   // UI state
-  const [userKey] = useState<string | null>(null);
+  const [userKey, setUserKey] = useState<string | null>(null);
+  const [userMissingModal, setUserMissingModal] = useState<{ show: boolean; triedUid?: string }>(() => ({ show: false }));
   const [weekComplete] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   
@@ -80,6 +84,36 @@ function GiocaPageContent() {
   const {
     timeToMatch,
   } = useCountdown({ currentMode, fixtures });
+
+  // User resolution effect - convert Firebase UID to backend user ID
+  useEffect(() => {
+    const resolveUserId = async () => {
+      if (!firebaseUser?.uid) {
+        setUserKey(null);
+        return;
+      }
+      try {
+        const resp = await apiClient.getUserByFirebaseUid(firebaseUser.uid) as unknown as { success?: boolean; data?: { id?: string } };
+        const idStr = resp?.data?.id;
+        if (idStr && String(idStr).length > 0) {
+          setUserKey(String(idStr));
+          setUserMissingModal({ show: false });
+          // If Firebase says verified, sync DB once when ID known
+          if (firebaseUser.emailVerified === true) {
+            try { await apiClient.updateEmailVerified(String(idStr), true); } catch {}
+          }
+        } else {
+          setUserKey(null);
+          setUserMissingModal({ show: true, triedUid: firebaseUser.uid });
+        }
+      } catch (e) {
+        console.warn('Failed to resolve user id from Firebase UID', e);
+        setUserKey(null);
+        setUserMissingModal({ show: true, triedUid: firebaseUser.uid });
+      }
+    };
+    resolveUserId();
+  }, [firebaseUser?.uid, firebaseUser?.emailVerified]);
 
   // Card navigation state
   const [currentFixtureIndex, setCurrentFixtureIndex] = useState(0);
@@ -156,6 +190,16 @@ function GiocaPageContent() {
       }
     }, 500);
   }, [handlePrediction, currentFixtureIndex, fixtures.length, handleNext]);
+
+  // Debug log for rendering decision
+  console.log('[gioca-page] render state:', { 
+    loading, 
+    error, 
+    fixturesLength: fixtures.length, 
+    currentMode, 
+    selectedWeek,
+    userKey: userKey ? 'set' : 'null'
+  });
 
   // Loading state
   if (loading) {

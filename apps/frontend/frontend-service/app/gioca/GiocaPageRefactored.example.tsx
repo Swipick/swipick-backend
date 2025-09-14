@@ -54,8 +54,8 @@ function GiocaPageContent() {
   // Animation setup (could be extracted to useAnimation hook in Phase 3)
   const controls = useAnimationControls();
   const cardX = useMotionValue(0);
-  const cardY = useTransform(cardX, ANIMATION_CONFIG.CARD_X_RANGE, ANIMATION_CONFIG.CARD_Y_RANGE);
-  const cardRotate = useTransform(cardX, ANIMATION_CONFIG.CARD_X_RANGE, ANIMATION_CONFIG.CARD_ROTATE_RANGE);
+  const cardY = useTransform(cardX, [-320, 0, 320], [-24, 0, 24]);
+  const cardRotate = useTransform(cardX, [-320, 0, 320], [-10, 0, 10]);
 
   // Handle prediction (now just a clean hook call)
   const handlePredictionChoice = async (fixtureId: number, choice: '1' | 'X' | '2') => {
