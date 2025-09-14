@@ -1,0 +1,2430 @@
+'use client';
+
+import { useState, useEffect, Suspense, useCallback, useRef } from "react";
+import { motion, useAnimationControls, PanInfo, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
+import { apiClient } from "@/lib/api-client";
+import { getLogoForTeam } from "@/lib/club-logos";
+import { useGameMode } from "@/src/contexts/GameModeContext";
+import { useAuthContext } from "@/src/contexts/AuthContext";
+import { Toast } from '@/src/components/Toast';
+import { FaMedal } from 'react-icons/fa';
+import { RiFootballLine } from 'react-icons/ri';
+import { BsFillFilePersonFill } from 'react-icons/bs';
+
+// Debug flag (enable with NEXT_PUBLIC_DEBUG_GIOCA=1)
+const DEBUG_GIOCA = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_DEBUG_GIOCA === '1';
+// Config flags for gating and terminal week in Test Mode
+const MISSED_WEEK_GATING = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MISSED_WEEK_GATING === '1';
+const TERMINAL_WEEK = (() => {
+  const v = typeof process !== 'undefined' ? parseInt(String(process.env.NEXT_PUBLIC_TEST_TERMINAL_WEEK || '4'), 10) : 4;
+  return Number.isFinite(v) ? v : 4;
+})();
+
+interface Team {
+  id: number;
+  name: string;
+  logo: string;
+  winner?: boolean;
+}
+
+interface Fixture {
+  id: number;
+  date: string;
+  timestamp: number;
+  venue: {
+    id: number;
+    name: string;
+    city: string;
+  };
+  status: {
+    long: string;
+    short: string;
+    elapsed?: number;
+  };
+  league: {
+    id: number;
+    name: string;
+    country: string;
+    logo?: string;
+    season: number;
+    round: string;
+  };
+  teams: {
+    home: Team;
+    away: Team;
+  };
+  goals: {
+    home?: number;
+    away?: number;
+  };
+  score: {
+    halftime: {
+      home?: number;
+      away?: number;
+    };
+    fulltime: {
+      home?: number;
+      away?: number;
+    };
+  };
+}
+
+// Shape returned by Test Mode API (backend)
+interface TestFixtureAPI {
+  id?: number;
+  week?: number;
+  date: string | number | Date;
+  homeTeam: string;
+  awayTeam: string;
+  homeScore?: number;
+  awayScore?: number;
+  status?: string;
+  stadium?: string | null;
+}
+
+// Raw API fixture data structure (from external APIs like API-Football)
+interface RawFixtureData {
+  id?: number;
+  date?: string | number | Date;
+  timestamp?: number;
+  venue?: {
+    id?: number;
+    name?: string;
+    city?: string;
+  };
+  status?: {
+    long?: string;
+    short?: string;
+    elapsed?: number;
+  };
+  league?: {
+    id?: number;
+    name?: string;
+    country?: string;
+    logo?: string;
+    season?: number;
+    round?: string;
+  };
+  teams?: {
+    home?: {
+      id?: number;
+      name?: string;
+      logo?: string;
+    };
+    away?: {
+      id?: number;
+      name?: string;
+      logo?: string;
+    };
+  };
+  goals?: {
+    home?: number;
+    away?: number;
+  };
+  score?: {
+    halftime?: {
+      home?: number;
+      away?: number;
+    };
+    fulltime?: {
+      home?: number;
+      away?: number;
+    };
+  };
+}
+
+// Match-cards API types
+interface MatchCardKickoff { iso: string; display: string; }
+interface Last5Item {
+  fixtureId: number | string;
+  code: '1'|'X'|'2';
+  // Optional: user prediction metadata (when applicable)
+  predicted: '1'|'X'|'2'|null;
+  correct: boolean|null;
+  // Optional: backend-provided, team-perspective outcome for this historical item
+  // 'W' = team won, 'D' = draw, 'L' = team lost
+  outcome?: 'W'|'D'|'L' | null;
+  // Whether this team was the home side in that specific historical match
+  wasHome: boolean;
+}
+interface MatchCardTeamHome { name: string; logo: string | null; winRateHome: number | null; last5: Array<'1' | 'X' | '2'>; standingsPosition?: number|null; form?: Last5Item[]; }
+interface MatchCardTeamAway { name: string; logo: string | null; winRateAway: number | null; last5: Array<'1' | 'X' | '2'>; standingsPosition?: number|null; form?: Last5Item[]; }
+interface MatchCard { week: number; fixtureId: number; kickoff: MatchCardKickoff; stadium: string | null; home: MatchCardTeamHome; away: MatchCardTeamAway; }
+
+function isTestFixture(obj: unknown): obj is TestFixtureAPI {
+  if (typeof obj !== 'object' || obj === null) return false;
+  const o = obj as Record<string, unknown>;
+  return (
+    typeof o.homeTeam === 'string' &&
+    typeof o.awayTeam === 'string' &&
+    ('date' in o)
+  );
+}
+
+function isTestFixtureArray(arr: unknown): arr is TestFixtureAPI[] {
+  return Array.isArray(arr) && arr.every(isTestFixture);
+}
+
+function GiocaPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { mode, setMode } = useGameMode();
+  const { firebaseUser } = useAuthContext();
+  
+  // Get mode from URL parameters or context
+  const currentMode = ((searchParams?.get('mode') as 'live' | 'test' | null) ?? null) || mode;
+  // Selected week for test mode (defaults to 1), for live mode determine from fixtures
+  const [currentLiveWeek, setCurrentLiveWeek] = useState<number | null>(null);
+  const selectedWeek = (() => {
+    if (currentMode === 'live') {
+      // In live mode, use detected current week or fall back to 1
+      return currentLiveWeek || 1;
+    } else {
+      // In test mode, use URL parameter or default to 1
+      const w = Number(searchParams?.get('week') ?? NaN);
+      return Number.isFinite(w) && w >= 1 && w <= 38 ? w : 1;
+    }
+  })();
+  
+  const [fixtures, setFixtures] = useState<Fixture[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentFixtureIndex, setCurrentFixtureIndex] = useState(0);
+  const [predictions, setPredictions] = useState<Record<number, '1' | 'X' | '2'>>({});
+  // Modal gating when Week 1 has already started (Test Mode)
+  const [missedWeekModalOpen, setMissedWeekModalOpen] = useState(false);
+  // Testing modal with reset functionality
+  const [testingModalOpen, setTestingModalOpen] = useState(false);
+  const [matchCards, setMatchCards] = useState<MatchCard[]>([]);
+  const [nextTarget, setNextTarget] = useState<Date | null>(null);
+  const controls = useAnimationControls();
+  // Framer Motion values for angled swipe path
+  const cardX = useMotionValue(0);
+  // Map horizontal drag to a slight vertical offset to create a diagonal trajectory
+  const cardY = useTransform(cardX, [-320, 0, 320], [-24, 0, 24]);
+  // Map horizontal drag to a mild rotation for a more natural card tilt
+  const cardRotate = useTransform(cardX, [-320, 0, 320], [-10, 0, 10]);
+  // Skip animation control & z-index swap with preview card
+  const [isSkipAnimating, setIsSkipAnimating] = useState(false);
+  const [previewOnTop, setPreviewOnTop] = useState(false);
+  // Lightweight toast for UX messages
+  const [toast, setToast] = useState<string | null>(null);
+  // Tuning constants for gesture feel
+  const DOWN_EXIT_DURATION = 0.46; // time to travel to bottom before snap-back
+  const SNAP_BACK_STIFFNESS = 190;  // lower = slower spring
+  const SNAP_BACK_DAMPING = 36;     // higher = more damped/less bouncy
+  // Backend user id (UUID string) for Test Mode persistence/overlays
+  const [userKey, setUserKey] = useState<string | null>(null);
+  const [userMissingModal, setUserMissingModal] = useState<{ show: boolean; triedUid?: string }>(() => ({ show: false }));
+  // Test Mode: if week already completed (10/10 predictions), disable gameplay and show veil
+  const [weekComplete, setWeekComplete] = useState(false);
+  // Persisted rollover flag from Risultati once all 10 of week 1 are revealed
+  const [rolledWeek1Once, setRolledWeek1Once] = useState(false);
+  const didDefaultWeekRef = useRef(false);
+  const mismatchLogOnceRef = useRef(false);
+  // Live mode: track if we've already widened the search window for upcoming fixtures
+  const liveExtendedFetchRef = useRef(false);
+  // Prevent multiple expensive 365-day broad fetch attempts
+  const broadAttemptedRef = useRef(false);
+  // Guard to avoid duplicate fetch cycles (e.g. StrictMode double invoke or state churn)
+  const fetchGuardRef = useRef<string | null>(null);
+  // Local flag to avoid noisy 404 on week-2 stats before any picks exist
+  const hasWeekPredsKey = useCallback((week: number, u?: string | null) => {
+    return `swipick:gioca:hasPreds:test:week:${week}:user:${u ?? 'anon'}`;
+  }, []);
+  // Track reconciliation to avoid redundant merges per (user,week)
+  const reconciledRef = useRef<string | null>(null);
+  // Completed summary header (fixed) height measurement for spacer
+  const completeHeaderRef = useRef<HTMLDivElement | null>(null);
+  const [completeHeaderH, setCompleteHeaderH] = useState<number>(160);
+  useEffect(() => {
+    const measure = () => {
+      if (completeHeaderRef.current) {
+        setCompleteHeaderH(completeHeaderRef.current.getBoundingClientRect().height);
+      }
+    };
+    // Measure asap and on resize
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [currentMode]);
+
+  // -------- Persisted UI State (deck order, current index, predictions) --------
+  type GiocaPersistState = {
+    v: 1;
+    lastIndex: number;
+    predictions: Record<number, '1'|'X'|'2'>;
+    deck: number[]; // fixtureId order
+  };
+  const persistKey = useCallback(() => {
+    const modeKey = currentMode ?? 'live';
+    const weekKey = Number.isFinite(selectedWeek) ? selectedWeek : 1;
+    const user = userKey ?? 'anon';
+    return `swipick:gioca:state:v1:mode:${modeKey}:week:${weekKey}:user:${user}`;
+  }, [currentMode, selectedWeek, userKey]);
+
+  const readyToPersistRef = useRef<boolean>(false);
+
+  const safeReadState = useCallback((): GiocaPersistState | null => {
+    try {
+      if (typeof window === 'undefined') return null;
+      const raw = localStorage.getItem(persistKey());
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as Partial<GiocaPersistState> | null;
+      if (!parsed || parsed.v !== 1) return null;
+      if (!Array.isArray(parsed.deck)) return null;
+      if (typeof parsed.lastIndex !== 'number') return null;
+      if (!parsed.predictions || typeof parsed.predictions !== 'object') return null;
+      return { v: 1, lastIndex: parsed.lastIndex, predictions: parsed.predictions as Record<number,'1'|'X'|'2'>, deck: parsed.deck as number[] };
+    } catch { return null; }
+  }, [persistKey]);
+
+  const safeWriteState = useCallback((state: GiocaPersistState) => {
+    try {
+      if (typeof window === 'undefined') return;
+      localStorage.setItem(persistKey(), JSON.stringify(state));
+    } catch {}
+  }, [persistKey]);
+
+  // Update context if mode changed via URL
+  useEffect(() => {
+    if (currentMode !== mode) {
+      setMode(currentMode);
+    }
+  }, [currentMode, mode, setMode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Build a stable key representing the desired dataset; for live we don't include currentLiveWeek
+    const fetchKey = `${currentMode}:${currentMode === 'test' ? selectedWeek : 'live'}:${userKey || 'anon'}`;
+    if (fetchGuardRef.current === fetchKey) {
+      // Already fetched for this key; skip to prevent loops
+      return;
+    }
+    fetchGuardRef.current = fetchKey;
+    const fetchFixtures = async () => {
+      try {
+        // Only set loading true for the first fetch
+        const isFirstFetch = fixtures.length === 0;
+        if (isFirstFetch) {
+          setLoading(true);
+          if (DEBUG_GIOCA) { try { console.log('[gioca] setting loading=true for first fetch', { fetchKey }); } catch {} }
+        } else {
+          if (DEBUG_GIOCA) { try { console.log('[gioca] skipping loading=true, already have fixtures', { fetchKey, fixtureCount: fixtures.length }); } catch {} }
+        }
+        setError(null);
+  let fixtureData: Fixture[] = [];
+  let cardsArrLocal: MatchCard[] = [];
+
+  if (currentMode === 'test') {
+          // If we should be on week 2 due to rollover, avoid fetching week 1 and flip URL first
+      if (selectedWeek === 1) {
+            try {
+              let rolled = false;
+              if (typeof window !== 'undefined' && window.localStorage) {
+                for (let i = 0; i < localStorage.length; i++) {
+                  const k = localStorage.key(i) || '';
+                  if (k.startsWith('swipick:risultati:autoRoll:week1:user:') && localStorage.getItem(k) === '1') {
+                    rolled = true;
+                    break;
+                  }
+                }
+              }
+              if (rolled) {
+                if (DEBUG_GIOCA) { try { console.log('[gioca] suppress week1 fetch due to rollover flag; redirecting to week=2'); } catch {} }
+                // Flip URL to week=2 and exit early; next effect run will fetch week 2
+                const href = typeof window !== 'undefined' ? window.location.href : null;
+                if (href) {
+                  const url = new URL(href);
+                  url.searchParams.set('mode', 'test');
+                  url.searchParams.set('week', '2');
+                  try { sessionStorage.setItem('swipick:gioca:autoAdvanceMsg', 'Stiamo iniziando dal giorno 2,\nvisualizza i risultati della settimana 1 nella pagina dei risultati'); } catch {}
+                  router.replace(url.toString());
+                }
+        // Keep loading spinner while redirecting to avoid empty-state flash
+        return; // don't fetch week 1
+              }
+            } catch {}
+          }
+          // In Test Mode, wait for backend user id to avoid double-fetch (w/o and with overlay)
+          if (!userKey) {
+            if (DEBUG_GIOCA) { try { console.log('[gioca] defer fetch until userKey is resolved'); } catch {} }
+      // Keep loading spinner until userKey is resolved to avoid empty-state flicker
+      return;
+          }
+          // Fetch enriched match-cards for card stats
+          try {
+      const userIdForOverlay = userKey ?? undefined;
+            const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, userIdForOverlay);
+            let mcRaw: unknown = mcResponse;
+            if (mcResponse && typeof mcResponse === 'object' && 'data' in (mcResponse as Record<string, unknown>)) {
+              mcRaw = (mcResponse as Record<string, unknown>).data as unknown;
+            }
+            if (Array.isArray(mcRaw)) {
+              const arr = (mcRaw as MatchCard[]).slice().sort((a, b) => new Date(a.kickoff.iso).getTime() - new Date(b.kickoff.iso).getTime());
+              cardsArrLocal = arr;
+              if (DEBUG_GIOCA) {
+                try { console.log('[gioca] match-cards loaded', { week: selectedWeek, count: arr.length, first: arr[0]?.fixtureId, userIdForOverlay }); } catch {}
+              }
+              // keep local length if needed for future logs
+            } else {
+              cardsArrLocal = [];
+              if (DEBUG_GIOCA) {
+                try { console.log('[gioca] match-cards empty-or-bad-shape', { week: selectedWeek, mcType: typeof mcRaw }); } catch {}
+              }
+            }
+          } catch {
+            cardsArrLocal = [];
+            if (DEBUG_GIOCA) {
+              try { console.log('[gioca] match-cards fetch failed'); } catch {}
+            }
+          }
+
+          // Existing fixtures for header/date-range and navigation
+          const response = await apiClient.getTestFixtures(selectedWeek);
+          let raw: unknown = response;
+          if (
+            typeof response === 'object' &&
+            response !== null &&
+            'data' in (response as Record<string, unknown>) &&
+            Array.isArray((response as { data?: unknown }).data)
+          ) {
+            raw = (response as { data: unknown }).data;
+          }
+          if (isTestFixtureArray(raw)) {
+            const mapped = (raw as TestFixtureAPI[])
+              .filter((f) => (typeof f.week === 'number' ? f.week === selectedWeek : true))
+              .map((f, idx) => {
+                const iso = typeof f.date === 'string' ? f.date : new Date(f.date).toISOString();
+                return {
+                  id: typeof f.id === 'number' ? f.id : idx + 1,
+                  date: iso,
+                  timestamp: Math.floor(new Date(iso).getTime() / 1000),
+                  venue: { id: typeof f.id === 'number' ? f.id : idx + 1, name: String(f.stadium || `${f.homeTeam} vs ${f.awayTeam}`), city: 'N/A' },
+                  status: { long: f.status === 'FT' ? 'Match Finished' : 'Scheduled', short: String(f.status || '') },
+                  league: { id: 135, name: 'Serie A (Test)', country: 'Italy', season: 2023, round: `Week ${f.week ?? selectedWeek}` },
+                  teams: {
+                    home: { id: ((typeof f.id === 'number' ? f.id : idx + 1) * 10) + 1, name: String(f.homeTeam || 'Home'), logo: getLogoForTeam(String(f.homeTeam || '')) || '' },
+                    away: { id: ((typeof f.id === 'number' ? f.id : idx + 1) * 10) + 2, name: String(f.awayTeam || 'Away'), logo: getLogoForTeam(String(f.awayTeam || '')) || '' },
+                  },
+                  goals: { home: Number.isFinite(f.homeScore as number) ? Number(f.homeScore) : undefined, away: Number.isFinite(f.awayScore as number) ? Number(f.awayScore) : undefined },
+                  score: { halftime: {}, fulltime: { home: Number(f.homeScore ?? 0), away: Number(f.awayScore ?? 0) } },
+                } as Fixture;
+                });
+            fixtureData = mapped.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 10);
+            if (DEBUG_GIOCA) {
+              try { console.log('[gioca] fixtures loaded', { week: selectedWeek, count: fixtureData.length, first: fixtureData[0]?.id }); } catch {}
+            }
+              // Apply fetched data to state (aligning is handled at render time)
+              setFixtures(fixtureData);
+              setMatchCards(cardsArrLocal);
+          }
+        } else {
+          // Live mode - fetch real fixtures
+          if (DEBUG_GIOCA) { try { console.log('[gioca] live mode - fetching real fixtures'); } catch {} }
+          
+          // For live mode, we'll create match cards from fixtures since there might not be a separate endpoint yet
+          cardsArrLocal = [];
+          
+          try {
+            // First, try new real fixtures endpoint (direct DB fixtures table)
+            try {
+              const nextResp = await apiClient.getNextFixtures(10) as unknown as { success?: boolean; fixtures?: Array<Record<string, unknown>>; detectedWeek?: number };
+              if (nextResp && nextResp.success && Array.isArray(nextResp.fixtures) && nextResp.fixtures.length > 0) {
+                if (DEBUG_GIOCA) { try { console.log('[gioca] next real fixtures endpoint hit', { count: nextResp.fixtures.length, week: nextResp.detectedWeek }); } catch {} }
+                const mappedReal: Fixture[] = nextResp.fixtures.map((fRaw, idx: number) => {
+                  const r = fRaw as Record<string, unknown>;
+                  const dateVal = typeof r.date === 'string' ? r.date : new Date().toISOString();
+                  const teamsVal = (r.teams && typeof r.teams === 'object') ? (r.teams as Record<string, unknown>) : {};
+                  const homeObj = (teamsVal.home && typeof teamsVal.home === 'object') ? (teamsVal.home as Record<string, unknown>) : { name: 'Home', logo: '' };
+                  const awayObj = (teamsVal.away && typeof teamsVal.away === 'object') ? (teamsVal.away as Record<string, unknown>) : { name: 'Away', logo: '' };
+                  const leagueVal = (r.league && typeof r.league === 'object') ? (r.league as Record<string, unknown>) : {};
+                  const roundStr = typeof leagueVal.round === 'string' ? leagueVal.round : `Regular Season - ${nextResp.detectedWeek || 1}`;
+                  const goalsVal = (r.goals && typeof r.goals === 'object') ? (r.goals as Record<string, unknown>) : {};
+                  const scoreVal = (r.score && typeof r.score === 'object') ? (r.score as Record<string, unknown>) : {};
+                  return {
+                    id: typeof r.id === 'number' ? r.id : idx + 1,
+                    date: dateVal,
+                    timestamp: Math.floor(new Date(dateVal).getTime() / 1000),
+                    venue: (r.venue && typeof r.venue === 'object') ? { id: idx + 1, name: String((r.venue as Record<string, unknown>).name || `${homeObj.name} vs ${awayObj.name}`), city: String((r.venue as Record<string, unknown>).city || 'N/A') } : { id: idx + 1, name: `${homeObj.name} vs ${awayObj.name}`, city: 'N/A' },
+                    status: (r.status && typeof r.status === 'object') ? { long: String((r.status as Record<string, unknown>).long || 'Scheduled'), short: String((r.status as Record<string, unknown>).short || 'NS') } : { long: 'Scheduled', short: 'NS' },
+                    league: { id: 135, name: 'Serie A', country: 'Italy', season: new Date().getFullYear(), round: roundStr },
+                    teams: {
+                      home: { id: homeObj.id || (idx + 1) * 10 + 1, name: String(homeObj.name), logo: String(homeObj.logo || '') },
+                      away: { id: awayObj.id || (idx + 1) * 10 + 2, name: String(awayObj.name), logo: String(awayObj.logo || '') },
+                    },
+                    goals: { home: typeof goalsVal.home === 'number' ? goalsVal.home : 0, away: typeof goalsVal.away === 'number' ? goalsVal.away : 0 },
+                    score: { halftime: {}, fulltime: {} },
+                  } as Fixture;
+                });
+                const sortedReal = mappedReal.sort((a,b)=> new Date(a.date).getTime() - new Date(b.date).getTime());
+                fixtureData = sortedReal.slice(0,10);
+                const firstFutureReal = sortedReal.find(fr => new Date(fr.date).getTime() > Date.now()+60_000) || sortedReal[0];
+                if (firstFutureReal?.league?.round) {
+                  const m = String(firstFutureReal.league.round).match(/(\d+)/); if (m) { const wk = parseInt(m[1],10); if (wk>=1 && wk<=38) setCurrentLiveWeek(wk); }
+                } else if (nextResp.detectedWeek) {
+                  setCurrentLiveWeek(nextResp.detectedWeek);
+                }
+                
+                // Get rich match cards with statistics for the detected week
+                const detectedWeek = nextResp.detectedWeek || (() => { 
+                  const firstFixture = sortedReal[0];
+                  if (firstFixture?.league?.round) {
+                    const m = String(firstFixture.league.round).match(/(\d+)/); 
+                    return m ? parseInt(m[1], 10) : 1;
+                  }
+                  return 1;
+                })();
+                
+                // Try to get rich match cards with statistics
+                try {
+                  if (DEBUG_GIOCA) { try { console.log('[gioca] requesting rich match cards', { week: detectedWeek, userKey: userKey || 'none' }); } catch {} }
+                  const matchCardsResp = await apiClient.getLiveMatchCardsByWeek(detectedWeek, userKey || undefined);
+                  if (DEBUG_GIOCA) { try { console.log('[gioca] rich match cards response', { type: typeof matchCardsResp, isArray: Array.isArray(matchCardsResp), length: Array.isArray(matchCardsResp) ? matchCardsResp.length : 'N/A' }); } catch {} }
+                  
+                  if (matchCardsResp && Array.isArray(matchCardsResp)) {
+                    cardsArrLocal = matchCardsResp as MatchCard[];
+                    if (DEBUG_GIOCA) { try { console.log('[gioca] rich match cards loaded', { count: cardsArrLocal.length, sample: cardsArrLocal[0] }); } catch {} }
+                  } else {
+                    // Fallback to basic match cards if rich endpoint fails
+                    if (DEBUG_GIOCA) { try { console.log('[gioca] rich match cards endpoint returned invalid data, using basic fallback', { response: matchCardsResp }); } catch {} }
+                    cardsArrLocal = fixtureData.map(ft => ({
+                      fixtureId: ft.id,
+                      week: (() => { const m = String(ft.league?.round).match(/(\d+)/); return m ? parseInt(m[1],10) : 1; })(),
+                      kickoff: { iso: ft.date, display: ft.date },
+                      home: { name: ft.teams.home.name, logo: ft.teams.home.logo || null, winRateHome: null, last5: [] },
+                      away: { name: ft.teams.away.name, logo: ft.teams.away.logo || null, winRateAway: null, last5: [] },
+                      stadium: ft.venue?.name || 'Stadio',
+                    }));
+                  }
+                } catch (matchCardError) {
+                  console.error('[gioca] Failed to fetch rich match cards, using basic fallback:', matchCardError);
+                  // Fallback to basic match cards
+                  cardsArrLocal = fixtureData.map(ft => ({
+                    fixtureId: ft.id,
+                    week: (() => { const m = String(ft.league?.round).match(/(\d+)/); return m ? parseInt(m[1],10) : 1; })(),
+                    kickoff: { iso: ft.date, display: ft.date },
+                    home: { name: ft.teams.home.name, logo: ft.teams.home.logo || null, winRateHome: null, last5: [] },
+                    away: { name: ft.teams.away.name, logo: ft.teams.away.logo || null, winRateAway: null, last5: [] },
+                    stadium: ft.venue?.name || 'Stadio',
+                  }));
+                }
+                setFixtures(fixtureData);
+                setMatchCards(cardsArrLocal);
+                setLoading(false);
+                return; // short-circuit live fetch chain
+              }
+            } catch (e) {
+              if (DEBUG_GIOCA) { try { console.log('[gioca] next real fixtures endpoint failed or empty'); } catch {} }
+            }
+            // Fetch live fixtures from the backend
+            const liveResponse = await apiClient.getLiveFixtures();
+            let liveRaw: unknown = liveResponse;
+            
+            if (liveResponse && typeof liveResponse === 'object' && 'data' in (liveResponse as Record<string, unknown>)) {
+              liveRaw = (liveResponse as Record<string, unknown>).data as unknown;
+            }
+            
+            if (Array.isArray(liveRaw) && liveRaw.length > 0) {
+              // Map live fixtures to the expected Fixture format
+              const mappedLive = (liveRaw as RawFixtureData[]).map((f: RawFixtureData, idx) => {
+                const iso = typeof f.date === 'string' ? f.date : new Date(f.date || new Date()).toISOString();
+                return {
+                  id: f.id || idx + 1,
+                  date: iso,
+                  timestamp: Math.floor(new Date(iso).getTime() / 1000),
+                  venue: { id: f.id || idx + 1, name: f.venue?.name || `${f.teams?.home?.name || 'Home'} vs ${f.teams?.away?.name || 'Away'}` || 'Stadium', city: f.venue?.city || 'N/A' },
+                  status: { long: f.status?.long || 'Match Status', short: f.status?.short || '' },
+                  league: { id: f.league?.id || 135, name: f.league?.name || 'Serie A', country: f.league?.country || 'Italy', season: f.league?.season || 2024, round: f.league?.round || `Round ${selectedWeek}` },
+                  teams: {
+                    home: { id: f.teams?.home?.id || ((idx + 1) * 10) + 1, name: f.teams?.home?.name || 'Home', logo: f.teams?.home?.logo || '' },
+                    away: { id: f.teams?.away?.id || ((idx + 1) * 10) + 2, name: f.teams?.away?.name || 'Away', logo: f.teams?.away?.logo || '' },
+                  },
+                  goals: { home: f.goals?.home, away: f.goals?.away },
+                  score: { halftime: f.score?.halftime || {}, fulltime: f.score?.fulltime || { home: f.goals?.home || 0, away: f.goals?.away || 0 } },
+                } as Fixture;
+              });
+              
+              let sortedLive = mappedLive.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+              const nowLive = Date.now();
+              const futureLive = sortedLive.filter(f => new Date(f.date).getTime() > nowLive - 60_000);
+              if (futureLive.length > 0) sortedLive = futureLive;
+              fixtureData = sortedLive.slice(0, 10);
+              // Detect current week from first future (or first sorted)
+              const firstForWeek = futureLive[0] || sortedLive[0];
+              if (firstForWeek?.league?.round) {
+                const wkMatch = String(firstForWeek.league.round).match(/(\d+)/);
+                if (wkMatch) {
+                  const wk = parseInt(wkMatch[1], 10);
+                  if (wk >= 1 && wk <= 38) {
+                    setCurrentLiveWeek(wk);
+                    if (DEBUG_GIOCA) { try { console.log('[gioca] detected live week', { wk }); } catch {} }
+                  }
+                }
+              }
+              if (DEBUG_GIOCA) {
+                try { console.log('[gioca] live fixtures loaded', { count: fixtureData.length, first: fixtureData[0]?.id }); } catch {}
+              }
+            } else {
+              // Fallback to upcoming Serie A fixtures if live fixtures are empty or format is unexpected
+              if (DEBUG_GIOCA) {
+                try { console.log('[gioca] live fixtures empty, falling back to upcoming Serie A fixtures'); } catch {}
+              }
+              const upcomingResponse = await apiClient.getUpcomingSerieAFixtures(7);
+              let upcomingRaw: unknown = upcomingResponse;
+              
+              if (upcomingResponse && typeof upcomingResponse === 'object' && 'data' in (upcomingResponse as Record<string, unknown>)) {
+                upcomingRaw = (upcomingResponse as Record<string, unknown>).data as unknown;
+              }
+              
+              if (Array.isArray(upcomingRaw)) {
+                const mappedUpcoming = (upcomingRaw as RawFixtureData[]).map((f: RawFixtureData, idx) => {
+                  const iso = typeof f.date === 'string' ? f.date : new Date(f.date || new Date()).toISOString();
+                  return {
+                    id: f.id || idx + 1,
+                    date: iso,
+                    timestamp: Math.floor(new Date(iso).getTime() / 1000),
+                    venue: { id: f.id || idx + 1, name: f.venue?.name || `${f.teams?.home?.name} vs ${f.teams?.away?.name}` || 'Stadium', city: f.venue?.city || 'N/A' },
+                    status: { long: f.status?.long || 'Scheduled', short: f.status?.short || 'NS' },
+                    league: { id: f.league?.id || 135, name: f.league?.name || 'Serie A', country: f.league?.country || 'Italy', season: f.league?.season || 2024, round: f.league?.round || `Round ${selectedWeek}` },
+                    teams: {
+                      home: { id: f.teams?.home?.id || ((idx + 1) * 10) + 1, name: f.teams?.home?.name || 'Home', logo: f.teams?.home?.logo || '' },
+                      away: { id: f.teams?.away?.id || ((idx + 1) * 10) + 2, name: f.teams?.away?.name || 'Away', logo: f.teams?.away?.logo || '' },
+                    },
+                    goals: { home: f.goals?.home, away: f.goals?.away },
+                    score: { halftime: f.score?.halftime || {}, fulltime: f.score?.fulltime || { home: f.goals?.home || 0, away: f.goals?.away || 0 } },
+                  } as Fixture;
+                });
+                
+                let sortedUpcoming = mappedUpcoming.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                const nowUpcoming = Date.now();
+                let futureUpcoming = sortedUpcoming.filter(f => new Date(f.date).getTime() > nowUpcoming + 60_000); // strictly future (+1m)
+
+                // If no strictly-future fixtures, progressively widen day window (only once)
+                if (currentMode === 'live' && futureUpcoming.length === 0 && !liveExtendedFetchRef.current) {
+                  liveExtendedFetchRef.current = true;
+                  const dayWindows = [14, 30, 45, 60];
+                  for (const dw of dayWindows) {
+                    try {
+                      if (DEBUG_GIOCA) { try { console.log('[gioca] widening upcoming search window', { days: dw }); } catch {} }
+                      const moreResp = await apiClient.getUpcomingSerieAFixtures(dw);
+                      let moreRaw: unknown = moreResp;
+                      if (moreResp && typeof moreResp === 'object' && 'data' in (moreResp as Record<string, unknown>)) {
+                        moreRaw = (moreResp as Record<string, unknown>).data as unknown;
+                      }
+                      if (Array.isArray(moreRaw) && (moreRaw as RawFixtureData[]).length > 0) {
+                        const mappedMore = (moreRaw as RawFixtureData[]).map((f: RawFixtureData, idx2) => {
+                          const iso2 = typeof f.date === 'string' ? f.date : new Date(f.date || new Date()).toISOString();
+                          return {
+                            id: f.id || idx2 + 1,
+                            date: iso2,
+                            timestamp: Math.floor(new Date(iso2).getTime() / 1000),
+                            venue: { id: f.id || idx2 + 1, name: f.venue?.name || `${f.teams?.home?.name} vs ${f.teams?.away?.name}` || 'Stadium', city: f.venue?.city || 'N/A' },
+                            status: { long: f.status?.long || 'Scheduled', short: f.status?.short || 'NS' },
+                            league: { id: f.league?.id || 135, name: f.league?.name || 'Serie A', country: f.league?.country || 'Italy', season: f.league?.season || 2024, round: f.league?.round || 'Round ?' },
+                            teams: {
+                              home: { id: f.teams?.home?.id || ((idx2 + 1) * 10) + 1, name: f.teams?.home?.name || 'Home', logo: f.teams?.home?.logo || '' },
+                              away: { id: f.teams?.away?.id || ((idx2 + 1) * 10) + 2, name: f.teams?.away?.name || 'Away', logo: f.teams?.away?.logo || '' },
+                            },
+                            goals: { home: f.goals?.home, away: f.goals?.away },
+                            score: { halftime: f.score?.halftime || {}, fulltime: f.score?.fulltime || { home: f.goals?.home || 0, away: f.goals?.away || 0 } },
+                          } as Fixture;
+                        });
+                        const futureMore = mappedMore.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                          .filter(fm => new Date(fm.date).getTime() > nowUpcoming + 60_000);
+                        if (futureMore.length > 0) {
+                          futureUpcoming = futureMore;
+                          if (DEBUG_GIOCA) { try { console.log('[gioca] found future fixtures with widened window', { days: dw, count: futureMore.length }); } catch {} }
+                          break;
+                        }
+                      }
+                    } catch (e) {
+                      if (DEBUG_GIOCA) { try { console.log('[gioca] error while widening window', { days: dw }); } catch {} }
+                    }
+                  }
+                }
+
+                if (futureUpcoming.length > 0) sortedUpcoming = futureUpcoming; // prefer future
+                fixtureData = sortedUpcoming.slice(0, 10);
+
+                if (currentMode === 'live') {
+                  const weekSource = futureUpcoming[0] || sortedUpcoming[0];
+                  if (weekSource?.league?.round) {
+                    const roundMatch = String(weekSource.league.round).match(/(\d+)/);
+                    if (roundMatch) {
+                      const detectedWeek = parseInt(roundMatch[1], 10);
+                      if (detectedWeek >= 1 && detectedWeek <= 38) {
+                        setCurrentLiveWeek(detectedWeek);
+                        if (DEBUG_GIOCA) { try { console.log('[gioca] detected live week (fallback)', { detectedWeek }); } catch {} }
+                      }
+                    }
+                  }
+                  // If still week 1 and all fixtures are past or zero countdown, try one last broad fetch (365 days) to get future season fixtures
+                  const allPast = sortedUpcoming.every(f => new Date(f.date).getTime() <= nowUpcoming);
+                  if (allPast && !broadAttemptedRef.current) {
+                    broadAttemptedRef.current = true; // ensure single attempt
+                    try {
+                      if (DEBUG_GIOCA) { try { console.log('[gioca] all fetched fixtures appear past; attempting broad 365-day fetch'); } catch {} }
+                      const broadResp = await apiClient.getUpcomingSerieAFixtures(365);
+                      let broadRaw: unknown = broadResp;
+                      if (broadResp && typeof broadResp === 'object' && 'data' in (broadResp as Record<string, unknown>)) {
+                        broadRaw = (broadResp as Record<string, unknown>).data as unknown;
+                      }
+                      if (Array.isArray(broadRaw)) {
+                        const mappedBroad = (broadRaw as RawFixtureData[]).map((f: RawFixtureData, idx3) => {
+                          const isoB = typeof f.date === 'string' ? f.date : new Date(f.date || new Date()).toISOString();
+                          return {
+                            id: f.id || idx3 + 1,
+                            date: isoB,
+                            timestamp: Math.floor(new Date(isoB).getTime() / 1000),
+                            venue: { id: f.id || idx3 + 1, name: f.venue?.name || `${f.teams?.home?.name} vs ${f.teams?.away?.name}` || 'Stadium', city: f.venue?.city || 'N/A' },
+                            status: { long: f.status?.long || 'Scheduled', short: f.status?.short || 'NS' },
+                            league: { id: f.league?.id || 135, name: f.league?.name || 'Serie A', country: f.league?.country || 'Italy', season: f.league?.season || 2024, round: f.league?.round || 'Round ?' },
+                            teams: {
+                              home: { id: f.teams?.home?.id || ((idx3 + 1) * 10) + 1, name: f.teams?.home?.name || 'Home', logo: f.teams?.home?.logo || '' },
+                              away: { id: f.teams?.away?.id || ((idx3 + 1) * 10) + 2, name: f.teams?.away?.name || 'Away', logo: f.teams?.away?.logo || '' },
+                            },
+                            goals: { home: f.goals?.home, away: f.goals?.away },
+                            score: { halftime: f.score?.halftime || {}, fulltime: f.score?.fulltime || { home: f.goals?.home || 0, away: f.goals?.away || 0 } },
+                          } as Fixture;
+                        }).sort((a,b)=> new Date(a.date).getTime() - new Date(b.date).getTime());
+                        const futureBroad = mappedBroad.filter(f => new Date(f.date).getTime() > nowUpcoming + 60_000);
+                        if (futureBroad.length > 0) {
+                          fixtureData = futureBroad.slice(0,10);
+                          const wkSrc = futureBroad[0];
+                          if (wkSrc?.league?.round) {
+                            const rm = String(wkSrc.league.round).match(/(\d+)/);
+                            if (rm) {
+                              const dw = parseInt(rm[1],10);
+                              if (dw>=1 && dw<=38) {
+                                setCurrentLiveWeek(dw);
+                                if (DEBUG_GIOCA) { try { console.log('[gioca] detected live week (broad fetch)', { dw }); } catch {} }
+                              }
+                            }
+                          }
+                        } else if (DEBUG_GIOCA) {
+                          try { console.log('[gioca] broad 365-day fetch found no future fixtures'); } catch {}
+                        }
+                      }
+                    } catch (e) {
+                      if (DEBUG_GIOCA) { try { console.log('[gioca] broad 365-day fetch failed'); } catch {} }
+                    }
+                  }
+                }
+                
+                if (DEBUG_GIOCA) {
+                  try { console.log('[gioca] upcoming Serie A fixtures loaded as fallback', { count: fixtureData.length, first: fixtureData[0]?.id }); } catch {}
+                }
+              }
+            }
+            
+            // Final safeguard: if still only past fixtures, synthesize week & countdown so UI isn't stuck at 0
+            if (currentMode === 'live' && fixtureData.length > 0) {
+              const nowTs = Date.now();
+              const allPastNow = fixtureData.every(f => new Date(f.date).getTime() <= nowTs);
+              if (allPastNow) {
+                // Estimate current week from season start (24 Aug of current year)
+                const today = new Date();
+                const seasonStart = new Date(today.getFullYear(), 7, 24); // Aug=7
+                let estWeek = 1 + Math.floor((today.getTime() - seasonStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
+                if (estWeek < 1) estWeek = 1; if (estWeek > 38) estWeek = 38;
+                if (!currentLiveWeek || currentLiveWeek < estWeek) {
+                  setCurrentLiveWeek(estWeek);
+                  if (DEBUG_GIOCA) { try { console.log('[gioca] synthetic live week applied', { estWeek }); } catch {} }
+                }
+                // Compute next Saturday 14:00 local as synthetic target
+                const fallbackTarget = new Date();
+                const day = fallbackTarget.getDay(); // 0=Sun
+                let daysUntilSat = (6 - day + 7) % 7;
+                if (daysUntilSat === 0) daysUntilSat = 7; // always future
+                fallbackTarget.setDate(fallbackTarget.getDate() + daysUntilSat);
+                fallbackTarget.setHours(14,0,0,0);
+                setNextTarget(fallbackTarget);
+                if (DEBUG_GIOCA) { try { console.log('[gioca] synthetic countdown target set', { target: fallbackTarget.toISOString() }); } catch {} }
+              }
+            }
+
+            // Apply fetched data to state
+            setFixtures(fixtureData);
+            setMatchCards(cardsArrLocal);
+            
+          } catch (liveErr) {
+            console.error('Error fetching live fixtures:', liveErr);
+            if (DEBUG_GIOCA) { try { console.log('[gioca] live mode fetch failed, showing empty state'); } catch {} }
+            // Set empty state but don't throw - show "Nessuna partita trovata" message
+            setFixtures([]);
+            setMatchCards([]);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching fixtures:', err);
+        setError(err instanceof Error ? err.message : 'Errore nel caricamento delle partite');
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          if (DEBUG_GIOCA) { try { console.log('[gioca] setting loading=false in finally block', { fetchKey }); } catch {} }
+        }
+      }
+    };
+
+    fetchFixtures();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMode, selectedWeek, firebaseUser?.uid, userKey, router, safeReadState]);
+
+  // Persist UI state whenever key pieces change and after initial hydration is done
+  useEffect(() => {
+    try {
+      if (!readyToPersistRef.current) return;
+      if (!fixtures.length) return;
+      const deck = fixtures.map((f) => f.id);
+      const idx = Math.min(Math.max(currentFixtureIndex, 0), Math.max(0, fixtures.length - 1));
+      const state = { v: 1 as const, lastIndex: idx, predictions, deck };
+      safeWriteState(state);
+    } catch {}
+  }, [fixtures, currentFixtureIndex, predictions, safeWriteState]);
+
+  // Reconcile with server state post-hydration (Test Mode)
+  useEffect(() => {
+    const run = async () => {
+      if (currentMode !== 'test') return;
+      if (!userKey) return;
+      if (!fixtures.length) return;
+      const sig = `${userKey}:${selectedWeek}`;
+      if (reconciledRef.current === sig) return;
+      try {
+        const respUnknown = await apiClient.getTestWeeklyStats(userKey, selectedWeek) as unknown;
+        const wrap = (respUnknown && typeof respUnknown === 'object' && 'data' in (respUnknown as Record<string, unknown>))
+          ? (respUnknown as { data?: { totalPredictions?: number; predictions?: Array<{ fixtureId: number; userChoice: '1'|'X'|'2'|'SKIP' }> } }).data
+          : (respUnknown as { totalPredictions?: number; predictions?: Array<{ fixtureId: number; userChoice: '1'|'X'|'2'|'SKIP' }> } | undefined);
+        const data = wrap || { totalPredictions: 0, predictions: [] };
+        const total = Number(data?.totalPredictions ?? 0);
+        const arr: Array<{ fixtureId: number; userChoice: '1'|'X'|'2'|'SKIP' }> = Array.isArray(data?.predictions) ? data.predictions : [];
+        const serverPreds: Record<number, '1'|'X'|'2'> = {};
+        for (const p of arr) {
+          if (p && (p.userChoice === '1' || p.userChoice === 'X' || p.userChoice === '2')) {
+            serverPreds[p.fixtureId] = p.userChoice;
+          }
+        }
+        if (Object.keys(serverPreds).length > 0) {
+          try { localStorage.setItem(hasWeekPredsKey(selectedWeek, userKey), '1'); } catch {}
+        }
+        setPredictions((prev) => ({ ...prev, ...serverPreds }));
+        // find first-unanswered in current deck order
+        const first = fixtures.findIndex((f) => !serverPreds[f.id]);
+        setCurrentFixtureIndex(first >= 0 ? first : 0);
+        if (total >= 10) setWeekComplete(true);
+        reconciledRef.current = sig;
+        if (DEBUG_GIOCA) { try { console.debug('[gioca] reconciliation', { week: selectedWeek, serverCount: Object.keys(serverPreds).length, total, first }); } catch {} }
+      } catch {}
+    };
+    run();
+  }, [currentMode, userKey, selectedWeek, fixtures, hasWeekPredsKey]);
+
+  // Check if selected week is already fully predicted (Test Mode) and set veil
+  useEffect(() => {
+    const checkWeekCompletion = async () => {
+      if (currentMode !== 'test' || !userKey) {
+        setWeekComplete(false);
+        return;
+      }
+      // Avoid calling weekly-stats for Week 2 until the user has made at least one prediction (prevents 404 noise)
+      try {
+        if (selectedWeek === 2) {
+          const k = hasWeekPredsKey(2, userKey);
+          const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
+          if (DEBUG_GIOCA) {
+            try { console.debug('[gioca] week2 local flag', { key: k, hasAny }); } catch {}
+          }
+          if (!hasAny) {
+            setWeekComplete(false);
+            return;
+          }
+        }
+      } catch {}
+      try {
+        // Authoritative check: ping weekly stats (counts rows in test_specs)
+        const weekly = await apiClient.getTestWeeklyStats(userKey, selectedWeek);
+        const totalPreds = (() => {
+          const r = weekly as unknown;
+          if (r && typeof r === 'object') {
+            const ro = r as Record<string, unknown>;
+            if ('data' in ro && ro.data && typeof ro.data === 'object') {
+              const d = ro.data as Record<string, unknown>;
+              const tp = d.totalPredictions;
+              return typeof tp === 'number' ? tp : 0;
+            }
+            const tp = ro.totalPredictions;
+            return typeof tp === 'number' ? tp : 0;
+          }
+          return 0;
+        })();
+        if (DEBUG_GIOCA) {
+          try { console.debug('[gioca] weekly stats', { week: selectedWeek, totalPreds }); } catch {}
+        }
+        setWeekComplete(totalPreds >= 10);
+      } catch {
+        // If weekly endpoint not available, fall back to no veil
+        setWeekComplete(false);
+      }
+    };
+    checkWeekCompletion();
+  }, [currentMode, selectedWeek, userKey, hasWeekPredsKey]);
+
+  // Load persisted rollover flag (set by Risultati when all 10 matches of week 1 were revealed)
+  useEffect(() => {
+    if (!userKey) return;
+    try {
+      const k = `swipick:risultati:autoRoll:week1:user:${userKey}`;
+      setRolledWeek1Once(localStorage.getItem(k) === '1');
+  if (DEBUG_GIOCA) { try { console.debug('[gioca] rolledWeek1Once', { key: k, value: localStorage.getItem(k) }); } catch {} }
+    } catch {}
+  }, [userKey]);
+
+  // Default to week=2 in Test Mode after rollover when no explicit week is provided in the URL
+  useEffect(() => {
+    if (didDefaultWeekRef.current) return;
+    if (currentMode !== 'test') return;
+    if (!rolledWeek1Once) return;
+    try {
+  const qp = searchParams?.get('week') ?? null;
+      if (!qp) {
+        const href = typeof window !== 'undefined' ? window.location.href : null;
+        if (href) {
+          const url = new URL(href);
+          url.searchParams.set('mode', 'test');
+          url.searchParams.set('week', '2');
+          router.replace(url.toString());
+          didDefaultWeekRef.current = true;
+          if (DEBUG_GIOCA) { try { console.debug('[gioca] defaulted week to 2 via replace'); } catch {} }
+        }
+      }
+    } catch {}
+  }, [currentMode, rolledWeek1Once, searchParams, router]);
+
+  // One-time toast after auto-advance replacement
+  useEffect(() => {
+    try {
+      const key = 'swipick:gioca:autoAdvanceMsg';
+      const msg = typeof window !== 'undefined' ? sessionStorage.getItem(key) : null;
+      if (msg) {
+        setToast(msg);
+        sessionStorage.removeItem(key);
+      }
+    } catch {}
+  }, []);
+
+  // Resolve backend user id (UUID string) from Firebase UID for persistence in Test Mode
+  useEffect(() => {
+    const resolveUserId = async () => {
+      if (!firebaseUser?.uid) {
+        setUserKey(null);
+        return;
+      }
+      try {
+        const resp = await apiClient.getUserByFirebaseUid(firebaseUser.uid) as unknown as { success?: boolean; data?: { id?: string } };
+        const idStr = resp?.data?.id;
+        if (idStr && String(idStr).length > 0) {
+          setUserKey(String(idStr));
+          setUserMissingModal({ show: false });
+          // If Firebase says verified, sync DB once when ID known
+          if (firebaseUser.emailVerified === true) {
+            try { await apiClient.updateEmailVerified(String(idStr), true); } catch {}
+          }
+        } else {
+          setUserKey(null);
+          setUserMissingModal({ show: true, triedUid: firebaseUser.uid });
+        }
+      } catch (e) {
+        console.warn('Failed to resolve user id from Firebase UID', e);
+        setUserKey(null);
+        setUserMissingModal({ show: true, triedUid: firebaseUser.uid });
+      }
+    };
+    resolveUserId();
+  }, [firebaseUser?.uid, firebaseUser?.emailVerified]);
+
+  // Light polling to keep header countdown in sync with any backend updates
+  useEffect(() => {
+    if (currentMode !== 'test') return;
+    const interval = setInterval(async () => {
+      try {
+  const response = await apiClient.getTestFixtures(selectedWeek);
+        let raw: unknown = response;
+        if (
+          typeof response === 'object' &&
+          response !== null &&
+          'data' in (response as Record<string, unknown>) &&
+          Array.isArray((response as { data?: unknown }).data)
+        ) {
+          raw = (response as { data: unknown }).data;
+        }
+        if (isTestFixtureArray(raw)) {
+          const mapped = (raw as TestFixtureAPI[])
+            .filter((f) => (typeof f.week === 'number' ? f.week === selectedWeek : true))
+            .map((f, idx) => {
+              const iso = typeof f.date === 'string' ? f.date : new Date(f.date).toISOString();
+              return {
+                id: typeof f.id === 'number' ? f.id : idx + 1,
+                date: iso,
+                timestamp: Math.floor(new Date(iso).getTime() / 1000),
+                venue: { id: typeof f.id === 'number' ? f.id : idx + 1, name: String(f.stadium || `${f.homeTeam} vs ${f.awayTeam}`), city: 'N/A' },
+                status: { long: f.status === 'FT' ? 'Match Finished' : 'Scheduled', short: String(f.status || '') },
+                league: { id: 135, name: 'Serie A (Test)', country: 'Italy', season: 2023, round: `Week ${f.week ?? selectedWeek}` },
+                teams: {
+                  home: { id: ((typeof f.id === 'number' ? f.id : idx + 1) * 10) + 1, name: String(f.homeTeam || 'Home'), logo: getLogoForTeam(String(f.homeTeam || '')) || '' },
+                  away: { id: ((typeof f.id === 'number' ? f.id : idx + 1) * 10) + 2, name: String(f.awayTeam || 'Away'), logo: getLogoForTeam(String(f.awayTeam || '')) || '' },
+                },
+                goals: { home: Number.isFinite(f.homeScore as number) ? Number(f.homeScore) : undefined, away: Number.isFinite(f.awayScore as number) ? Number(f.awayScore) : undefined },
+                score: { halftime: {}, fulltime: { home: Number(f.homeScore ?? 0), away: Number(f.awayScore ?? 0) } },
+              } as Fixture;
+            })
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+            .slice(0, 10);
+          setFixtures(mapped);
+          if (DEBUG_GIOCA) { try { console.log('[gioca] poll fixtures updated', { week: selectedWeek, count: mapped.length }); } catch {} }
+        }
+      } catch {
+        // ignore poll errors
+      }
+    }, 60000); // 60s
+    return () => clearInterval(interval);
+  }, [currentMode, selectedWeek]);
+
+  // Ensure no veil appears for Week 2 until the user has at least one prediction there
+  useEffect(() => {
+    if (currentMode !== 'test') return;
+    if (selectedWeek !== 2) return;
+    try {
+      const k = hasWeekPredsKey(2, userKey);
+      const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
+      if (!hasAny) {
+        setWeekComplete(false);
+      }
+  if (DEBUG_GIOCA) { try { console.log('[gioca] ensure no veil pre-picks week2', { key: k, hasAny }); } catch {} }
+    } catch {
+      setWeekComplete(false);
+    }
+  }, [currentMode, selectedWeek, userKey, hasWeekPredsKey]);
+
+  // Reset completion flag when switching weeks to avoid stale overlays
+  useEffect(() => {
+    if (currentMode !== 'test') return;
+    setWeekComplete(false);
+  if (DEBUG_GIOCA) { try { console.log('[gioca] reset weekComplete due to week/mode change', { week: selectedWeek, mode: currentMode }); } catch {} }
+  }, [selectedWeek, currentMode]);
+
+  // Reset motion controls when current fixture changes to prevent animation artifacts
+  useEffect(() => {
+    controls.set({ x: 0, y: 0 });
+  }, [currentFixtureIndex, controls]);
+
+  // Compare fixtures and matchCards alignment to detect overlap/mismatch
+  useEffect(() => {
+    if (!DEBUG_GIOCA) return;
+    if (!fixtures.length || !matchCards.length) return;
+    try {
+      const pairs = fixtures.slice(0, Math.min(fixtures.length, matchCards.length)).map((f, i) => ({ i, f: `${f.teams.home.name} vs ${f.teams.away.name}`, c: `${matchCards[i]?.home.name} vs ${matchCards[i]?.away.name}` }));
+      const mismatches = pairs.filter(p => p.f !== p.c);
+  console.log('[gioca] alignment check', { week: selectedWeek, fixtures: fixtures.length, cards: matchCards.length, mismatches });
+    } catch {}
+  }, [fixtures, matchCards, selectedWeek]);
+
+  // Log veil visibility changes
+  const prevVeilRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!DEBUG_GIOCA) return;
+    const canShowVeilNow = (() => {
+      if (currentMode === 'test') {
+        if (weekComplete !== true) return false;
+        if (selectedWeek === 1 && rolledWeek1Once) return false;
+        if (selectedWeek === 2) {
+          try {
+            const k = hasWeekPredsKey(2, userKey);
+            const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
+            return hasAny;
+          } catch { return false; }
+        }
+        return true;
+      } else if (currentMode === 'live') {
+        // Live mode: show veil if matches have started/finished and user hasn't made predictions
+        if (fixtures.length === 0) return false;
+        
+        const now = Date.now();
+        const hasStartedMatches = fixtures.some(f => new Date(f.date).getTime() <= now);
+        
+        // If matches have started but user has no predictions, show veil suggesting they catch up
+        if (hasStartedMatches) {
+          // TODO: Check if user has any live predictions - for now, assume they need to catch up
+          return true;
+        }
+        
+        return false;
+      }
+      return false;
+    })();
+    if (prevVeilRef.current !== canShowVeilNow) {
+      prevVeilRef.current = canShowVeilNow;
+  try { console.log('[gioca] veil state', { canShowVeil: canShowVeilNow, weekComplete, selectedWeek, mode: currentMode }); } catch {}
+    }
+  }, [weekComplete, selectedWeek, currentMode, rolledWeek1Once, hasWeekPredsKey, userKey, fixtures]);
+
+  const [localComplete, setLocalComplete] = useState(false);
+
+  const handlePrediction = async (fixtureId: number, prediction: '1' | 'X' | '2') => {
+    if (currentMode === 'test' && weekComplete) {
+      // Prevent further plays when week is complete
+      return;
+    }
+    // Optimistic UI update
+    let nowComplete = false;
+    setPredictions(prev => {
+      const next = { ...prev, [fixtureId]: prediction } as typeof prev;
+      // Compute count across current fixtures to decide if we've reached 10 locally
+      try {
+        const count = fixtures.reduce((acc, f) => acc + (next[f.id] ? 1 : 0), 0);
+        nowComplete = count >= 10;
+      } catch {}
+      return next;
+    });
+    if (nowComplete) {
+      setLocalComplete(true);
+    }
+
+    // Persist to backend
+    try {
+      if (userKey) {
+        // Use unified endpoint for both live and test predictions
+        await apiClient.savePrediction(
+          {
+            userId: userKey,
+            fixtureId,
+            choice: prediction,
+          },
+          currentMode,
+        );
+
+        // Test-mode specific follow-up actions
+        if (currentMode === 'test') {
+          // Mark that the user has at least one prediction for this week (to enable weekly-stats checks later)
+          try {
+            const k = hasWeekPredsKey(selectedWeek, userKey);
+            localStorage.setItem(k, '1');
+          } catch {}
+          // After posting, re-check completion via test weekly-stats to engage veil immediately after 10th pick
+          try {
+            const weekly = await apiClient.getTestWeeklyStats(userKey, selectedWeek);
+            const totalPreds = (() => {
+              const r = weekly as unknown;
+              if (r && typeof r === 'object') {
+                const ro = r as Record<string, unknown>;
+                if ('data' in ro && ro.data && typeof ro.data === 'object') {
+                  const d = ro.data as Record<string, unknown>;
+                  const tp = d.totalPredictions;
+                  return typeof tp === 'number' ? tp : 0;
+                }
+                const tp = ro.totalPredictions;
+                return typeof tp === 'number' ? tp : 0;
+              }
+              return 0;
+            })();
+            if (totalPreds >= 10) {
+              setWeekComplete(true);
+            }
+          } catch {}
+          // Optionally refresh match-cards to show overlay correctness if any prior fixtures are involved.
+          // IMPORTANT: Preserve the current deck order (which may have been rotated by Skip) by
+          // reordering the incoming cards to match the current fixtures array by fixtureId.
+          // Skip this refresh if we've just completed all 10 locally to avoid unnecessary churn.
+          try {
+            if (nowComplete) {
+              // Optimistically mark as complete; weekly stats check below will confirm and set veil where applicable.
+              // No need to refresh match-cards anymore.
+            } else {
+              const userIdForOverlay = userKey ?? undefined;
+              const mcResponse = (await apiClient.getTestMatchCardsByWeek(
+                selectedWeek,
+                userIdForOverlay,
+              )) as unknown as { success?: boolean; data?: MatchCard[] } | MatchCard[];
+              const mcRaw: MatchCard[] | undefined = Array.isArray(mcResponse)
+                ? mcResponse
+                : (mcResponse as { data?: MatchCard[] })?.data;
+              if (Array.isArray(mcRaw)) {
+                const arr = mcRaw
+                  .slice()
+                  .sort((a, b) => new Date(a.kickoff.iso).getTime() - new Date(b.kickoff.iso).getTime());
+                // Reorder to fixtures order
+                const orderMap = new Map<number, number>();
+                fixtures.forEach((f, i) => orderMap.set(f.id, i));
+                const byId = new Map<number, MatchCard>();
+                arr.forEach((c) => byId.set(c.fixtureId, c));
+                const reordered: MatchCard[] = fixtures.map((f) => byId.get(f.id)).filter(Boolean) as MatchCard[];
+                // Fallback: if any missing, append remaining in original sorted order
+                if (reordered.length < arr.length) {
+                  const seen = new Set(reordered.map((c) => c.fixtureId));
+                  for (const c of arr) {
+                    if (!seen.has(c.fixtureId)) reordered.push(c);
+                  }
+                }
+                setMatchCards(reordered);
+              }
+            }
+          } catch {}
+        }
+      }
+    } catch (e) {
+      console.error('Prediction persist failed', e);
+    }
+    // Advance to next card
+    nextFixture();
+  };
+
+  const nextFixture = () => {
+    if (currentFixtureIndex < fixtures.length - 1) {
+      setCurrentFixtureIndex(prev => prev + 1);
+    }
+  };
+
+  const skipFixture = () => {
+    // Skip advances navigation but does not consume a turn
+    // Rotate current card to the end of the list for both fixtures and matchCards atomically using the same index
+    const idx = Math.min(Math.max(currentFixtureIndex, 0), Math.min(fixtures.length, matchCards.length) - 1);
+    if (idx < 0) return;
+    setFixtures((prev) => {
+      if (!prev.length) return prev;
+      const copy = prev.slice();
+      const [curr] = copy.splice(Math.min(idx, copy.length - 1), 1);
+      copy.push(curr);
+      return copy;
+    });
+    setMatchCards((prev) => {
+      if (!prev.length) return prev;
+      const copy = prev.slice();
+      const [curr] = copy.splice(Math.min(idx, copy.length - 1), 1);
+      copy.push(curr);
+      return copy;
+    });
+    // Keep index at the same position to show the next card now at that slot
+  };
+
+  // Framer Motion: decide direction and commit without snap-back
+  const onDragEndCommit = async (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    const currentFixture = fixtures[currentFixtureIndex];
+    if (!currentFixture) return;
+    if (currentMode === 'test' && weekComplete) {
+      return; // Block interactions under veil
+    }
+    if (isSkipAnimating) return;
+    const dx = info.offset.x ?? 0;
+    const dy = info.offset.y ?? 0;
+    const ax = Math.abs(dx);
+    const ay = Math.abs(dy);
+    const dominant: 'horizontal' | 'vertical' = ax >= ay ? 'horizontal' : 'vertical';
+    const dir = dominant === 'horizontal' ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+
+    // Live mode is now enabled for predictions
+    if (currentMode === 'live' && false) {
+
+  // Programmatic swipe will be defined after currentFixture for proper dependencies
+
+  const formatMatchDateTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const dayOfWeek = date.toLocaleDateString('it-IT', { weekday: 'short', timeZone: 'Europe/Rome' });
+    const dayMonth = date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
+    const time = date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
+    return `${dayOfWeek} ${dayMonth} - ${time}`;
+  };
+
+  // Week number derived from fixtures or URL
+  const getWeekNumber = () => {
+    // In live mode, use the detected current live week
+    if (currentMode === 'live' && currentLiveWeek !== null) {
+      return currentLiveWeek;
+    }
+    
+    if (fixtures.length === 0) return selectedWeek;
+    const now = Date.now();
+    let candidate = fixtures[0];
+    if (currentMode === 'live') {
+      const future = fixtures.find(f => new Date(f.date).getTime() > now);
+      if (future) candidate = future;
+    }
+    const round = candidate?.league?.round;
+    const m = String(round).match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : selectedWeek;
+  };
+
+  // Compute the next kickoff among the 10 fixtures, normalized to this or next year for test mode, real dates for live mode
+  const computeNextTarget = useCallback((items: Fixture[]): Date | null => {
+    if (!items || items.length === 0) {
+      console.log('[DEBUG] computeNextTarget: No fixtures available');
+      return null;
+    }
+    const now = Date.now();
+    
+    if (currentMode === 'live') {
+      // Live mode: use actual fixture dates, find next upcoming match
+      console.log('[DEBUG] Live mode - checking fixtures:', items.length, 'fixtures');
+      
+      const upcomingMatches = items
+        .map(f => new Date(f.date))
+        .filter(d => d.getTime() > now)
+        .sort((a, b) => a.getTime() - b.getTime());
+      
+      console.log('[DEBUG] Upcoming matches found:', upcomingMatches.length, upcomingMatches[0]?.toISOString());
+      return upcomingMatches.length > 0 ? upcomingMatches[0] : null;
+    } else {
+      // Test mode: normalize to this year to keep a forward-looking countdown in test mode
+      const year = new Date(now).getFullYear();
+      const candidates = items.map((f) => {
+        const d = new Date(f.date);
+        const c = new Date(d.getTime());
+        c.setFullYear(year);
+        if (c.getTime() <= now) {
+          c.setFullYear(year + 1);
+        }
+        return c.getTime();
+      });
+      const nextTs = candidates.reduce((min, ts) => (ts < min ? ts : min), Number.POSITIVE_INFINITY);
+      return Number.isFinite(nextTs) ? new Date(nextTs) : null;
+    }
+  }, [currentMode]);
+
+  // Recompute next target whenever fixtures change
+  useEffect(() => {
+    if (fixtures.length > 0) {
+      const computed = computeNextTarget(fixtures);
+      // Always update with computed target to keep it fresh
+      setNextTarget(computed);
+    }
+  }, [fixtures, computeNextTarget]);
+
+  // Compute earliest kickoff normalized to current year (used to decide if the week has started in Test Mode)
+  const computeEarliestNormalized = useCallback((items: Fixture[]): Date | null => {
+    if (!items || items.length === 0) return null;
+    const now = Date.now();
+    const year = new Date(now).getFullYear();
+    const times = items.map((f) => {
+      const d = new Date(f.date);
+      const c = new Date(d.getTime());
+      c.setFullYear(year);
+      return c.getTime();
+    });
+    const minTs = times.reduce((min, ts) => (ts < min ? ts : min), Number.POSITIVE_INFINITY);
+    return Number.isFinite(minTs) ? new Date(minTs) : null;
+  }, []);
+
+  // Gate missed weeks in Test Mode (configurable): if earliest normalized kickoff is in the past, show modal
+  // For Live Mode: if matches have started, show modal suggesting to catch up
+  useEffect(() => {
+    try {
+      if (currentMode === 'test') {
+        if (fixtures.length === 0) return;
+        const gatingApplies = MISSED_WEEK_GATING ? (selectedWeek >= 1 && selectedWeek <= TERMINAL_WEEK) : (selectedWeek === 1);
+        if (!gatingApplies) return;
+        const earliest = computeEarliestNormalized(fixtures);
+        if (!earliest) return;
+        if (Date.now() >= earliest.getTime()) {
+          setMissedWeekModalOpen(true);
+        }
+      } else if (currentMode === 'live') {
+        if (fixtures.length === 0) return;
+        const now = Date.now();
+        const hasStartedMatches = fixtures.some(f => new Date(f.date).getTime() <= now);
+        if (hasStartedMatches) {
+          // In live mode, if matches have started, show modal suggesting user catch up
+          setMissedWeekModalOpen(true);
+        }
+      }
+    } catch {}
+  }, [currentMode, fixtures, selectedWeek, computeEarliestNormalized]);
+
+  // Countdown to the computed next kickoff
+  const getTimeToNextMatch = useCallback(() => {
+    if (!nextTarget) {
+      console.log('[DEBUG] getTimeToNextMatch: nextTarget is null');
+      return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    }
+    const now = Date.now();
+    const diff = nextTarget.getTime() - now;
+    console.log('[DEBUG] Countdown calculation:', { nextTarget: nextTarget.toISOString(), now: new Date(now).toISOString(), diff });
+    
+    if (diff <= 0) {
+      console.log('[DEBUG] Target date has passed, showing zeros');
+      return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    }
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    console.log('[DEBUG] Countdown result:', { days, hours, minutes, seconds });
+    return { days, hours, minutes, seconds };
+  }, [nextTarget]);
+
+  // Date range directly from database using dedicated endpoint  
+  const [weekDateRange, setWeekDateRange] = useState<{start: Date, end: Date, startFormatted?: string, endFormatted?: string} | null>(null);
+  
+  // Fetch actual week date range from database
+  useEffect(() => {
+    if (currentMode === 'live' && currentLiveWeek !== null) {
+      apiClient.getWeekDateRange(currentLiveWeek).then(dateRangeResponse => {
+        const dateRange = dateRangeResponse as { 
+          week: number; 
+          startDate: string; 
+          endDate: string; 
+          startDateFormatted: string; 
+          endDateFormatted: string; 
+          fixtureCount: number; 
+        } | null;
+        
+        if (dateRange) {
+          const start = new Date(dateRange.startDate);
+          const end = new Date(dateRange.endDate);
+          setWeekDateRange({ 
+            start, 
+            end, 
+            startFormatted: dateRange.startDateFormatted,
+            endFormatted: dateRange.endDateFormatted
+          });
+          console.log('[DEBUG] Week date range set from database:', { 
+            week: dateRange.week, 
+            start: dateRange.startDate, 
+            end: dateRange.endDate,
+            startFormatted: dateRange.startDateFormatted,
+            endFormatted: dateRange.endDateFormatted,
+            fixtureCount: dateRange.fixtureCount
+          });
+        }
+      }).catch(error => {
+        console.log('[DEBUG] Failed to fetch week date range:', error);
+        // Fallback to old logic if new API fails
+        apiClient.getFixturesByWeek(currentLiveWeek).then(weekFixtures => {
+          if (weekFixtures && Array.isArray(weekFixtures) && weekFixtures.length > 0) {
+            const dates = weekFixtures.map((f: Record<string, unknown>) => new Date(String(f.match_date)).getTime());
+            const start = new Date(Math.min(...dates));
+            const end = new Date(Math.max(...dates));
+            setWeekDateRange({ start, end });
+          }
+        }).catch(() => {
+          // Final fallback to calculation
+          const seasonStart = new Date(2025, 7, 24);
+          const weekStart = new Date(seasonStart);
+          weekStart.setDate(seasonStart.getDate() + (currentLiveWeek - 1) * 7);
+          const weekEnd = new Date(weekStart);
+          weekEnd.setDate(weekStart.getDate() + 2);
+          setWeekDateRange({ start: weekStart, end: weekEnd });
+        });
+      });
+    }
+  }, [currentMode, currentLiveWeek]);
+
+  const getWeekDateRange = (): {start: Date, end: Date, startFormatted?: string, endFormatted?: string} | null => {
+    if (currentMode === 'live' && weekDateRange) {
+      return weekDateRange;
+    }
+    
+    if (fixtures.length === 0) return null;
+    const times = fixtures.map((f) => new Date(f.date).getTime());
+    const start = new Date(Math.min(...times));
+    const end = new Date(Math.max(...times));
+    return { start, end };
+  };
+
+  const [timeToMatch, setTimeToMatch] = useState(getTimeToNextMatch());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeToMatch(getTimeToNextMatch());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [getTimeToNextMatch]);
+
+  // Light recheck to advance target as time passes
+  useEffect(() => {
+    const ref = setInterval(() => {
+      if (fixtures.length > 0) {
+        const computed = computeNextTarget(fixtures);
+        // Same logic: only update if we get a valid target or don't have one yet
+        setNextTarget(current => {
+          if (computed !== null || current === null) {
+            return computed;
+          }
+          return current; // Keep existing synthetic target
+        });
+      }
+    }, 15000); // every 15s
+    return () => clearInterval(ref);
+  }, [fixtures, computeNextTarget]);
+
+  // Avoid flicker: consider unresolved Test Mode userKey as loading
+  const isLoadingScreen = loading || (currentMode === 'test' && !userKey);
+  if (isLoadingScreen) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
+        <div className="text-center text-white">
+          <div className="animate-spin w-12 h-12 border-4 border-white border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-xl">Caricamento partite Serie A...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
+        <div className="text-center text-white max-w-md mx-auto p-6">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold mb-4">Errore nel caricamento</h2>
+          <p className="text-lg opacity-90 mb-6">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
+          >
+            Riprova
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (fixtures.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
+        <div className="text-center text-white max-w-md mx-auto p-6">
+          <div className="text-6xl mb-4">⚽</div>
+          <h2 className="text-2xl font-bold mb-4">Nessuna partita trovata</h2>
+          <p className="text-lg opacity-90">Non ci sono partite di Serie A nei prossimi 7 giorni.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Render-time alignment to avoid overlap when arrays update at different times
+  const minAligned = currentMode === 'test' ? Math.min(fixtures.length, matchCards.length) : fixtures.length;
+  const effectiveFixtures = currentMode === 'test' ? fixtures.slice(0, minAligned) : fixtures;
+  const effectiveCards = currentMode === 'test' ? matchCards.slice(0, minAligned) : matchCards;
+  if (!mismatchLogOnceRef.current && currentMode === 'test' && fixtures.length !== matchCards.length) {
+    try { console.warn('[gioca] arrays misaligned; trimming for render', { fixtures: fixtures.length, matchCards: matchCards.length, using: minAligned }); } catch {}
+    mismatchLogOnceRef.current = true;
+  }
+  const currentFixture = effectiveFixtures[currentFixtureIndex];
+  const currentCard = effectiveCards[currentFixtureIndex];
+  const currentPrediction = currentFixture ? predictions[currentFixture.id] : undefined;
+  const predictionsCount = effectiveFixtures.reduce((acc, f) => acc + (predictions[f.id] ? 1 : 0), 0);
+  const progressPct = Math.min(predictionsCount / 10, 1) * 100;
+  const isComplete = localComplete || predictionsCount >= 10;
+
+  // Programmatic swipe used by buttons to mirror the same animations and commits
+  const animateAndCommit = async (dir: 'left' | 'right' | 'up' | 'down') => {
+    const currentFixture = fixtures[currentFixtureIndex];
+    if (!currentFixture) return;
+    if (currentMode === 'test' && weekComplete) return;
+    // Live mode is now enabled for predictions
+    if (currentMode === 'live' && false) {
+    // Live mode now works the same as test mode - no restrictions
+    if (isSkipAnimating) return;
+    const distance = 900;
+    if (dir === 'down') {
+      try {
+        setIsSkipAnimating(true);
+        setPreviewOnTop(true);
+        const yBottom = (() => {
+          try { return Math.min(900, (typeof window !== 'undefined' ? window.innerHeight : 800) - 40); } catch { return 820; }
+        })();
+        // 0.5x slower
+        await controls.start({ y: yBottom, transition: { type: 'tween', ease: 'easeOut', duration: DOWN_EXIT_DURATION * 4 } });
+        await controls.start({ x: 0, y: 0, transition: { type: 'spring', stiffness: SNAP_BACK_STIFFNESS, damping: SNAP_BACK_DAMPING } });
+      } finally {
+        skipFixture();
+        setPreviewOnTop(false);
+        setIsSkipAnimating(false);
+      }
+      return;
+    }
+    const target = {
+      x: dir === 'left' ? -distance : dir === 'right' ? distance : 0,
+      y: dir === 'up' ? -distance : undefined,
+      // 0.5x slower
+      transition: { type: 'tween', ease: 'easeOut', duration: 0.56 },
+    } as const;
+    await controls.start(target);
+    if (dir === 'up') {
+      await handlePrediction(currentFixture.id, 'X');
+    } else if (dir === 'left') {
+      await handlePrediction(currentFixture.id, '1');
+    } else if (dir === 'right') {
+      await handlePrediction(currentFixture.id, '2');
+    }
+    // No need to reset controls - next card will have its own position
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    background: 'radial-gradient(circle at center, #554099, #3d2d73)',
+    boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
+  };
+  const skipStyle: React.CSSProperties = {
+    background: '#ffffff',
+    boxShadow: '0 8px 16px rgba(85, 64, 153, 0.2), 0 4px 8px rgba(0, 0, 0, 0.1)',
+    border: '1px solid rgba(85, 64, 153, 0.2)',
+  };
+
+  // Hard reset (Test Mode): drop user predictions server-side and clear client keys; return to week 1
+  const handleTestReset = async () => {
+    if (currentMode !== 'test') return;
+    if (!userKey) return;
+    try {
+      const confirmMsg = 'Questo reimposterà il gioco in modalità TEST: tutte le tue predizioni verranno eliminate e potrai rigiocare dalla Giornata 1. Procedere?';
+      if (typeof window !== 'undefined') {
+        const ok = window.confirm(confirmMsg);
+        if (!ok) return;
+      }
+      // Backend reset for this user
+      try { await apiClient.resetTestData(userKey); } catch (e) { console.warn('resetTestData failed (continuing local cleanup)', e); }
+
+      // Local cleanup of test-mode keys for this user
+      try {
+        if (typeof window !== 'undefined') {
+          const keysToRemove: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i) || '';
+            const isGioca = k.startsWith('swipick:gioca:hasPreds:test:week:') && k.includes(`:user:${userKey}`);
+            const isGiocaState = k.startsWith('swipick:gioca:state:v1:mode:') && k.endsWith(`:user:${userKey}`);
+            const isReveal = k.startsWith('swipick:risultati:reveal:test:week:') && k.includes(`:user:${userKey}`);
+            const isAutoRoll = k === `swipick:risultati:autoRoll:week1:user:${userKey}`;
+            if (isGioca || isGiocaState || isReveal || isAutoRoll) keysToRemove.push(k);
+          }
+          keysToRemove.forEach((k) => localStorage.removeItem(k));
+        }
+      } catch {}
+
+      // Reset local state
+      setPredictions({});
+      setWeekComplete(false);
+      setCurrentFixtureIndex(0);
+
+      // Navigate to week 1 cleanly
+      const href = typeof window !== 'undefined' ? window.location.href : null;
+      if (href) {
+        const url = new URL(href);
+        url.searchParams.set('mode', 'test');
+        url.searchParams.set('week', '1');
+        router.replace(url.toString());
+        // Small delay to let route settle, then soft reload the page data
+        setTimeout(() => {
+          try { window.location.reload(); } catch {}
+        }, 60);
+      }
+    } catch (e) {
+      console.error('Test reset failed', e);
+    }
+  };
+
+  // Decide if the completion veil should be displayed for the current context
+  const canShowVeil = (() => {
+    if (currentMode !== 'test') return false;
+    if (weekComplete !== true) return false;
+  if (selectedWeek === 1 && rolledWeek1Once) return false;
+  // For week 2, only show veil after at least one prediction exists (avoid blocking empty state)
+  if (selectedWeek === 2) {
+      try {
+        const k = hasWeekPredsKey(2, userKey);
+        const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
+        return hasAny;
+      } catch {
+        return false;
+      }
+    }
+  // For other weeks when gating is enabled, show veil normally; for terminal week, also allow veil
+    return true;
+  })();
+
+  // Helper to render last-5 bubbles (pick vs result)
+  const renderLastFive = (list: Array<'1' | 'X' | '2'>, form?: Last5Item[]) => {
+    // Normalize to Last5Item[], pad to 5, then render right-to-left (most recent on the right)
+    const base: (Last5Item | null)[] = (form && form.length)
+      ? form
+      : list.map((code) => ({ fixtureId: 0, code, predicted: null, correct: null, wasHome: false }));
+    const filled: Array<Last5Item | null> = base.slice(0, 5);
+    while (filled.length < 5) filled.push(null);
+
+    // Render left-to-right so the first (oldest) appears on the left and the last (newest) on the right
+    return (
+      <div className="flex justify-center gap-1 mt-1">
+        {filled.map((it, idx) => {
+          if (it === null) {
+            return (
+              <div
+                key={idx}
+                className="w-5 h-5 rounded-md text-[10px] leading-none flex items-center justify-center bg-gray-100 text-gray-700 border border-gray-700"
+                aria-label="no data"
+                title="—"
+              >
+                —
+              </div>
+            );
+          }
+          let color = 'bg-gray-100 text-gray-700 border border-gray-700';
+          let titleStr: string = it.code;
+          
+          // Color based on team perspective (win/loss/draw)
+          if (it.code === 'X') {
+            // Draw - gray for both teams
+            color = 'bg-gray-100 text-gray-700 border border-gray-700';
+            titleStr = 'X — Pareggio';
+          } else if (it.wasHome !== undefined) {
+            // Win/Loss based on whether team was home/away in this specific match
+            // it.code: '1' = home won, '2' = away won
+            // it.wasHome: true = this team was home, false = this team was away
+            const isGoodResult = (it.wasHome && it.code === '1') || (!it.wasHome && it.code === '2');
+            if (isGoodResult) {
+              // Win - green with darker green text and border
+              color = 'bg-green-100 text-green-800 font-bold border border-green-800';
+              titleStr = `${it.code} — Vittoria`;
+            } else {
+              // Loss - red with darker red text and border
+              color = 'bg-red-100 text-red-800 font-bold border border-red-800';
+              titleStr = `${it.code} — Sconfitta`;
+            }
+          } else {
+            // Fallback to prediction-based coloring if team perspective unknown
+            const pick = it.predicted;
+            if (pick === '1' || pick === 'X' || pick === '2') {
+              if (pick === it.code) {
+                color = 'bg-[#ccffb3] text-[#2a8000]';
+                titleStr = `${it.code} — Corretto`;
+              } else {
+                color = 'bg-[#ffb3b3] text-[#cc0000]';
+                titleStr = `${it.code} — Errato`;
+              }
+            } else {
+              color = 'bg-gray-100 text-gray-700 border border-gray-700';
+              titleStr = it.code;
+            }
+          }
+          return (
+            <div
+              key={idx}
+              className={`w-5 h-5 rounded-md text-[10px] leading-none flex items-center justify-center ${color}`}
+              title={titleStr}
+            >
+              {it.code}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Short date/time for summary list pills (e.g., "Ven 04 18:30")
+  const formatShortDateTime = (iso: string) => {
+    const d = new Date(iso);
+    const dow = d.toLocaleDateString('it-IT', { weekday: 'short', timeZone: 'Europe/Rome' });
+    const dd = d.toLocaleDateString('it-IT', { day: '2-digit', timeZone: 'Europe/Rome' });
+    const hhmm = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
+    return `${dow} ${dd} ${hhmm}`;
+  };
+
+  // Completed view: summary list of the 10 selections with indigo highlight on chosen 1/X/2
+  if (isComplete) {
+    return (
+      <div className="min-h-screen bg-white pb-[max(env(safe-area-inset-bottom),96px)]">
+        {currentMode === 'test' && (
+          <></>
+        )}
+
+        {/* Header with progress locked at 10/10 — FIXED at top (safe-area aware) */}
+        <div
+          ref={completeHeaderRef}
+          className="fixed left-0 right-0 top-0 z-40 w-full mx-0 mt-0 rounded-b-2xl rounded-t-none text-white pt-[max(env(safe-area-inset-top),8px)]"
+          style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
+        >
+          {currentMode === 'test' && (
+            <div className="pt-3 px-4 flex justify-center">
+              <div
+                className="inline-flex items-center gap-2 rounded-full px-3 py-1 max-w-full min-w-0 overflow-hidden mx-auto"
+                style={{ backgroundColor: '#A9BA9D', color: '#043927' }}
+              >
+                <span className="text-[11px] font-semibold truncate">MODALITÀ TEST - Dati storici Serie A 2023-24</span>
+                <button
+                  onClick={() => setTestingModalOpen(true)}
+                  disabled={!userKey}
+                  className={`text-xs font-semibold rounded-full px-2 py-0.5 ${userKey ? '' : 'opacity-60 cursor-not-allowed'}`}
+                  style={{ backgroundColor: '#780606', color: '#ffffff' }}
+                  title={userKey ? 'Apri pannello testing' : 'Attendere il caricamento utente'}
+                >
+                  Testing
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="text-center px-4 pt-2">
+            {(() => {
+              const range = getWeekDateRange();
+              // Use pre-formatted dates from backend when available, otherwise format manually
+              const from = range?.startFormatted || range?.start?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
+              const to = range?.endFormatted || range?.end?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
+              return (
+                <p className="text-base md:text-lg mb-1 whitespace-nowrap">
+                  Giornata {getWeekNumber()} <span className="opacity-90">{from && to ? `dal ${from} al ${to}` : ''}</span>
+                </p>
+              );
+            })()}
+          </div>
+          <div className="px-6 pb-6">
+            <div className="relative mx-auto" style={{ width: 'calc(100% - 115px)' }}>
+              <div className="bg-white bg-opacity-30 rounded-sm overflow-hidden" style={{ height: '18px' }}>
+                <div className="bg-indigo-300 h-full rounded-sm" style={{ width: '100%' }} />
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xs font-medium text-[#3d2d73]">10/10</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Spacer equal to the fixed header height to avoid content being hidden underneath */}
+        <div aria-hidden className="w-full" style={{ height: completeHeaderH + 24 }} />
+
+        {/* Summary list */}
+        <div className="px-4 pb-24">
+          {fixtures.map((f, idx) => {
+            const card = matchCards[idx];
+            const pick = predictions[f.id];
+            const kickoff = card ? card.kickoff.display : formatShortDateTime(f.date);
+            const homeLogo = (card?.home.logo || f.teams.home.logo) as string | undefined;
+            const awayLogo = (card?.away.logo || f.teams.away.logo) as string | undefined;
+            const homeName = card?.home.name || f.teams.home.name;
+            const awayName = card?.away.name || f.teams.away.name;
+
+            const badge = (label: '1'|'X'|'2') => (
+              <div
+                className={
+                  `min-w-[36px] h-7 px-2 rounded-md grid place-items-center text-xs font-semibold border ` +
+                  (pick === label
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                    : 'bg-white text-gray-700 border-gray-300')
+                }
+              >
+                {label}
+              </div>
+            );
+
+            return (
+              <div key={f.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200 mb-4 flex items-center">
+                {/* Teams and details */}
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    {homeLogo ? (
+                      <Image src={homeLogo} alt={homeName} width={48} height={48} className="w-12 h-12 object-contain" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-purple-100" />
+                    )}
+                    <span className="text-sm font-semibold text-black">{homeName}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {awayLogo ? (
+                      <Image src={awayLogo} alt={awayName} width={48} height={48} className="w-12 h-12 object-contain" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-blue-100" />
+                    )}
+                    <span className="text-sm font-semibold text-black">{awayName}</span>
+                  </div>
+                </div>
+
+                {/* Kickoff pill */}
+                <div className="mx-3">
+                  <div className="px-3 py-1 rounded-md border text-[11px] text-gray-700 border-gray-200 whitespace-nowrap">
+                    {kickoff}
+                  </div>
+                </div>
+
+                {/* Choice badges */}
+                <div className="flex flex-col gap-2 items-center">
+                  {badge('1')}
+                  {badge('X')}
+                  {badge('2')}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Bottom Nav (same as play view) */}
+  <div className="fixed bottom-0 left-0 right-0 bg-white border-t pb-[max(env(safe-area-inset-bottom),0px)]">
+          <div className="flex">
+            <button onClick={() => {
+              if (DEBUG_GIOCA) { try { console.log('[gioca] nav -> risultati', { mode: currentMode, week: selectedWeek }); } catch {} }
+              router.push(`/risultati?mode=${currentMode}${currentMode === 'test' ? `&week=${selectedWeek}` : ''}`);
+            }} className="flex-1 text-center py-4">
+              <div className="text-gray-500 mb-1">
+                <FaMedal className="w-6 h-6 mx-auto" />
+              </div>
+              <span className="text-xs text-black">Risultati</span>
+            </button>
+            <div className="flex-1 text-center py-4 border-b-2 border-purple-600">
+              <div className="text-purple-600 mb-1">
+                <RiFootballLine className="w-6 h-6 mx-auto" />
+              </div>
+              <span className="text-xs text-purple-600 font-medium">Gioca</span>
+            </div>
+            <button onClick={() => {
+              const params = new URLSearchParams({ mode: currentMode });
+              if (currentMode === 'test') params.set('week', String(selectedWeek));
+              router.push(`/profilo?${params.toString()}`);
+            }} className="flex-1 text-center py-4">
+              <div className="text-gray-500 mb-1">
+                <BsFillFilePersonFill className="w-6 h-6 mx-auto" />
+              </div>
+              <span className="text-xs text-black">Profilo</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+  <div className="min-h-screen bg-white pb-[max(env(safe-area-inset-bottom),96px)]">
+  {/* Test Mode Indicator moved into header as a lozenge */}
+  {currentMode === 'test' && <></>}
+      
+      {/* Top Header Panel (match button gradient) */}
+      <div
+        className="w-full mx-0 mt-0 mb-6 rounded-b-2xl rounded-t-none text-white"
+        style={{
+          background: 'radial-gradient(circle at center, #554099, #3d2d73)',
+          boxShadow:
+            '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
+        }}
+      >
+        {currentMode === 'test' && (
+          <div className="pt-3 px-4 flex justify-center">
+            <div
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1 max-w-full min-w-0 overflow-hidden mx-auto"
+              style={{ backgroundColor: '#A9BA9D', color: '#043927' }}
+            >
+              <span className="text-[11px] font-semibold truncate">MODALITÀ TEST - Dati storici Serie A 2023-24</span>
+              <button
+                onClick={() => setTestingModalOpen(true)}
+                disabled={!userKey}
+                className={`text-xs font-semibold rounded-full px-2 py-0.5 ${userKey ? '' : 'opacity-60 cursor-not-allowed'}`}
+                style={{ backgroundColor: '#780606', color: '#ffffff' }}
+                title={userKey ? 'Apri pannello testing' : 'Attendere il caricamento utente'}
+              >
+                Testing
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="text-center pt-6 px-4">
+          {(() => {
+            const range = getWeekDateRange();
+            // Use pre-formatted dates from backend when available, otherwise format manually
+            const from = range?.startFormatted || range?.start?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
+            const to = range?.endFormatted || range?.end?.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
+            return (
+              <p className="text-base md:text-lg  mb-1 whitespace-nowrap">
+                Giornata {getWeekNumber()}&nbsp;
+                <span className="opacity-90">
+                  {from && to ? `dal ${from} al ${to}` : ''}
+                </span>
+              </p>
+            );
+          })()}
+        </div>
+        <div className="flex justify-center px-6 py-4">
+          <div className="flex gap-6 text-center">
+            <div>
+              <div className="text-2xl font-bold">{timeToMatch.days}</div>
+              <div className="text-xs opacity-80">giorni</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold">{timeToMatch.hours}</div>
+              <div className="text-xs opacity-80">ore</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold">{timeToMatch.minutes}</div>
+              <div className="text-xs opacity-80">minuti</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold">{timeToMatch.seconds}</div>
+              <div className="text-xs opacity-80">secondi</div>
+            </div>
+          </div>
+        </div>
+        <div className="px-4 pb-6">
+          <div className="relative w-full max-w-xs mx-auto">
+            <div className="bg-white bg-opacity-30 rounded-sm overflow-hidden" style={{ height: '18px' }}>
+              <div
+                className="bg-indigo-300 h-full rounded-sm transition-all duration-[350ms]"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-xs font-medium text-[#3d2d73]">
+                {Math.min(predictionsCount, 10)}/10
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Match Card Stack with Swipe */}
+  <div className="px-3 mb-8 relative max-w-[390px] mx-auto w-full" style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+  {/* Next card preview to be revealed (hidden on very small screens to avoid visual spill) */}
+  {effectiveFixtures[currentFixtureIndex + 1] && (
+  <div className={`absolute inset-0 opacity-95 pointer-events-none ${previewOnTop ? 'z-20' : 'z-0'} scale-[0.94] sm:scale-[0.97]`}>
+      <div className="match-card bg-white rounded-2xl p-3 shadow-lg border border-gray-200">
+              {/* Next card content */}
+              {(() => {
+    const nf = effectiveFixtures[currentFixtureIndex + 1];
+    const nc = effectiveCards[currentFixtureIndex + 1];
+                return (
+                  <>
+                    <div className="top-info text-center mb-4">
+                      <p className="text-black text-sm mb-1">{nc ? nc.kickoff.display : formatMatchDateTime(nf.date)}</p>
+                      <p className="text-black text-xs">{nc?.stadium || nf.venue.name}</p>
+                    </div>
+                    <div className="teams flex items-center justify-between gap-5 mb-6">
+                      <div className="flex-1 text-center opacity-95">
+                        {(nc?.home.logo || nf.teams.home.logo) ? (
+                          <Image src={(nc?.home.logo || nf.teams.home.logo) as string} alt={nc?.home.name || nf.teams.home.name} width={96} height={96} className="team-logo mx-auto mb-3 w-24 h-24 object-contain" />
+                        ) : (
+                          <div className="w-12 h-12 mx-auto mb-24 bg-purple-100 rounded-full" />
+                        )}
+                        <h3 className="font-bold text-lg mb-1 text-black">{nc?.home.name || nf.teams.home.name}</h3>
+                        <p className="text-[11px] text-black">Posizione in classifica</p>
+                        <p className="text-sm font-bold text-black">{nc?.home.standingsPosition ?? '—'}</p>
+                        <p className="text-[11px] text-black mt-1">Vittorie in casa</p>
+                        <p className="text-sm font-bold text-black">{`${nc?.home.winRateHome ?? 0}%`}</p>
+                        <p className="text-[11px] text-black mt-1">Ultimi 5 risultati</p>
+                        {nc ? renderLastFive(nc.home.last5, nc.home.form) : renderLastFive([])}
+                      </div>
+                      {/* VS removed for cleaner layout per design */}
+                      <div className="flex-1 text-center opacity-95">
+                        {(nc?.away.logo || nf.teams.away.logo) ? (
+                          <Image src={(nc?.away.logo || nf.teams.away.logo) as string} alt={nc?.away.name || nf.teams.away.name} width={96} height={96} className="team-logo mx-auto mb-3 w-24 h-24 object-contain" />
+                        ) : (
+                          <div className="w-12 h-12 mx-auto mb-3 bg-blue-100 rounded-full" />
+                        )}
+                        <h3 className="font-bold text-lg mb-1 text-black">{nc?.away.name || nf.teams.away.name}</h3>
+                        <p className="text-[11px] text-black">Posizione in classifica</p>
+                        <p className="text-sm font-bold text-black">{nc?.away.standingsPosition ?? '—'}</p>
+                        <p className="text-[11px] text-black mt-1">Vittorie in trasferta</p>
+                        <p className="text-sm font-bold text-black">{`${nc?.away.winRateAway ?? 0}%`}</p>
+                        <p className="text-[11px] text-black mt-1">Ultimi 5 risultati</p>
+                        {nc ? renderLastFive(nc.away.last5, nc.away.form) : renderLastFive([])}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* Top (current) card - draggable (AnimatePresence enforces exit before enter) */}
+        <AnimatePresence mode="popLayout" initial={false}>
+        <motion.div
+          key={currentFixture?.id}
+          drag={currentMode === 'test' ? Boolean(userKey) && !weekComplete && !isSkipAnimating : true}
+          dragElastic={0.15}
+          dragMomentum={false}
+          dragDirectionLock
+          onDragStart={() => {
+            // Ensure no residual animation conflicts when user begins dragging
+            try { controls.stop(); } catch {}
+          }}
+          onDragEnd={onDragEndCommit}
+          animate={controls}
+          initial={{ opacity: 1 }}
+          whileDrag={{ scale: 1.01, boxShadow: '0 12px 28px rgba(0,0,0,0.12)', transition: { type: 'spring', stiffness: 360, damping: 28 } }}
+          style={{
+            x: cardX,
+            y: cardY,
+            rotate: cardRotate,
+            touchAction: 'none',
+            cursor: 'grab',
+            willChange: 'transform',
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
+            WebkitTransform: 'translateZ(0)'
+          }}
+          className={`relative ${previewOnTop ? 'z-0' : 'z-10'}`}
+        >
+            <div className={`match-card bg-white rounded-2xl p-3 shadow-lg border border-gray-200 ${weekComplete ? 'opacity-60 pointer-events-none' : ''}`}>
+            {/* Match Info */}
+            <div className="top-info text-center mb-4">
+              <p className="text-black text-sm mb-1">{currentCard ? currentCard.kickoff.display : formatMatchDateTime(currentFixture.date)}</p>
+              <p className="text-black text-xs">{currentCard?.stadium || currentFixture.venue.name}</p>
+            </div>
+
+            {/* Teams */}
+            <div className="teams flex items-center justify-between gap-5 mb-6">
+              {/* Home Team */}
+              <div className="flex-1 text-center">
+        {(currentCard?.home.logo || currentFixture.teams.home.logo) ? (
+                  <Image
+                    src={(currentCard?.home.logo || currentFixture.teams.home.logo) as string}
+                    alt={currentCard?.home.name || currentFixture.teams.home.name}
+          width={96}
+          height={96}
+          className="team-logo mx-auto mb-3 w-24 h-24 object-contain"
+                    priority
+                  />
+                ) : (
+                  <div className="w-12 h-12 mx-auto mb-24 bg-purple-800 rounded-full flex items-center justify-center">
+                    <span className="text-black font-bold text-lg">
+                      {(currentCard?.home.name || currentFixture.teams.home.name).charAt(0)}
+                    </span>
+                  </div>
+                )}
+                <h3 className="font-bold text-lg mb-1 text-black">{currentCard?.home.name || currentFixture.teams.home.name}</h3>
+                <p className="text-xs text-black">Posizione in classifica</p>
+                <p className="font-bold text-black">{currentCard?.home.standingsPosition ?? '—'}</p>
+                <p className="text-xs text-black mt-1">Vittorie in casa</p>
+                <p className="font-bold text-black">{`${currentCard?.home.winRateHome ?? 0}%`}</p>
+                <p className="text-xs text-black mt-1">Ultimi 5 risultati</p>
+                {currentCard ? renderLastFive(currentCard.home.last5, currentCard.home.form) : renderLastFive([])}
+              </div>
+
+              {/* VS removed for cleaner layout per design */}
+
+              {/* Away Team */}
+              <div className="flex-1 text-center">
+        {(currentCard?.away.logo || currentFixture.teams.away.logo) ? (
+                  <Image
+                    src={(currentCard?.away.logo || currentFixture.teams.away.logo) as string}
+                    alt={currentCard?.away.name || currentFixture.teams.away.name}
+          width={96}
+          height={96}
+          className="team-logo mx-auto mb-3 w-24 h-24 object-contain"
+                    priority
+                  />
+                ) : (
+                  <div className="w-12 h-12 mx-auto mb-3 bg-blue-200 rounded-full flex items-center justify-center">
+                    <span className="text-blue-600 font-bold text-lg">
+                      {(currentCard?.away.name || currentFixture.teams.away.name).charAt(0)}
+                    </span>
+                  </div>
+                )}
+                <h3 className="font-bold text-lg mb-1 text-black">{currentCard?.away.name || currentFixture.teams.away.name}</h3>
+                <p className="text-xs text-black">Posizione in classifica</p>
+                <p className="font-bold text-black">{currentCard?.away.standingsPosition ?? '—'}</p>
+                <p className="text-xs text-black mt-1">Vittorie in trasferta</p>
+                <p className="font-bold text-black">{`${currentCard?.away.winRateAway ?? 0}%`}</p>
+                <p className="text-xs text-black mt-1">Ultimi 5 risultati</p>
+                {currentCard ? renderLastFive(currentCard.away.last5, currentCard.away.form) : renderLastFive([])}
+              </div>
+            </div>
+          </div>
+  </motion.div>
+  </AnimatePresence>
+      </div>
+
+      {/* Prediction Buttons - Diamond Layout (in-flow; scrolls with content) */}
+      <div
+        className="relative left-0 right-0 px-4 mt-3 mb-6"
+      >
+        <div className="flex justify-center">
+          <div className="grid grid-cols-3 gap-x-4 gap-y-0 justify-items-center items-center max-w-[340px] w-full mx-auto">
+          {/* Top: X */}
+          <div className="col-start-2">
+  <button
+      onClick={() => animateAndCommit('up')}
+  disabled={(currentMode === 'test' && (!userKey || weekComplete))}
+  className={`relative w-16 text-center text-white text-sm font-bold py-2.5 px-4 rounded-md shadow-lg transition-all duration-200 hover:scale-105 ${
+    currentPrediction === 'X' ? 'scale-105' : ''
+              }`}
+              style={buttonStyle}
+            >
+              X
+            </button>
+          </div>
+          {/* Middle Left: 1 */}
+          <div className="col-start-1 row-start-2">
+  <button
+      onClick={() => animateAndCommit('left')}
+  disabled={(currentMode === 'test' && (!userKey || weekComplete))}
+  className={`relative w-16 text-center text-white text-sm font-bold py-2.5 px-4 rounded-md shadow-lg transition-all duration-200 hover:scale-105 ${
+                currentPrediction === '1' ? 'scale-105' : ''
+              }`}
+              style={buttonStyle}
+            >
+              1
+            </button>
+          </div>
+          {/* Middle Right: 2 */}
+          <div className="col-start-3 row-start-2">
+  <button
+      onClick={() => animateAndCommit('right')}
+  disabled={(currentMode === 'test' && (!userKey || weekComplete))}
+  className={`relative w-16 text-center text-white text-sm font-bold py-2.5 px-4 rounded-md shadow-lg transition-all duration-200 hover:scale-105 ${
+                currentPrediction === '2' ? 'scale-105' : ''
+              }`}
+              style={buttonStyle}
+            >
+              2
+            </button>
+          </div>
+          {/* Bottom: Skip */}
+  <div className="col-start-2 row-start-3 -mt-2">
+            <button
+              onClick={() => animateAndCommit('down')}
+     disabled={(currentMode === 'test' && weekComplete)}
+  className="relative w-16 text-center bg-white text-[#3d2d73] text-sm font-bold py-2.5 px-4 rounded-md shadow-lg transition-all duration-200 hover:scale-105 disabled:opacity-60"
+        style={skipStyle}
+            >
+              skip
+            </button>
+          </div>
+          </div>
+        </div>
+      </div>
+
+  {/* spacer to avoid overlap with bottom nav on short screens */}
+  <div aria-hidden className="w-full" style={{ height: 'calc(env(safe-area-inset-bottom) + 64px)' }} />
+
+  {/* Toast: Live mode notice */}
+  {toast && (
+    <Toast
+  message={toast}
+      onClose={() => setToast(null)}
+      variant="lozenge"
+    />
+  )}
+
+      {/* Modal: User not found */}
+      {currentMode === 'test' && userMissingModal.show && (
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+          <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-1/2 -translate-x-1/2 w-[88%] max-w-md pointer-events-auto">
+            <div className="bg-white rounded-xl p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-black mb-2">Account non trovato</h3>
+            <p className="text-sm text-gray-600 mb-4">Per continuare in Test Mode serve un account backend. Vai alla pagina di benvenuto per completare.</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="px-4 py-2 text-sm rounded-md border border-gray-300 text-black"
+                onClick={() => {
+                  setUserMissingModal({ show: false });
+                }}
+              >
+                Chiudi
+              </button>
+              {userKey && (
+                <button
+                  className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700"
+                  onClick={async () => {
+                    setUserMissingModal({ show: false });
+                    await handleTestReset();
+                  }}
+                >
+                  Reset Test
+                </button>
+              )}
+              <button
+                className="px-4 py-2 text-sm rounded-md bg-purple-600 text-white"
+                onClick={() => router.push('/welcome')}
+              >
+                Vai a Welcome
+              </button>
+            </div>
+            </div>
+          </div>
+          </div>
+      )}
+
+      {/* Modal: Missed week (first fixture already started) */}
+      {missedWeekModalOpen && (
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
+          <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-1/2 -translate-x-1/2 w-[88%] max-w-md pointer-events-auto">
+            <div className="relative bg-white rounded-2xl shadow-2xl p-6 text-center">
+            <button
+              aria-label="Chiudi"
+              title="Chiudi"
+              onClick={() => setMissedWeekModalOpen(false)}
+              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700"
+            >
+              ×
+            </button>
+            {currentMode === 'test' ? (
+              <>
+                <h3 className="text-xl font-semibold text-black mb-2">Giornata {selectedWeek} già iniziata</h3>
+                <p className="text-sm text-gray-700 mb-5">La prima partita è già iniziata.</p>
+                <div className="flex gap-3 justify-center flex-wrap">
+                  <button
+                    onClick={() => {
+                      setMissedWeekModalOpen(false);
+                      router.push(`/risultati?mode=test&week=${selectedWeek}&missed=1`);
+                    }}
+                    className="px-5 py-2 rounded-md border border-gray-300 text-black font-medium hover:bg-gray-50"
+                  >
+                    Mostra risultati per Giornata {selectedWeek}
+                  </button>
+                  {selectedWeek < TERMINAL_WEEK && (
+                    <button
+                      onClick={() => {
+                        setMissedWeekModalOpen(false);
+                        setCurrentFixtureIndex(0);
+                        try { sessionStorage.setItem('swipick:gioca:autoAdvanceMsg', 'Stiamo iniziando dal giorno 2,\nvisualizza i risultati della settimana 1 nella pagina dei risultati'); } catch {}
+                        router.push(`/gioca?mode=test&week=${selectedWeek + 1}`);
+                      }}
+                      className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
+                    >
+                      Continua alla Giornata {selectedWeek + 1}
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-xl font-semibold text-black mb-2">Alcune partite sono già iniziate</h3>
+                <p className="text-sm text-gray-700 mb-5">Puoi ancora fare previsioni per le prossime partite.</p>
+                <div className="flex gap-3 justify-center flex-wrap">
+                  <button
+                    onClick={() => {
+                      setMissedWeekModalOpen(false);
+                      // In live mode, navigate to the current live week
+                      if (mode === 'live' && currentLiveWeek && currentLiveWeek !== selectedWeek) {
+                        router.push(`/gioca?mode=live&week=${currentLiveWeek}`);
+                      }
+                    }}
+                    className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
+                  >
+                    Continua a giocare
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMissedWeekModalOpen(false);
+                      router.push('/risultati?mode=live');
+                    }}
+                    className="px-5 py-2 rounded-md border border-gray-300 text-black font-medium hover:bg-gray-50"
+                  >
+                    Mostra risultati
+                  </button>
+                </div>
+              </>
+            )}
+            </div>
+          </div>
+          </div>
+      )}
+
+      {/* Testing Modal */}
+      {testingModalOpen && (
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" />
+          <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-1/2 -translate-x-1/2 w-[88%] max-w-md pointer-events-auto">
+            <div className="bg-white rounded-xl p-6 shadow-xl">
+              <h3 className="text-lg font-semibold text-black mb-4">Testing Panel</h3>
+              
+              <div className="space-y-4">
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <h4 className="font-medium text-black mb-2">Game Progress</h4>
+                  <p className="text-sm text-gray-600 mb-2">Predictions: {Object.keys(predictions).length}/10</p>
+                  <p className="text-sm text-gray-600">Current Week: {selectedWeek}</p>
+                </div>
+                
+                <div className="flex flex-col gap-3">
+                  <button
+                    className="px-4 py-3 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 font-medium"
+                    onClick={async () => {
+                      setTestingModalOpen(false);
+                      await handleTestReset();
+                    }}
+                  >
+                    🔄 Reset Game to 0/10 (Week 1)
+                  </button>
+                  
+                  <div className="text-xs text-gray-500 text-center">
+                    This will clear all predictions and return to week 1
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 justify-end mt-6">
+                <button
+                  className="px-4 py-2 text-sm rounded-md border border-gray-300 text-black"
+                  onClick={() => setTestingModalOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+        {/* Veil when week is completed (Test Mode). Hidden for Week 1 once rollover occurred, to avoid blocking UI when user navigates back. */}
+  {canShowVeil && (
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+          <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-1/2 -translate-x-1/2 w-[88%] max-w-md pointer-events-auto">
+            <div className="bg-white rounded-2xl shadow-2xl p-6 text-center">
+            <h3 className="text-xl font-semibold text-black mb-2">Giornata completata</h3>
+            <p className="text-sm text-gray-700 mb-5">Hai già effettuato 10 scelte per questa settimana. Vai alla pagina Risultati per rivelare e vedere l&apos;andamento.</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => router.push(`/risultati?mode=test&week=${selectedWeek}`)}
+                className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
+              >
+                Vai a Risultati
+              </button>
+            </div>
+            </div>
+          </div>
+          </div>
+      )}
+
+  {/* Bottom Navigation */}
+  <div className="fixed bottom-0 left-0 right-0 bg-white border-t pb-[max(env(safe-area-inset-bottom),0px)]">
+        <div className="flex">
+          <button
+            onClick={() => {
+              if (DEBUG_GIOCA) { try { console.log('[gioca] nav -> risultati', { mode: currentMode, week: selectedWeek }); } catch {} }
+              router.push(`/risultati?mode=${currentMode}${currentMode === 'test' ? `&week=${selectedWeek}` : ''}`);
+            }}
+            className="flex-1 text-center py-4"
+          >
+    <div className="text-gray-500 mb-1">
+              <FaMedal className="w-6 h-6 mx-auto" />
+            </div>
+    <span className="text-xs text-black">Risultati</span>
+          </button>
+          <div className="flex-1 text-center py-4 border-b-2 border-purple-600">
+            <div className="text-purple-600 mb-1">
+              <RiFootballLine className="w-6 h-6 mx-auto" />
+            </div>
+    <span className="text-xs text-purple-600 font-medium">Gioca</span>
+          </div>
+          <button
+            onClick={() => router.push('/profilo')}
+            className="flex-1 text-center py-4"
+          >
+    <div className="text-gray-500 mb-1">
+              <BsFillFilePersonFill className="w-6 h-6 mx-auto" />
+            </div>
+    <span className="text-xs text-black">Profilo</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+}
+}
+
+export default function GiocaPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 to-blue-600">
+        <div className="text-white text-xl">Caricamento...</div>
+      </div>
+    }>
+      <GiocaPageContent />
+    </Suspense>
+  );
+}

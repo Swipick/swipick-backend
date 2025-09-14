@@ -2,13 +2,15 @@
 
 import { useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAnimationControls, useMotionValue, useTransform, PanInfo } from 'framer-motion';
+import { motion, AnimatePresence, useAnimationControls, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { Toast } from '@/src/components/Toast';
 import { useGameMode } from "@/src/contexts/GameModeContext";
+import { useAuthContext } from "@/src/contexts/AuthContext";
 
 // Hooks
 import { useFixtures } from './hooks/useFixtures';
 import { usePredictions } from './hooks/usePredictions';
+import { useGameState } from './hooks/useGameState';
 import { useCountdown } from './hooks/useCountdown';
 
 // Components
@@ -29,12 +31,13 @@ function GiocaPageContent() {
   
   // Game state management (simplified for this demo)
   const { mode } = useGameMode();
+  const { firebaseUser } = useAuthContext();
   
   // Get mode from URL parameters or context
   const currentMode = ((searchParams?.get('mode') as 'live' | 'test' | null) ?? null) || mode;
   
   // Live week state  
-  const [currentLiveWeek] = useState<number | null>(null);
+  const [currentLiveWeek, setCurrentLiveWeek] = useState<number | null>(null);
   
   // Selected week logic
   const selectedWeek = (() => {
@@ -47,8 +50,8 @@ function GiocaPageContent() {
   })();
   
   // UI state
-  const [userKey] = useState<string | null>(null);
-  const [weekComplete] = useState(false);
+  const [userKey, setUserKey] = useState<string | null>(null);
+  const [weekComplete, setWeekComplete] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   
   // Navigation handlers
@@ -66,19 +69,24 @@ function GiocaPageContent() {
     matchCards,
     loading,
     error,
-  } = useFixtures({ currentMode, selectedWeek, userKey, currentLiveWeek });
+  } = useFixtures({ currentMode, selectedWeek, userKey, currentLiveWeek, setCurrentLiveWeek });
   
   // Predictions management
   const {
     predictions,
+    setPredictions,
     handlePrediction,
     predictionsCount,
     isComplete,
+    localComplete,
+    setLocalComplete,
   } = usePredictions({ currentMode, selectedWeek, userKey, fixtures });
   
   // Countdown timer
   const {
+    nextTarget,
     timeToMatch,
+    setNextTarget,
   } = useCountdown({ currentMode, fixtures });
 
   // Card navigation state
@@ -113,7 +121,7 @@ function GiocaPageContent() {
   }, [currentFixtureIndex, cardX]);
 
   // Swipe handling
-  const handleDragEnd = useCallback((_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+  const handleDragEnd = useCallback((_: any, info: PanInfo) => {
     const { offset, velocity } = info;
     
     if (Math.abs(offset.x) > ANIMATION_CONFIG.SWIPE_THRESHOLD || Math.abs(velocity.x) > 500) {
