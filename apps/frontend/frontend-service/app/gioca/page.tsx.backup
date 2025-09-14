@@ -13,26 +13,159 @@ import { FaMedal } from 'react-icons/fa';
 import { RiFootballLine } from 'react-icons/ri';
 import { BsFillFilePersonFill } from 'react-icons/bs';
 
-// Extracted types and constants
-import type {
-  Fixture,
-  TestFixtureAPI,
-  RawFixtureData,
-  MatchCard,
-  PredictionRecord,
-  UserMissingModalState,
-  Last5Item,
-} from './types';
-import { isTestFixture, isTestFixtureArray } from './types';
-import {
-  DEBUG_GIOCA,
-  MISSED_WEEK_GATING,
-  TERMINAL_WEEK,
-  GAME_CONFIG,
-  ANIMATION_CONFIG,
-  STORAGE_KEYS,
-} from './utils/constants';
+// Debug flag (enable with NEXT_PUBLIC_DEBUG_GIOCA=1)
+const DEBUG_GIOCA = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_DEBUG_GIOCA === '1';
+// Config flags for gating and terminal week in Test Mode
+const MISSED_WEEK_GATING = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MISSED_WEEK_GATING === '1';
+const TERMINAL_WEEK = (() => {
+  const v = typeof process !== 'undefined' ? parseInt(String(process.env.NEXT_PUBLIC_TEST_TERMINAL_WEEK || '4'), 10) : 4;
+  return Number.isFinite(v) ? v : 4;
+})();
 
+interface Team {
+  id: number;
+  name: string;
+  logo: string;
+  winner?: boolean;
+}
+
+interface Fixture {
+  id: number;
+  date: string;
+  timestamp: number;
+  venue: {
+    id: number;
+    name: string;
+    city: string;
+  };
+  status: {
+    long: string;
+    short: string;
+    elapsed?: number;
+  };
+  league: {
+    id: number;
+    name: string;
+    country: string;
+    logo?: string;
+    season: number;
+    round: string;
+  };
+  teams: {
+    home: Team;
+    away: Team;
+  };
+  goals: {
+    home?: number;
+    away?: number;
+  };
+  score: {
+    halftime: {
+      home?: number;
+      away?: number;
+    };
+    fulltime: {
+      home?: number;
+      away?: number;
+    };
+  };
+}
+
+// Shape returned by Test Mode API (backend)
+interface TestFixtureAPI {
+  id?: number;
+  week?: number;
+  date: string | number | Date;
+  homeTeam: string;
+  awayTeam: string;
+  homeScore?: number;
+  awayScore?: number;
+  status?: string;
+  stadium?: string | null;
+}
+
+// Raw API fixture data structure (from external APIs like API-Football)
+interface RawFixtureData {
+  id?: number;
+  date?: string | number | Date;
+  timestamp?: number;
+  venue?: {
+    id?: number;
+    name?: string;
+    city?: string;
+  };
+  status?: {
+    long?: string;
+    short?: string;
+    elapsed?: number;
+  };
+  league?: {
+    id?: number;
+    name?: string;
+    country?: string;
+    logo?: string;
+    season?: number;
+    round?: string;
+  };
+  teams?: {
+    home?: {
+      id?: number;
+      name?: string;
+      logo?: string;
+    };
+    away?: {
+      id?: number;
+      name?: string;
+      logo?: string;
+    };
+  };
+  goals?: {
+    home?: number;
+    away?: number;
+  };
+  score?: {
+    halftime?: {
+      home?: number;
+      away?: number;
+    };
+    fulltime?: {
+      home?: number;
+      away?: number;
+    };
+  };
+}
+
+// Match-cards API types
+interface MatchCardKickoff { iso: string; display: string; }
+interface Last5Item {
+  fixtureId: number | string;
+  code: '1'|'X'|'2';
+  // Optional: user prediction metadata (when applicable)
+  predicted: '1'|'X'|'2'|null;
+  correct: boolean|null;
+  // Optional: backend-provided, team-perspective outcome for this historical item
+  // 'W' = team won, 'D' = draw, 'L' = team lost
+  outcome?: 'W'|'D'|'L' | null;
+  // Whether this team was the home side in that specific historical match
+  wasHome: boolean;
+}
+interface MatchCardTeamHome { name: string; logo: string | null; winRateHome: number | null; last5: Array<'1' | 'X' | '2'>; standingsPosition?: number|null; form?: Last5Item[]; }
+interface MatchCardTeamAway { name: string; logo: string | null; winRateAway: number | null; last5: Array<'1' | 'X' | '2'>; standingsPosition?: number|null; form?: Last5Item[]; }
+interface MatchCard { week: number; fixtureId: number; kickoff: MatchCardKickoff; stadium: string | null; home: MatchCardTeamHome; away: MatchCardTeamAway; }
+
+function isTestFixture(obj: unknown): obj is TestFixtureAPI {
+  if (typeof obj !== 'object' || obj === null) return false;
+  const o = obj as Record<string, unknown>;
+  return (
+    typeof o.homeTeam === 'string' &&
+    typeof o.awayTeam === 'string' &&
+    ('date' in o)
+  );
+}
+
+function isTestFixtureArray(arr: unknown): arr is TestFixtureAPI[] {
+  return Array.isArray(arr) && arr.every(isTestFixture);
+}
 
 function GiocaPageContent() {
   const router = useRouter();
@@ -65,6 +198,7 @@ function GiocaPageContent() {
   // Testing modal with reset functionality
   const [testingModalOpen, setTestingModalOpen] = useState(false);
   const [matchCards, setMatchCards] = useState<MatchCard[]>([]);
+  const [nextTarget, setNextTarget] = useState<Date | null>(null);
   const controls = useAnimationControls();
   // Framer Motion values for angled swipe path
   const cardX = useMotionValue(0);
@@ -1077,6 +1211,7 @@ function GiocaPageContent() {
 
   // Framer Motion: decide direction and commit without snap-back
   const onDragEndCommit = async (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    const currentFixture = fixtures[currentFixtureIndex];
     if (!currentFixture) return;
     if (currentMode === 'test' && weekComplete) {
       return; // Block interactions under veil
@@ -1156,8 +1291,6 @@ function GiocaPageContent() {
       return Number.isFinite(nextTs) ? new Date(nextTs) : null;
     }
   }, [currentMode]);
-
-  const [nextTarget, setNextTarget] = useState<Date | null>(null);
 
   // Recompute next target whenever fixtures change
   useEffect(() => {
@@ -1380,11 +1513,12 @@ function GiocaPageContent() {
   const currentCard = effectiveCards[currentFixtureIndex];
   const currentPrediction = currentFixture ? predictions[currentFixture.id] : undefined;
   const predictionsCount = effectiveFixtures.reduce((acc, f) => acc + (predictions[f.id] ? 1 : 0), 0);
-  const progressPct = Math.min(predictionsCount / GAME_CONFIG.TOTAL_PREDICTIONS, 1) * 100;
-  const isComplete = localComplete || predictionsCount >= GAME_CONFIG.TOTAL_PREDICTIONS;
+  const progressPct = Math.min(predictionsCount / 10, 1) * 100;
+  const isComplete = localComplete || predictionsCount >= 10;
 
   // Programmatic swipe used by buttons to mirror the same animations and commits
   const animateAndCommit = async (dir: 'left' | 'right' | 'up' | 'down') => {
+    const currentFixture = fixtures[currentFixtureIndex];
     if (!currentFixture) return;
     if (currentMode === 'test' && weekComplete) return;
     // Live mode is now enabled for predictions
@@ -2280,6 +2414,8 @@ function GiocaPageContent() {
     </div>
   );
 }
+}
+}
 
 export default function GiocaPage() {
   return (
@@ -2289,18 +2425,6 @@ export default function GiocaPage() {
       </div>
     }>
       <GiocaPageContent />
-        <style jsx global>{`
-          /* Target iPhone 14 Pro Max / 13 Pro Max style screens (~430x932), with a little tolerance */
-          @media (min-width: 420px) and (max-width: 440px) and (min-height: 922px) and (max-height: 942px) {
-            .match-card { padding: 18px !important; }
-            .match-card .top-info { margin-bottom: 50px !important; }
-            .match-card .teams { gap: 82px !important; margin-bottom: 22px !important; }
-            .match-card .team-logo { width: 112px !important; height: 112px !important; }
-          }
-        `}</style>
     </Suspense>
   );
-}
-}
-}
 }
