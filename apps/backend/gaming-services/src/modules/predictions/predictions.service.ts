@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Fixture } from '../../entities/fixture.entity';
 import { Spec } from '../../entities/spec.entity';
+import { TestSpec } from '../../entities/test-spec.entity';
 import { CreatePredictionDto } from './dto/create-prediction.dto';
 
 @Injectable()
@@ -14,9 +15,11 @@ export class PredictionsService {
     private readonly fixtureRepository: Repository<Fixture>,
     @InjectRepository(Spec)
     private readonly specRepository: Repository<Spec>,
+    @InjectRepository(TestSpec)
+    private readonly testSpecRepository: Repository<TestSpec>,
   ) {}
 
-  async create(createPredictionDto: CreatePredictionDto): Promise<Spec> {
+  async create(createPredictionDto: CreatePredictionDto): Promise<Spec | TestSpec> {
     const { userId, fixtureId, choice, mode } = createPredictionDto;
 
     const fixture = await this.fixtureRepository.findOne({ where: { id: fixtureId } });
@@ -36,30 +39,62 @@ export class PredictionsService {
       }
     }
 
-    const newSpec = this.specRepository.create({
-      user_id: userId,
-      fixture_id: fixtureId,
-      choice,
-      test_mode: mode === 'test',
-    });
+    if (mode === 'test') {
+      // Create test prediction
+      const newTestSpec = this.testSpecRepository.create({
+        userId,
+        fixtureId: parseInt(fixtureId), // Convert string to number
+        choice,
+        week: fixture.week || 1, // Assuming fixture has a week property
+      });
 
-    try {
-      const savedSpec = await this.specRepository.save(newSpec);
-      this.logger.log(`Saved prediction for User ${userId}, Fixture ${fixtureId}, Mode '${mode}'`);
-      return savedSpec;
-    } catch (error) {
-      // Catch potential unique constraint violations (e.g., user already predicted for this fixture)
-      if (error.code === '23505') { // PostgreSQL unique violation error code
-        this.logger.warn(`User ${userId} already has a prediction for Fixture ${fixtureId}. Attempting to update.`);
-        // If the user is re-submitting a prediction for the same fixture, update it.
-        const existingSpec = await this.specRepository.findOne({ where: { user_id: userId, fixture_id: fixtureId } });
-        if (existingSpec) {
-          existingSpec.choice = choice;
-          return this.specRepository.save(existingSpec);
+      try {
+        const savedTestSpec = await this.testSpecRepository.save(newTestSpec);
+        this.logger.log(`Saved test prediction for User ${userId}, Fixture ${fixtureId}, Week ${fixture.week || 1}`);
+        return savedTestSpec;
+      } catch (error) {
+        // Catch potential unique constraint violations
+        if (error.code === '23505') {
+          this.logger.warn(`User ${userId} already has a test prediction for Fixture ${fixtureId}. Attempting to update.`);
+          const existingTestSpec = await this.testSpecRepository.findOne({ 
+            where: { userId, fixtureId: parseInt(fixtureId) } 
+          });
+          if (existingTestSpec) {
+            existingTestSpec.choice = choice;
+            return this.testSpecRepository.save(existingTestSpec);
+          }
         }
+        this.logger.error('Failed to save test prediction', error.stack);
+        throw new BadRequestException('Could not save test prediction.');
       }
-      this.logger.error('Failed to save prediction', error.stack);
-      throw new BadRequestException('Could not save prediction.');
+    } else {
+      // Create live prediction
+      const newSpec = this.specRepository.create({
+        user_id: userId,
+        fixture_id: fixtureId,
+        choice,
+        week: fixture.week || 1, // Assuming fixture has a week property
+      });
+
+      try {
+        const savedSpec = await this.specRepository.save(newSpec);
+        this.logger.log(`Saved live prediction for User ${userId}, Fixture ${fixtureId}, Week ${fixture.week || 1}`);
+        return savedSpec;
+      } catch (error) {
+        // Catch potential unique constraint violations
+        if (error.code === '23505') {
+          this.logger.warn(`User ${userId} already has a live prediction for Fixture ${fixtureId}. Attempting to update.`);
+          const existingSpec = await this.specRepository.findOne({ 
+            where: { user_id: userId, fixture_id: fixtureId } 
+          });
+          if (existingSpec) {
+            existingSpec.choice = choice;
+            return this.specRepository.save(existingSpec);
+          }
+        }
+        this.logger.error('Failed to save live prediction', error.stack);
+        throw new BadRequestException('Could not save live prediction.');
+      }
     }
   }
 }

@@ -3,10 +3,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { PredictionsController } from './predictions.controller';
 import { PredictionsService } from './predictions.service';
 import { Spec } from '../../entities/spec.entity';
+import { TestSpec } from '../../entities/test-spec.entity';
 import { Fixture } from '../../entities/fixture.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Spec, Fixture])],
+  imports: [TypeOrmModule.forFeature([Spec, TestSpec, Fixture])],
   controllers: [PredictionsController],
   providers: [PredictionsService],
 })
