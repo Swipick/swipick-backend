@@ -5,6 +5,10 @@ console.log('📄 LOGINVERIFIED PAGE CONFIRMED: Route available');
 
 const nextConfig: NextConfig = {
   /* config options here */
+  eslint: {
+    ignoreDuringBuilds: false,
+    dirs: ['app', 'lib', 'src'], // Only lint these directories 
+  },
   images: {
     remotePatterns: [
       // Local assets (if any served via full URL in dev)

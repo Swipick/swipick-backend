@@ -121,7 +121,7 @@ function GiocaPageContent() {
   }, [currentFixtureIndex, cardX]);
 
   // Swipe handling
-  const handleDragEnd = useCallback((_: any, info: PanInfo) => {
+  const handleDragEnd = useCallback((_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const { offset, velocity } = info;
     
     if (Math.abs(offset.x) > ANIMATION_CONFIG.SWIPE_THRESHOLD || Math.abs(velocity.x) > 500) {

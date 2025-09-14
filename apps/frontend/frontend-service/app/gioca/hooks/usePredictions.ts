@@ -99,11 +99,10 @@ export function usePredictions({
     // Submit to backend if we have a user
     if (userKey && currentMode === 'test') {
       try {
-        await apiClient.createPrediction({
+        await apiClient.createTestPrediction({
           userId: userKey,
           fixtureId,
           choice,
-          mode: currentMode,
         });
         
         if (DEBUG_GIOCA) {

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { motion, MotionValue } from 'framer-motion';
+import { motion, MotionValue, PanInfo } from 'framer-motion';
 import { TeamInfo } from './TeamInfo';
 import { MatchDetails } from './MatchDetails';
 import { PredictionButtons } from '../PredictionControls/PredictionButtons';
@@ -21,7 +21,7 @@ interface MatchCardProps {
   dragProps?: {
     drag?: boolean;
     dragElastic?: number;
-    onDragEnd?: any;
+    onDragEnd?: (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => void;
   };
   style?: {
     x?: MotionValue<number>;

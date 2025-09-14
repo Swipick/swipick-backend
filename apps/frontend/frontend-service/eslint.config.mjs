@@ -12,6 +12,11 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
+    ignores: [
+      "**/page_original_backup.tsx", // Ignore backup files with legacy code
+      "**/page_refactored.tsx", // Ignore refactored example files
+      "**/GiocaPageRefactored.example.tsx", // Ignore example files
+    ],
     rules: {
       // Temporary: rule crashes under current ESLint/@typescript-eslint combo
       "@typescript-eslint/no-unsafe-declaration-merging": "off",

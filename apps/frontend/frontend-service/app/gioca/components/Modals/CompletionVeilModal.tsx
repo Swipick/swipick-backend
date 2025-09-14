@@ -33,7 +33,7 @@ export function CompletionVeilModal({
           </h3>
           
           <p className="text-sm text-gray-700 mb-5">
-            Hai già effettuato 10 scelte per questa settimana. Vai alla pagina Risultati per rivelare e vedere l'andamento.
+            Hai già effettuato 10 scelte per questa settimana. Vai alla pagina Risultati per rivelare e vedere l&apos;andamento.
           </p>
           
           <div className="flex gap-3 justify-center">
