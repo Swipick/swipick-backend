@@ -151,10 +151,11 @@ function GiocaPageContent() {
   const [currentFixtureIndex, setCurrentFixtureIndex] = useState(0);
   const [isSkipAnimating, setIsSkipAnimating] = useState(false);
   const [previewOnTop, setPreviewOnTop] = useState(false);
+  const [frozenPreviewIndex, setFrozenPreviewIndex] = useState<number | null>(null);
 
   // Animation controls
   const cardX = useMotionValue(0);
-  const cardY = useTransform(cardX, [-320, 0, 320], [-24, 0, 24]);
+  const cardY = useMotionValue(0);
   const cardRotate = useTransform(cardX, [-320, 0, 320], [-10, 0, 10]);
 
   // Current fixture data
@@ -167,15 +168,17 @@ function GiocaPageContent() {
     if (currentFixtureIndex < fixtures.length - 1) {
       setCurrentFixtureIndex(prev => prev + 1);
       cardX.set(0);
+      cardY.set(0);
     }
-  }, [currentFixtureIndex, fixtures.length, cardX]);
+  }, [currentFixtureIndex, fixtures.length, cardX, cardY]);
 
   const handlePrev = useCallback(() => {
     if (currentFixtureIndex > 0) {
       setCurrentFixtureIndex(prev => prev - 1);
       cardX.set(0);
+      cardY.set(0);
     }
-  }, [currentFixtureIndex, cardX]);
+  }, [currentFixtureIndex, cardX, cardY]);
 
   // Prediction handling (moved above drag handler to avoid TDZ issues)
   const handleCardPrediction = useCallback(async (fixtureId: number, choice: PredictionChoice) => {
@@ -196,6 +199,18 @@ function GiocaPageContent() {
       }
     }, 500);
   }, [handlePrediction, currentFixtureIndex, fixtures.length, handleNext, currentMode, userKey, selectedWeek, hasWeekPredsKey]);
+
+  // Commit immediately (no delay) to avoid race with animations
+  const commitPredictionImmediate = useCallback(async (fixtureId: number, choice: PredictionChoice) => {
+    await handlePrediction(fixtureId, choice);
+    if (currentMode === 'test' && userKey) {
+      try {
+        const k = hasWeekPredsKey(selectedWeek, userKey);
+        localStorage.setItem(k, '1');
+      } catch {}
+    }
+    handleNext();
+  }, [handlePrediction, handleNext, currentMode, userKey, selectedWeek, hasWeekPredsKey]);
 
   // Swipe handling
   const handleDragEnd = useCallback((_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
@@ -223,43 +238,58 @@ function GiocaPageContent() {
     }
 
     if (choice && currentFixture) {
-      // Animate off-screen for horizontal swipes; up can just commit
+      setFrozenPreviewIndex(currentFixtureIndex + 1);
+      // Animate off-screen for horizontal swipes; up uses vertical animation
       const distance = 350;
       if (choice === '1') {
         // Left
-        void animate(cardX, -distance, { type: 'tween', ease: 'easeOut', duration: 0.4 }).finished.then(() => {
+        void animate(cardX, -distance, { type: 'tween', ease: 'easeOut', duration: 0.35 }).finished.then(() => {
           cardX.set(0);
         });
       } else if (choice === '2') {
         // Right
-        void animate(cardX, distance, { type: 'tween', ease: 'easeOut', duration: 0.4 }).finished.then(() => {
+        void animate(cardX, distance, { type: 'tween', ease: 'easeOut', duration: 0.35 }).finished.then(() => {
           cardX.set(0);
         });
       } else {
-        // Up → keep position; snap back after commit below
+        // Up → animate upward for visual parity with backup
+        setPreviewOnTop(true);
+        void animate(cardY, -distance, { type: 'tween', ease: 'easeOut', duration: 0.35 }).finished.then(() => {
+          cardY.set(0);
+        });
       }
 
-      // Commit prediction and auto-advance per existing logic
-      void handleCardPrediction(currentFixture.id, choice);
+      // Commit prediction and advance immediately
+      void commitPredictionImmediate(currentFixture.id, choice).finally(() => {
+        setTimeout(() => {
+          setFrozenPreviewIndex(null);
+          setPreviewOnTop(false);
+        }, 50);
+      });
     } else {
       // Not enough movement → snap back
       animate(cardX, 0, { type: 'spring', stiffness: 300, damping: 30 });
+      animate(cardY, 0, { type: 'spring', stiffness: 300, damping: 30 });
     }
-  }, [cardX, currentFixture, handleCardPrediction]);
+  }, [cardX, cardY, currentFixture, currentFixtureIndex, commitPredictionImmediate]);
 
   // Skip animation
   const handleSkip = useCallback(async () => {
     if (isSkipAnimating) return;
     setIsSkipAnimating(true);
     setPreviewOnTop(true);
+    setFrozenPreviewIndex(currentFixtureIndex + 1);
     try {
-      // Directly advance without separate control-based animation
+      // Animate downward similar to original smoothness
+      await animate(cardY, 380, { type: 'tween', ease: 'easeInOut', duration: 0.45 }).finished;
+      cardY.set(0);
       handleNext();
     } finally {
       setIsSkipAnimating(false);
       setPreviewOnTop(false);
+      setTimeout(() => setFrozenPreviewIndex(null), 50);
     }
-  }, [isSkipAnimating, handleNext]);
+  }, [isSkipAnimating, handleNext, currentFixtureIndex, cardY]);
 
   // (definition moved above)
 
@@ -282,28 +312,33 @@ function GiocaPageContent() {
     const distance = 350;
     
     if (direction === 'down') {
-      // Skip animation
-      handleSkip();
+      // Skip animation (bring preview on top during vertical move)
+      await handleSkip();
       return;
     }
     
-    // Animate horizontal swipe using the MotionValue to keep a single source of truth
-    const targetX = direction === 'left' ? -distance : direction === 'right' ? distance : 0;
-    if (targetX !== 0) {
-      await animate(cardX, targetX, { type: 'tween', ease: 'easeOut', duration: 0.56 }).finished;
-      // Reset immediately for the next card
+    setFrozenPreviewIndex(currentFixtureIndex + 1);
+    // Animate based on direction
+    if (direction === 'up') {
+      setPreviewOnTop(true);
+      await animate(cardY, -distance, { type: 'tween', ease: 'easeOut', duration: 0.4 }).finished;
+      cardY.set(0);
+    } else if (direction === 'left' || direction === 'right') {
+      const targetX = direction === 'left' ? -distance : distance;
+      await animate(cardX, targetX, { type: 'tween', ease: 'easeOut', duration: 0.4 }).finished;
       cardX.set(0);
     }
     
     // Handle prediction based on direction
     if (direction === 'up') {
-      await handleCardPrediction(currentFixture.id, 'X');
+      await commitPredictionImmediate(currentFixture.id, 'X');
     } else if (direction === 'left') {
-      await handleCardPrediction(currentFixture.id, '1');
+      await commitPredictionImmediate(currentFixture.id, '1');
     } else if (direction === 'right') {
-      await handleCardPrediction(currentFixture.id, '2');
+      await commitPredictionImmediate(currentFixture.id, '2');
     }
-  }, [currentFixture, handleSkip, cardX, handleCardPrediction]);
+    setTimeout(() => { setFrozenPreviewIndex(null); setPreviewOnTop(false); }, 50);
+  }, [currentFixture, handleSkip, cardX, cardY, currentFixtureIndex, commitPredictionImmediate]);
 
   // Decide if the completion veil should be displayed for the current context - EXACT ORIGINAL LOGIC
   const canShowVeil = (() => {
@@ -398,10 +433,10 @@ function GiocaPageContent() {
             >
               <div className="w-full max-w-sm transform scale-95 opacity-60">
                 <MatchCard
-                  fixture={fixtures[currentFixtureIndex + 1]}
-                  matchCard={matchCards.find(mc => mc.fixtureId === fixtures[currentFixtureIndex + 1]?.id)}
+                  fixture={fixtures[(frozenPreviewIndex ?? (currentFixtureIndex + 1))]}
+                  matchCard={matchCards.find(mc => mc.fixtureId === fixtures[(frozenPreviewIndex ?? (currentFixtureIndex + 1))]?.id)}
                   onPrediction={handleCardPrediction}
-                  currentPrediction={predictions[fixtures[currentFixtureIndex + 1]?.id]}
+                  currentPrediction={predictions[fixtures[(frozenPreviewIndex ?? (currentFixtureIndex + 1))]?.id]}
                   disabled={true}
                 />
               </div>

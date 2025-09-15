@@ -49,72 +49,56 @@ export class MatchCardsService {
     // For Week 1, stats are null/empty
     const isWeekOne = weekNumber <= 1;
 
-    // Get prior fixtures for statistics calculation
-    const priorFixtures = isWeekOne ? [] : await this.fixtureRepository
+    // Preload all completed fixtures up to and including the requested week
+    const completedUpToWeek = isWeekOne ? [] : await this.fixtureRepository
       .createQueryBuilder('fixture')
-      .where('fixture.week < :week', { week: weekNumber })
+      .where('fixture.week <= :week', { week: weekNumber })
       .andWhere('fixture.home_score IS NOT NULL AND fixture.away_score IS NOT NULL')
       .orderBy('fixture.match_date', 'ASC')
       .getMany();
 
-    // Calculate standings up to the previous week
-    const standings = isWeekOne ? new Map<string, number>() : this.computeStandings(priorFixtures);
-
-    const cards: MatchCardDto[] = [];
-
-    // Get all teams for last 5 calculations
-    const teams = new Set<string>(fixtures.flatMap(f => [f.home_team, f.away_team]));
-    const last5ByTeam = new Map<string, ResultCode[]>();
-    const last5IdsByTeam = new Map<string, string[]>();
-    const wasHomeFlagsByTeam = new Map<string, boolean[]>();
-
-    // Calculate last 5 results and fixture IDs for each team
-    for (const team of teams) {
-      const { results, fixtureIds, wasHomeFlags } = isWeekOne ? { results: [], fixtureIds: [], wasHomeFlags: [] } : this.computeLast5WithIds(priorFixtures, team);
-      last5ByTeam.set(team, results);
-      last5IdsByTeam.set(team, fixtureIds);
-      wasHomeFlagsByTeam.set(team, wasHomeFlags);
-    }
-
-    // Get user predictions for overlay if userId provided
+    // Preload user predictions overlay for any completed fixtures we might include in last-5
     let userPredictions = new Map<string, ResultCode>();
-    if (userId && !isWeekOne) {
-      const allFixtureIds = Array.from(last5IdsByTeam.values()).flat();
-      if (allFixtureIds.length > 0) {
-        try {
-          const predictions = await this.specRepository.find({
-            where: { 
-              user_id: userId, 
-              fixture_id: In(allFixtureIds) 
-            },
-          });
-          predictions.forEach(pred => {
-            if (pred.choice !== 'SKIP') {
-              userPredictions.set(pred.fixture_id, pred.choice as ResultCode);
-            }
-          });
-        } catch (error) {
-          this.logger.warn(`Failed to fetch user predictions for ${userId}:`, error);
-        }
+    if (userId && !isWeekOne && completedUpToWeek.length > 0) {
+      try {
+        const allFixtureIds = completedUpToWeek.map(f => f.id);
+        const predictions = await this.specRepository.find({
+          where: { user_id: userId, fixture_id: In(allFixtureIds) },
+        });
+        predictions.forEach(pred => {
+          if (pred.choice !== 'SKIP') {
+            userPredictions.set(pred.fixture_id, pred.choice as ResultCode);
+          }
+        });
+      } catch (error) {
+        this.logger.warn(`Failed to fetch user predictions for ${userId}:`, error);
       }
     }
 
-    // Generate match cards
+    const cards: MatchCardDto[] = [];
+
+    // Generate match cards with per-fixture prior context (includes already-played matches in the same week)
     for (const fixture of fixtures) {
+      // Prior fixtures are any completed fixtures strictly before this fixture's kickoff
+      const priorForThisFixture = isWeekOne
+        ? []
+        : completedUpToWeek.filter(f => new Date(f.match_date).getTime() < new Date(fixture.match_date).getTime());
+
+      // Standings up to this moment
+      const standings = this.computeStandings(priorForThisFixture);
+
+      // Last-5 and win rates from prior context
+      const { results: homeLast5, fixtureIds: homeFixtureIds, wasHomeFlags: homeWasHomeFlags } =
+        this.computeLast5WithIds(priorForThisFixture, fixture.home_team);
+      const { results: awayLast5, fixtureIds: awayFixtureIds, wasHomeFlags: awayWasHomeFlags } =
+        this.computeLast5WithIds(priorForThisFixture, fixture.away_team);
+
+      const homeWinRate = this.computeWinRate(priorForThisFixture, fixture.home_team, 'home');
+      const awayWinRate = this.computeWinRate(priorForThisFixture, fixture.away_team, 'away');
       const kickoff: MatchCardKickoffDto = {
         iso: new Date(fixture.match_date).toISOString(),
         display: this.formatDisplayDate(new Date(fixture.match_date)),
       };
-
-      const homeLast5 = last5ByTeam.get(fixture.home_team) || [];
-      const awayLast5 = last5ByTeam.get(fixture.away_team) || [];
-      const homeFixtureIds = last5IdsByTeam.get(fixture.home_team) || [];
-      const awayFixtureIds = last5IdsByTeam.get(fixture.away_team) || [];
-      const homeWasHomeFlags = wasHomeFlagsByTeam.get(fixture.home_team) || [];
-      const awayWasHomeFlags = wasHomeFlagsByTeam.get(fixture.away_team) || [];
-
-      const homeWinRate = isWeekOne ? null : this.computeWinRate(priorFixtures, fixture.home_team, 'home');
-      const awayWinRate = isWeekOne ? null : this.computeWinRate(priorFixtures, fixture.away_team, 'away');
 
       // Create form with user overlay
       const homeForm = this.createFormWithOverlay(homeLast5, homeFixtureIds, userPredictions, homeWasHomeFlags);
