@@ -25,7 +25,7 @@ export function CountdownTimer({ timeToMatch, className = '' }: CountdownTimerPr
 
   return (
     <div className={`${className}`}>
-      <div className="flex gap-6 text-center">
+      <div className="flex gap-6 justify-center text-center">
         <div>
           <div className="text-2xl font-bold">{days}</div>
           <div className="text-xs opacity-80">giorni</div>

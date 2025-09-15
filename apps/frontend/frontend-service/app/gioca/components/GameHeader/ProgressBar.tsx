@@ -21,19 +21,20 @@ export function ProgressBar({
   const percentage = Math.min((current / total) * 100, 100);
   
   return (
-    <div className={className}>
-      <div className="bg-white/20 rounded-full h-2 mb-1">
-        <div 
-          className="bg-white rounded-full h-2 transition-all duration-300 ease-out"
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
-      
-      {showLabel && (
-        <div className="text-xs text-center opacity-90">
-          {current}/{total} predizioni
+    <div className={`px-4 pb-6 ${className}`}>
+      <div className="relative w-full max-w-xs mx-auto">
+        <div className="bg-white bg-opacity-30 rounded-sm overflow-hidden" style={{ height: '18px' }}>
+          <div
+            className="bg-indigo-300 h-full rounded-sm transition-all duration-[350ms]"
+            style={{ width: `${percentage}%` }}
+          />
         </div>
-      )}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-xs font-medium text-[#3d2d73]">
+            {Math.min(current, total)}/{total}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

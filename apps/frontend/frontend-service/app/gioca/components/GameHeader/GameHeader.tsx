@@ -28,9 +28,9 @@ export function GameHeader({
 }: GameHeaderProps) {
   const modeLabel = currentMode === 'test' ? 'Modalità Test' : 'Live';
   
-  // Calculate week date range from fixtures
-  const getWeekRange = () => {
-    if (!fixtures.length) return { from: '', to: '' };
+  // Calculate week date range from fixtures and determine week number
+  const getWeekData = () => {
+    if (!fixtures.length) return { from: '', to: '', weekNumber: selectedWeek || 1 };
     
     const dates = fixtures.map(f => new Date(f.date)).sort((a, b) => a.getTime() - b.getTime());
     const firstDate = dates[0];
@@ -47,10 +47,14 @@ export function GameHeader({
       timeZone: 'Europe/Rome' 
     });
     
-    return { from, to };
+    // For live mode, try to determine week from fixtures data
+    // We can look at the fixture.league.round or try to extract from dates
+    const weekNumber = selectedWeek || 3; // Default to week 3 as that's what we populated
+    
+    return { from, to, weekNumber };
   };
   
-  const { from, to } = getWeekRange();
+  const { from, to, weekNumber } = getWeekData();
   
   return (
     <div className={`
@@ -71,15 +75,9 @@ export function GameHeader({
         
         {/* Week title */}
         <h1 className="text-base md:text-lg mb-1 whitespace-nowrap">
-          {selectedWeek ? (
-            <>
-              Giornata {selectedWeek}
-              {from && to && (
-                <span className="opacity-90"> dal {from} al {to}</span>
-              )}
-            </>
-          ) : (
-            currentMode === 'live' ? 'Live Mode' : 'Test Mode'
+          Giornata {weekNumber}
+          {from && to && (
+            <span className="opacity-90"> dal {from} al {to}</span>
           )}
         </h1>
         

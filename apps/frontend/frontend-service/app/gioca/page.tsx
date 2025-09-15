@@ -264,6 +264,13 @@ function GiocaPageContent() {
     
     await controls.start(target);
     
+    // Reset card position immediately after animation completes
+    await controls.start({
+      x: 0,
+      y: 0,
+      transition: { duration: 0 }
+    });
+    
     // Handle prediction based on direction
     if (direction === 'up') {
       await handleCardPrediction(currentFixture.id, 'X');
@@ -447,28 +454,12 @@ function GiocaPageContent() {
                   y: cardY,
                   rotate: cardRotate,
                 }}
+                animate={controls}
               />
             </div>
           </div>
         </div>
 
-        {/* Progress Indicator */}
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-30">
-          <div className="flex space-x-2">
-            {fixtures.map((_, index) => (
-              <div
-                key={index}
-                className={`w-2 h-2 rounded-full transition-colors ${
-                  index === currentFixtureIndex
-                    ? 'bg-purple-600'
-                    : index < currentFixtureIndex
-                    ? 'bg-green-500'
-                    : 'bg-gray-300'
-                }`}
-              />
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Prediction Buttons - Diamond Layout (in-flow; scrolls with content) */}

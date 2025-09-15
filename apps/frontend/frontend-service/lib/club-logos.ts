@@ -27,6 +27,7 @@ const map: Record<string, string> = {
   juventusfc: '/teams/JuventusFcLogo.png',
   lecce: '/teams/LecceLogo.png',
   bologna: '/teams/LogobolognaLogo.png',
+  parma: '/teams/ParmaLogo.png',
   napoli: '/teams/NapolLogo.png',
   sscnapoli: '/teams/NapolLogo.png',
   salernitana: '/teams/SalernitanaCentenarioLogo.png',
