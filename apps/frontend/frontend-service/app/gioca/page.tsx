@@ -2,7 +2,7 @@
 
 import { useState, useCallback, Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAnimationControls, useMotionValue, useTransform, PanInfo } from 'framer-motion';
+import { useMotionValue, useTransform, PanInfo, animate } from 'framer-motion';
 import { Toast } from '@/src/components/Toast';
 import { useGameMode } from "@/src/contexts/GameModeContext";
 import { apiClient } from "@/lib/api-client";
@@ -153,7 +153,6 @@ function GiocaPageContent() {
   const [previewOnTop, setPreviewOnTop] = useState(false);
 
   // Animation controls
-  const controls = useAnimationControls();
   const cardX = useMotionValue(0);
   const cardY = useTransform(cardX, [-320, 0, 320], [-24, 0, 24]);
   const cardRotate = useTransform(cardX, [-320, 0, 320], [-10, 0, 10]);
@@ -178,40 +177,7 @@ function GiocaPageContent() {
     }
   }, [currentFixtureIndex, cardX]);
 
-  // Swipe handling
-  const handleDragEnd = useCallback((_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    const { offset, velocity } = info;
-    
-    if (Math.abs(offset.x) > ANIMATION_CONFIG.SWIPE_THRESHOLD || Math.abs(velocity.x) > 500) {
-      if (offset.x > 0) {
-        handlePrev();
-      } else {
-        handleNext();
-      }
-    } else {
-      cardX.set(0);
-    }
-  }, [handleNext, handlePrev, cardX]);
-
-  // Skip animation
-  const handleSkip = useCallback(async () => {
-    if (isSkipAnimating) return;
-    setIsSkipAnimating(true);
-    setPreviewOnTop(true);
-    
-    try {
-      await controls.start({
-        y: [0, -400, 0],
-        transition: { duration: 0.8, ease: "easeInOut" }
-      });
-      handleNext();
-    } finally {
-      setIsSkipAnimating(false);
-      setPreviewOnTop(false);
-    }
-  }, [isSkipAnimating, controls, handleNext]);
-
-  // Prediction handling
+  // Prediction handling (moved above drag handler to avoid TDZ issues)
   const handleCardPrediction = useCallback(async (fixtureId: number, choice: PredictionChoice) => {
     await handlePrediction(fixtureId, choice);
     
@@ -230,6 +196,72 @@ function GiocaPageContent() {
       }
     }, 500);
   }, [handlePrediction, currentFixtureIndex, fixtures.length, handleNext, currentMode, userKey, selectedWeek, hasWeekPredsKey]);
+
+  // Swipe handling
+  const handleDragEnd = useCallback((_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    const { offset, velocity } = info;
+    const dx = offset.x;
+    const dy = offset.y;
+    const ax = Math.abs(dx);
+    const ay = Math.abs(dy);
+    const vx = Math.abs(velocity.x || 0);
+    const vy = velocity.y || 0;
+    const threshold = ANIMATION_CONFIG.SWIPE_THRESHOLD;
+
+    // Determine primary swipe direction and map to a choice
+    let choice: PredictionChoice | null = null;
+    if (ax >= ay) {
+      // Horizontal swipe dominates → Left= '1', Right= '2'
+      if (ax > threshold || vx > 500) {
+        choice = dx < 0 ? '1' : '2';
+      }
+    } else {
+      // Vertical swipe dominates → Up = 'X' only
+      if (dy < -threshold || vy < -500) {
+        choice = 'X';
+      }
+    }
+
+    if (choice && currentFixture) {
+      // Animate off-screen for horizontal swipes; up can just commit
+      const distance = 350;
+      if (choice === '1') {
+        // Left
+        void animate(cardX, -distance, { type: 'tween', ease: 'easeOut', duration: 0.4 }).finished.then(() => {
+          cardX.set(0);
+        });
+      } else if (choice === '2') {
+        // Right
+        void animate(cardX, distance, { type: 'tween', ease: 'easeOut', duration: 0.4 }).finished.then(() => {
+          cardX.set(0);
+        });
+      } else {
+        // Up → keep position; snap back after commit below
+      }
+
+      // Commit prediction and auto-advance per existing logic
+      void handleCardPrediction(currentFixture.id, choice);
+    } else {
+      // Not enough movement → snap back
+      animate(cardX, 0, { type: 'spring', stiffness: 300, damping: 30 });
+    }
+  }, [cardX, currentFixture, handleCardPrediction]);
+
+  // Skip animation
+  const handleSkip = useCallback(async () => {
+    if (isSkipAnimating) return;
+    setIsSkipAnimating(true);
+    setPreviewOnTop(true);
+    try {
+      // Directly advance without separate control-based animation
+      handleNext();
+    } finally {
+      setIsSkipAnimating(false);
+      setPreviewOnTop(false);
+    }
+  }, [isSkipAnimating, handleNext]);
+
+  // (definition moved above)
 
   // Button styles for diamond layout
   const buttonStyle: React.CSSProperties = {
@@ -255,21 +287,13 @@ function GiocaPageContent() {
       return;
     }
     
-    // Animate card in specified direction
-    const target = {
-      x: direction === 'left' ? -distance : direction === 'right' ? distance : 0,
-      y: direction === 'up' ? -distance : 0,
-      transition: { type: 'tween', ease: 'easeOut', duration: 0.56 },
-    };
-    
-    await controls.start(target);
-    
-    // Reset card position immediately after animation completes
-    await controls.start({
-      x: 0,
-      y: 0,
-      transition: { duration: 0 }
-    });
+    // Animate horizontal swipe using the MotionValue to keep a single source of truth
+    const targetX = direction === 'left' ? -distance : direction === 'right' ? distance : 0;
+    if (targetX !== 0) {
+      await animate(cardX, targetX, { type: 'tween', ease: 'easeOut', duration: 0.56 }).finished;
+      // Reset immediately for the next card
+      cardX.set(0);
+    }
     
     // Handle prediction based on direction
     if (direction === 'up') {
@@ -279,82 +303,31 @@ function GiocaPageContent() {
     } else if (direction === 'right') {
       await handleCardPrediction(currentFixture.id, '2');
     }
-  }, [currentFixture, handleSkip, controls, handleCardPrediction]);
+  }, [currentFixture, handleSkip, cardX, handleCardPrediction]);
 
   // Decide if the completion veil should be displayed for the current context - EXACT ORIGINAL LOGIC
   const canShowVeil = (() => {
-    const result = (() => {
-      if (currentMode === 'test') {
-        console.log('[DEBUG] canShowVeil - TEST MODE:', { 
-          weekComplete, 
-          selectedWeek, 
-          rolledWeek1Once, 
-          userKey 
-        });
-        if (weekComplete !== true) return false;
-        if (selectedWeek === 1 && rolledWeek1Once) return false;
-        // For week 2, only show veil after at least one prediction exists (avoid blocking empty state)
-        if (selectedWeek === 2) {
-          try {
-            const k = hasWeekPredsKey(2, userKey);
-            const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
-            return hasAny;
-          } catch {
-            return false;
-          }
-        }
-        // For other weeks when gating is enabled, show veil normally; for terminal week, also allow veil
-        return true;
-      } else if (currentMode === 'live') {
-        console.log('[DEBUG] canShowVeil - LIVE MODE:', { 
-          currentMode, 
-          fixturesLength: fixtures.length,
-          selectedWeek,
-          fixtures: fixtures.map(f => ({ id: f.id, date: f.date, teams: f.teams }))
-        });
-        
-        // In live mode, veil should only show if user completed predictions for current active week
-        // NOT when matches have started - we should load the next upcoming week instead
-        if (fixtures.length === 0) return false;
-        
-        const now = Date.now();
-        console.log('[DEBUG] Current time:', new Date(now).toISOString());
-        
-        const upcomingMatches = fixtures.filter(f => {
-          const matchTime = new Date(f.date).getTime();
-          const isUpcoming = matchTime > now;
-          console.log('[DEBUG] Match check:', {
-            match: `${f.teams.home.name} vs ${f.teams.away.name}`,
-            date: f.date,
-            matchTime: new Date(matchTime).toISOString(),
-            isUpcoming
-          });
-          return isUpcoming;
-        });
-        
-        console.log('[DEBUG] upcomingMatches:', upcomingMatches.length);
-        
-        // If we have upcoming matches in this week, don't show veil - let user play
-        if (upcomingMatches.length > 0) {
+    if (currentMode === 'test') {
+      if (weekComplete !== true) return false;
+      if (selectedWeek === 1 && rolledWeek1Once) return false;
+      if (selectedWeek === 2) {
+        try {
+          const k = hasWeekPredsKey(2, userKey);
+          const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
+          return hasAny;
+        } catch {
           return false;
         }
-        
-        // If no upcoming matches in current week, we should redirect to next week instead of showing veil
-        // For now, don't show veil - let the useFixtures hook handle finding the right week
-        return false;
       }
+      return true;
+    } else if (currentMode === 'live') {
+      if (fixtures.length === 0) return false;
+      const now = Date.now();
+      const upcomingMatches = fixtures.filter(f => new Date(f.date).getTime() > now);
+      if (upcomingMatches.length > 0) return false;
       return false;
-    })();
-    
-    console.log('[DEBUG] canShowVeil RESULT:', {
-      currentMode,
-      selectedWeek,
-      weekComplete,
-      result,
-      fixtures: fixtures.length
-    });
-    
-    return result;
+    }
+    return false;
   })();
 
   // Loading state
@@ -421,7 +394,7 @@ function GiocaPageContent() {
           {/* Preview Card (next card) */}
           {currentFixtureIndex < fixtures.length - 1 && (
             <div 
-              className={`absolute top-0 left-0 right-0 flex items-start justify-center pt-8 ${previewOnTop ? 'z-20' : 'z-10'}`}
+              className={`absolute top-0 left-0 right-0 flex items-start justify-center pt-8 ${previewOnTop ? 'z-20' : 'z-10'} pointer-events-none`}
             >
               <div className="w-full max-w-sm transform scale-95 opacity-60">
                 <MatchCard
@@ -454,7 +427,6 @@ function GiocaPageContent() {
                   y: cardY,
                   rotate: cardRotate,
                 }}
-                animate={controls}
               />
             </div>
           </div>
