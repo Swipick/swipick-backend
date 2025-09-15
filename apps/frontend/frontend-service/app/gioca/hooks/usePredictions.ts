@@ -16,7 +16,7 @@ import { DEBUG_GIOCA, STORAGE_KEYS } from '../utils/constants';
 
 interface UsePredictionsParams {
   currentMode: GameMode;
-  selectedWeek: number;
+  selectedWeek: number | null; // live mode can pass null
   userKey: string | null;
   fixtures: Fixture[];
 }
@@ -44,7 +44,7 @@ export function usePredictions({
   // Generate persistence key
   const persistKey = useCallback((): string => {
     const modeKey = currentMode;
-    const weekKey = selectedWeek;
+    const weekKey = selectedWeek ?? 0; // 0 = auto/live-no-week
     const user = userKey ?? 'anon';
     return STORAGE_KEYS.PERSISTENCE_STATE(modeKey, weekKey, user);
   }, [currentMode, selectedWeek, userKey]);

@@ -7,7 +7,7 @@ import React from 'react';
 
 interface CompletionVeilModalProps {
   isOpen: boolean;
-  selectedWeek: number;
+  selectedWeek: number | null;
   onGoToResults: () => void;
   className?: string;
 }

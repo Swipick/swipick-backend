@@ -19,7 +19,7 @@ import { DEBUG_GIOCA } from '../utils/constants';
 
 interface UseFixturesParams {
   currentMode: GameMode;
-  selectedWeek: number;
+  selectedWeek: number | null; // allow null to auto-detect for live mode
   userKey: string | null;
   currentLiveWeek: number | null;
 }
@@ -50,7 +50,7 @@ export function useFixtures({
   const fetchGuardRef = useRef<string | null>(null);
 
   const fetchFixtures = useCallback(async () => {
-    const fetchKey = `${currentMode}:${currentMode === 'test' ? selectedWeek : 'live'}:${userKey || 'anon'}`;
+    const fetchKey = `${currentMode}:${currentMode === 'test' ? (selectedWeek ?? 'auto') : 'live'}:${userKey || 'anon'}`;
     
     if (fetchGuardRef.current === fetchKey) {
       return; // Already fetched for this key

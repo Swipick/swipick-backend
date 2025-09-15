@@ -2,7 +2,7 @@
 
 import { useState, useCallback, Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useMotionValue, useTransform, PanInfo, animate } from 'framer-motion';
+import { useMotionValue, useTransform, PanInfo, animate, MotionValue } from 'framer-motion';
 import { Toast } from '@/src/components/Toast';
 import { useGameMode } from "@/src/contexts/GameModeContext";
 import { apiClient } from "@/lib/api-client";
@@ -58,9 +58,10 @@ function GiocaPageContent() {
   const [toast, setToast] = useState<string | null>(null);
 
   // Helper function to generate week prediction keys (from original)
-  const hasWeekPredsKey = useCallback((week: number, userId: string | null): string => {
+  const hasWeekPredsKey = useCallback((week: number | null, userId: string | null): string => {
     const user = userId ?? 'anon';
-    return `swipick:gioca:hasWeekPreds:test:week${week}:user:${user}`;
+    const w = week ?? 0;
+    return `swipick:gioca:hasWeekPreds:test:week${w}:user:${user}`;
   }, []);
   
   // Navigation handlers
@@ -96,7 +97,7 @@ function GiocaPageContent() {
   // Check if selected week is already fully predicted (Test Mode) and set veil - EXACT ORIGINAL LOGIC
   useEffect(() => {
     const checkWeekCompletion = async () => {
-      if (currentMode !== 'test' || !userKey) {
+      if (currentMode !== 'test' || !userKey || selectedWeek == null) {
         setWeekComplete(false);
         return;
       }
@@ -213,6 +214,39 @@ function GiocaPageContent() {
   }, [handlePrediction, handleNext, currentMode, userKey, selectedWeek, hasWeekPredsKey]);
 
   // Swipe handling
+  type MotionAnimateOptions = {
+    type?: 'tween' | 'spring';
+    ease?: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' | ((t: number) => number);
+    duration?: number;
+    stiffness?: number;
+    damping?: number;
+    onComplete?: () => void;
+  };
+
+  // Promise-based helper for MotionValue animations (type-safe, no .finished)
+  const animateValue = useCallback(
+    (axis: 'x' | 'y', to: number, opts: MotionAnimateOptions = {}): Promise<void> => {
+      return new Promise((resolve) => {
+        const mv = axis === 'x' ? cardX : cardY;
+        const anim = animate as unknown as (
+          value: MotionValue<number>,
+          to: number,
+          options?: MotionAnimateOptions
+        ) => { stop: () => void };
+        anim(mv, to, {
+          ...opts,
+          onComplete: () => {
+            if (typeof opts.onComplete === 'function') {
+              try { (opts.onComplete as () => void)(); } catch {}
+            }
+            resolve();
+          },
+        });
+      });
+    },
+    [cardX, cardY]
+  );
+
   const handleDragEnd = useCallback((_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const { offset, velocity } = info;
     const dx = offset.x;
@@ -243,20 +277,14 @@ function GiocaPageContent() {
       const distance = 350;
       if (choice === '1') {
         // Left
-        void animate(cardX, -distance, { type: 'tween', ease: 'easeOut', duration: 0.35 }).finished.then(() => {
-          cardX.set(0);
-        });
+        void animateValue('x', -distance, { type: 'tween', ease: 'easeOut', duration: 0.35 }).then(() => cardX.set(0));
       } else if (choice === '2') {
         // Right
-        void animate(cardX, distance, { type: 'tween', ease: 'easeOut', duration: 0.35 }).finished.then(() => {
-          cardX.set(0);
-        });
+        void animateValue('x', distance, { type: 'tween', ease: 'easeOut', duration: 0.35 }).then(() => cardX.set(0));
       } else {
         // Up → animate upward for visual parity with backup
         setPreviewOnTop(true);
-        void animate(cardY, -distance, { type: 'tween', ease: 'easeOut', duration: 0.35 }).finished.then(() => {
-          cardY.set(0);
-        });
+        void animateValue('y', -distance, { type: 'tween', ease: 'easeOut', duration: 0.35 }).then(() => cardY.set(0));
       }
 
       // Commit prediction and advance immediately
@@ -281,7 +309,7 @@ function GiocaPageContent() {
     setFrozenPreviewIndex(currentFixtureIndex + 1);
     try {
       // Animate downward similar to original smoothness
-      await animate(cardY, 380, { type: 'tween', ease: 'easeInOut', duration: 0.45 }).finished;
+      await animateValue('y', 380, { type: 'tween', ease: 'easeInOut', duration: 0.45 });
       cardY.set(0);
       handleNext();
     } finally {
@@ -321,11 +349,11 @@ function GiocaPageContent() {
     // Animate based on direction
     if (direction === 'up') {
       setPreviewOnTop(true);
-      await animate(cardY, -distance, { type: 'tween', ease: 'easeOut', duration: 0.4 }).finished;
+      await animateValue('y', -distance, { type: 'tween', ease: 'easeOut', duration: 0.4 });
       cardY.set(0);
     } else if (direction === 'left' || direction === 'right') {
       const targetX = direction === 'left' ? -distance : distance;
-      await animate(cardX, targetX, { type: 'tween', ease: 'easeOut', duration: 0.4 }).finished;
+      await animateValue('x', targetX, { type: 'tween', ease: 'easeOut', duration: 0.4 });
       cardX.set(0);
     }
     

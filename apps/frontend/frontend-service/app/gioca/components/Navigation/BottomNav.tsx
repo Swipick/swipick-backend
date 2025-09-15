@@ -11,7 +11,7 @@ import type { GameMode } from '../../types';
 
 interface BottomNavProps {
   currentMode: GameMode;
-  selectedWeek: number;
+  selectedWeek: number | null;
   onNavigateToResults: () => void;
   onNavigateToProfile: () => void;
   className?: string;
