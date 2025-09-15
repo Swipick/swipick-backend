@@ -7,14 +7,7 @@ import React from 'react';
 import Image from 'next/image';
 import { LastFiveResults } from './LastFiveResults';
 import type { Team } from '../../types';
-
-interface Last5Item {
-  fixtureId: number;
-  code: '1' | 'X' | '2';
-  predicted: '1' | 'X' | '2' | null;
-  correct: boolean | null;
-  wasHome: boolean;
-}
+import type { Last5Item } from '../../types/matchCards';
 
 interface TeamInfoProps {
   team: Team;

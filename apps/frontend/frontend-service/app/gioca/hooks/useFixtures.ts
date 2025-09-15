@@ -8,11 +8,12 @@ import { useRouter } from 'next/navigation';
 import { apiClient } from "@/lib/api-client";
 import { getLogoForTeam } from "@/lib/club-logos";
 
-import type { 
-  Fixture, 
-  TestFixtureAPI, 
+import type {
+  Fixture,
+  TestFixtureAPI,
+  DatabaseFixture,
   MatchCard,
-  GameMode 
+  GameMode
 } from '../types';
 import { isTestFixture, isTestFixtureArray } from '../types';
 import { DEBUG_GIOCA } from '../utils/constants';
@@ -115,7 +116,7 @@ export function useFixtures({
         // Fetch match cards for test mode
         try {
           const userIdForOverlay = userKey ?? undefined;
-          const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, userIdForOverlay);
+          const mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek ?? 1, userIdForOverlay);
           let mcRaw: unknown = mcResponse;
           
           if (mcResponse && typeof mcResponse === 'object' && 'data' in (mcResponse as Record<string, unknown>)) {
@@ -152,7 +153,7 @@ export function useFixtures({
         }
 
         // Fetch test fixtures
-        const response = await apiClient.getTestFixtures(selectedWeek);
+        const response = await apiClient.getTestFixtures(selectedWeek ?? 1);
         let raw: unknown = response;
         
         if (
@@ -251,7 +252,7 @@ export function useFixtures({
           console.log('[DEBUG] All fixture dates in week', targetWeek, ':', dbFixtures.map(f => ({ date: f.match_date, teams: `${f.home_team} vs ${f.away_team}` })));
             
             // Map database fixtures to Fixture interface
-            fixtureData = dbFixtures.map((f: any, idx: number) => ({
+            fixtureData = dbFixtures.map((f: DatabaseFixture, idx: number) => ({
               id: f.id || idx + 1,
               date: f.match_date,
               timestamp: Math.floor(new Date(f.match_date).getTime() / 1000),

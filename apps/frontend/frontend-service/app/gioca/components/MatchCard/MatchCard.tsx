@@ -7,7 +7,6 @@ import React from 'react';
 import { motion, MotionValue, PanInfo } from 'framer-motion';
 import { TeamInfo } from './TeamInfo';
 import { MatchDetails } from './MatchDetails';
-import { PredictionButtons } from '../PredictionControls/PredictionButtons';
 import type { Fixture, MatchCard as MatchCardType, PredictionChoice } from '../../types';
 
 interface MatchCardProps {

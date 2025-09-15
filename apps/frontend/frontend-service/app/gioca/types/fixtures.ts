@@ -116,6 +116,19 @@ export interface RawFixtureData {
   };
 }
 
+// Database fixture data structure (from database/BFF)
+export interface DatabaseFixture {
+  id: number;
+  match_date: string;
+  home_team: string;
+  away_team: string;
+  week?: number;
+  stadium?: string;
+  status?: string;
+  home_score?: number;
+  away_score?: number;
+}
+
 // Type guards for runtime type checking
 export function isTestFixture(obj: unknown): obj is TestFixtureAPI {
   if (typeof obj !== 'object' || obj === null) return false;

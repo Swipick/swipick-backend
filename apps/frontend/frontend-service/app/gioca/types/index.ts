@@ -8,6 +8,7 @@ export type {
   Team,
   Fixture,
   TestFixtureAPI,
+  DatabaseFixture,
   RawFixtureData,
 } from './fixtures';
 

@@ -4,14 +4,7 @@
  */
 
 import React from 'react';
-
-interface Last5Item {
-  fixtureId: number;
-  code: '1' | 'X' | '2';
-  predicted: '1' | 'X' | '2' | null;
-  correct: boolean | null;
-  wasHome: boolean;
-}
+import type { Last5Item } from '../../types/matchCards';
 
 interface LastFiveResultsProps {
   results: Array<'1' | 'X' | '2'>;
