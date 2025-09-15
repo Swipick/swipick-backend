@@ -213,10 +213,103 @@ export function useFixtures({
         }
         
       } else {
-        // Live mode logic - this would be expanded with the live mode fetching logic
-        // For now, keeping it simple
-        fixtureData = [];
-        cardsArrLocal = [];
+        // Live mode logic - fetch from database fixtures by week
+        try {
+          // In live mode, find the current active week with upcoming matches
+          let targetWeek = selectedWeek || 1;
+          
+          // If we're in live mode and no specific week selected (null/undefined), find the week with upcoming matches
+          if (selectedWeek === null || selectedWeek === undefined) {
+            console.log('[DEBUG] Finding current active week with upcoming matches...');
+            const now = Date.now();
+            
+            // Check weeks 1-10 to find one with upcoming fixtures
+            for (let week = 1; week <= 10; week++) {
+              try {
+                const weekFixtures = await apiClient.getFixturesByWeek(week);
+                if (Array.isArray(weekFixtures) && weekFixtures.length > 0) {
+                  const upcomingInWeek = weekFixtures.filter(f => new Date(f.match_date).getTime() > now);
+                  console.log(`[DEBUG] Week ${week}: ${weekFixtures.length} total, ${upcomingInWeek.length} upcoming`);
+                  
+                  if (upcomingInWeek.length > 0) {
+                    targetWeek = week;
+                    console.log(`[DEBUG] Found active week: ${week} with ${upcomingInWeek.length} upcoming matches`);
+                    break;
+                  }
+                }
+              } catch (weekError) {
+                console.log(`[DEBUG] Week ${week} not available:`, weekError);
+              }
+            }
+          }
+          
+          // Fetch fixtures for the current week from database
+          const dbFixtures = await apiClient.getFixturesByWeek(targetWeek);
+          
+          if (Array.isArray(dbFixtures) && dbFixtures.length > 0) {
+            console.log('[DEBUG] Raw database fixtures for week', targetWeek, ':', dbFixtures.slice(0, 2)); // Show first 2 fixtures
+          console.log('[DEBUG] All fixture dates in week', targetWeek, ':', dbFixtures.map(f => ({ date: f.match_date, teams: `${f.home_team} vs ${f.away_team}` })));
+            
+            // Map database fixtures to Fixture interface
+            fixtureData = dbFixtures.map((f: any, idx: number) => ({
+              id: f.id || idx + 1,
+              date: f.match_date,
+              timestamp: Math.floor(new Date(f.match_date).getTime() / 1000),
+              venue: { 
+                id: f.id || idx + 1, 
+                name: f.stadium || `${f.home_team} vs ${f.away_team}`, 
+                city: 'N/A' 
+              },
+              status: { 
+                long: f.status === 'FINISHED' ? 'Match Finished' : f.status === 'LIVE' ? 'Match Live' : 'Scheduled', 
+                short: f.status === 'FINISHED' ? 'FT' : f.status === 'LIVE' ? '1H' : 'NS'
+              },
+              league: {
+                id: 135,
+                name: 'Serie A',
+                country: 'Italy',
+                season: new Date().getFullYear(),
+                round: `Regular Season - ${f.week || targetWeek}`
+              },
+              teams: {
+                home: { 
+                  id: (f.id || idx + 1) * 10 + 1, 
+                  name: f.home_team, 
+                  logo: getLogoForTeam(f.home_team) || '' 
+                },
+                away: { 
+                  id: (f.id || idx + 1) * 10 + 2, 
+                  name: f.away_team, 
+                  logo: getLogoForTeam(f.away_team) || '' 
+                },
+              },
+              goals: { home: f.home_score || 0, away: f.away_score || 0 },
+              score: {
+                halftime: { home: undefined, away: undefined },
+                fulltime: { home: f.home_score || 0, away: f.away_score || 0 },
+              },
+            })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+            // Try to fetch live match cards if available
+            try {
+              const cardsResponse = await apiClient.getLiveMatchCardsByWeek(targetWeek, userKey || undefined);
+              if (Array.isArray(cardsResponse)) {
+                cardsArrLocal = cardsResponse;
+              }
+            } catch (cardError) {
+              if (DEBUG_GIOCA) {
+                console.log('[gioca] live match-cards fetch failed, continuing without cards');
+              }
+            }
+          }
+        } catch (liveError) {
+          if (DEBUG_GIOCA) {
+            console.error('[gioca] live fixtures fetch failed:', liveError);
+          }
+          // Fallback to empty arrays
+          fixtureData = [];
+          cardsArrLocal = [];
+        }
       }
 
       // Update state

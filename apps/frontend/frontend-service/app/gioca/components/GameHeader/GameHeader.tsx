@@ -11,10 +11,11 @@ import { GAME_CONFIG } from '../../utils/constants';
 
 interface GameHeaderProps {
   currentMode: GameMode;
-  selectedWeek: number;
+  selectedWeek: number | null;
   timeToMatch: TimeToMatch;
   predictionsCount: number;
   className?: string;
+  fixtures?: Array<{ date: string }>;
 }
 
 export function GameHeader({
@@ -23,8 +24,33 @@ export function GameHeader({
   timeToMatch,
   predictionsCount,
   className = '',
+  fixtures = [],
 }: GameHeaderProps) {
   const modeLabel = currentMode === 'test' ? 'Modalità Test' : 'Live';
+  
+  // Calculate week date range from fixtures
+  const getWeekRange = () => {
+    if (!fixtures.length) return { from: '', to: '' };
+    
+    const dates = fixtures.map(f => new Date(f.date)).sort((a, b) => a.getTime() - b.getTime());
+    const firstDate = dates[0];
+    const lastDate = dates[dates.length - 1];
+    
+    const from = firstDate.toLocaleDateString('it-IT', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      timeZone: 'Europe/Rome' 
+    });
+    const to = lastDate.toLocaleDateString('it-IT', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      timeZone: 'Europe/Rome' 
+    });
+    
+    return { from, to };
+  };
+  
+  const { from, to } = getWeekRange();
   
   return (
     <div className={`
@@ -44,8 +70,17 @@ export function GameHeader({
         )}
         
         {/* Week title */}
-        <h1 className="text-2xl font-bold mb-2">
-          {currentMode === 'test' ? `Settimana ${selectedWeek}` : 'Live Mode'}
+        <h1 className="text-base md:text-lg mb-1 whitespace-nowrap">
+          {selectedWeek ? (
+            <>
+              Giornata {selectedWeek}
+              {from && to && (
+                <span className="opacity-90"> dal {from} al {to}</span>
+              )}
+            </>
+          ) : (
+            currentMode === 'live' ? 'Live Mode' : 'Test Mode'
+          )}
         </h1>
         
         {/* Countdown timer */}

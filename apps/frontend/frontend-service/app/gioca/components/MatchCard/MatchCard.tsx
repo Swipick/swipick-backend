@@ -67,24 +67,21 @@ export function MatchCard({
           standingsPosition={matchCard?.home.standingsPosition}
           winRate={matchCard?.home.winRateHome}
           winRateLabel="Vittorie in casa"
+          last5={matchCard?.home.last5 || []}
+          form={matchCard?.home.form}
         />
-        
-        <div className="text-2xl font-bold text-gray-400 mx-4">VS</div>
         
         <TeamInfo
           team={fixture.teams.away}
           standingsPosition={matchCard?.away.standingsPosition}
           winRate={matchCard?.away.winRateAway}
           winRateLabel="Vittorie in trasferta"
+          last5={matchCard?.away.last5 || []}
+          form={matchCard?.away.form}
         />
       </div>
 
-      {/* Prediction buttons */}
-      <PredictionButtons
-        onPrediction={handlePrediction}
-        disabled={disabled}
-        currentPrediction={currentPrediction}
-      />
+      {/* Prediction buttons removed - they're now on page level */}
     </motion.div>
   );
 }

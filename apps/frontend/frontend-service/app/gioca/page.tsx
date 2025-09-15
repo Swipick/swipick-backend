@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useCallback, Suspense } from "react";
+import { useState, useCallback, Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAnimationControls, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { Toast } from '@/src/components/Toast';
 import { useGameMode } from "@/src/contexts/GameModeContext";
+import { apiClient } from "@/lib/api-client";
 
 // Hooks
 import { useFixtures } from './hooks/useFixtures';
@@ -15,7 +16,6 @@ import { useCountdown } from './hooks/useCountdown';
 import {
   GameHeader,
   MatchCard,
-  CompletionVeilModal,
   BottomNav,
 } from './components';
 
@@ -39,7 +39,12 @@ function GiocaPageContent() {
   // Selected week logic
   const selectedWeek = (() => {
     if (currentMode === 'live') {
-      return currentLiveWeek || 1;
+      // In live mode, if no specific week is set, let useFixtures find the active week
+      const urlWeek = Number(searchParams?.get('week') ?? NaN);
+      if (Number.isFinite(urlWeek) && urlWeek >= 1 && urlWeek <= 38) {
+        return urlWeek; // Use URL week if valid
+      }
+      return currentLiveWeek || null; // Let useFixtures auto-find the week
     } else {
       const w = Number(searchParams?.get('week') ?? NaN);
       return Number.isFinite(w) && w >= 1 && w <= 38 ? w : 1;
@@ -47,9 +52,16 @@ function GiocaPageContent() {
   })();
   
   // UI state
-  const [userKey] = useState<string | null>(null);
-  const [weekComplete] = useState(false);
+  const [userKey, setUserKey] = useState<string | null>(null);
+  const [weekComplete, setWeekComplete] = useState(false);
+  const [rolledWeek1Once, setRolledWeek1Once] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+
+  // Helper function to generate week prediction keys (from original)
+  const hasWeekPredsKey = useCallback((week: number, userId: string | null): string => {
+    const user = userId ?? 'anon';
+    return `swipick:gioca:hasWeekPreds:test:week${week}:user:${user}`;
+  }, []);
   
   // Navigation handlers
   const handleGoToResults = useCallback(() => {
@@ -80,6 +92,60 @@ function GiocaPageContent() {
   const {
     timeToMatch,
   } = useCountdown({ currentMode, fixtures });
+
+  // Check if selected week is already fully predicted (Test Mode) and set veil - EXACT ORIGINAL LOGIC
+  useEffect(() => {
+    const checkWeekCompletion = async () => {
+      if (currentMode !== 'test' || !userKey) {
+        setWeekComplete(false);
+        return;
+      }
+
+      try {
+        // Check localStorage flag first - if this week has any predictions recorded
+        const k = hasWeekPredsKey(selectedWeek, userKey);
+        const hasAnyFlag = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
+        if (!hasAnyFlag) {
+          setWeekComplete(false);
+          return;
+        }
+
+        // Query backend for actual weekly completion status
+        const weekly = await apiClient.getTestWeeklyStats(userKey, selectedWeek);
+        const totalPreds = (() => {
+          const r = weekly as unknown;
+          if (r && typeof r === 'object') {
+            const obj = r as Record<string, unknown>;
+            if (typeof obj.totalPredictions === 'number') return obj.totalPredictions;
+            if (typeof obj.total === 'number') return obj.total;
+            if (Array.isArray(obj.predictions)) return obj.predictions.length;
+          }
+          return 0;
+        })();
+
+        setWeekComplete(totalPreds >= 10);
+      } catch {
+        // If weekly endpoint not available, fall back to no veil
+        setWeekComplete(false);
+      }
+    };
+    checkWeekCompletion();
+  }, [currentMode, selectedWeek, userKey, hasWeekPredsKey]);
+
+  // Ensure no veil appears for Week 2 until the user has at least one prediction there - EXACT ORIGINAL LOGIC
+  useEffect(() => {
+    if (currentMode !== 'test') return;
+    if (selectedWeek !== 2) return;
+    try {
+      const k = hasWeekPredsKey(2, userKey);
+      const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
+      if (!hasAny) {
+        setWeekComplete(false);
+      }
+    } catch {
+      setWeekComplete(false);
+    }
+  }, [currentMode, selectedWeek, userKey, hasWeekPredsKey]);
 
   // Card navigation state
   const [currentFixtureIndex, setCurrentFixtureIndex] = useState(0);
@@ -146,8 +212,16 @@ function GiocaPageContent() {
   }, [isSkipAnimating, controls, handleNext]);
 
   // Prediction handling
-  const handleCardPrediction = useCallback((fixtureId: number, choice: PredictionChoice) => {
-    handlePrediction(fixtureId, choice);
+  const handleCardPrediction = useCallback(async (fixtureId: number, choice: PredictionChoice) => {
+    await handlePrediction(fixtureId, choice);
+    
+    // Mark that the user has at least one prediction for this week (to enable weekly-stats checks later) - ORIGINAL LOGIC
+    if (currentMode === 'test' && userKey) {
+      try {
+        const k = hasWeekPredsKey(selectedWeek, userKey);
+        localStorage.setItem(k, '1');
+      } catch {}
+    }
     
     // Auto-advance to next card after prediction
     setTimeout(() => {
@@ -155,7 +229,126 @@ function GiocaPageContent() {
         handleNext();
       }
     }, 500);
-  }, [handlePrediction, currentFixtureIndex, fixtures.length, handleNext]);
+  }, [handlePrediction, currentFixtureIndex, fixtures.length, handleNext, currentMode, userKey, selectedWeek, hasWeekPredsKey]);
+
+  // Button styles for diamond layout
+  const buttonStyle: React.CSSProperties = {
+    background: 'radial-gradient(circle at center, #554099, #3d2d73)',
+    boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
+  };
+  
+  const skipStyle: React.CSSProperties = {
+    background: '#ffffff',
+    boxShadow: '0 8px 16px rgba(85, 64, 153, 0.2), 0 4px 8px rgba(0, 0, 0, 0.1)',
+    border: '1px solid rgba(85, 64, 153, 0.2)',
+  };
+
+  // Animation function for diamond buttons
+  const animateAndCommit = useCallback(async (direction: 'up' | 'down' | 'left' | 'right') => {
+    if (!currentFixture) return;
+    
+    const distance = 350;
+    
+    if (direction === 'down') {
+      // Skip animation
+      handleSkip();
+      return;
+    }
+    
+    // Animate card in specified direction
+    const target = {
+      x: direction === 'left' ? -distance : direction === 'right' ? distance : 0,
+      y: direction === 'up' ? -distance : 0,
+      transition: { type: 'tween', ease: 'easeOut', duration: 0.56 },
+    };
+    
+    await controls.start(target);
+    
+    // Handle prediction based on direction
+    if (direction === 'up') {
+      await handleCardPrediction(currentFixture.id, 'X');
+    } else if (direction === 'left') {
+      await handleCardPrediction(currentFixture.id, '1');
+    } else if (direction === 'right') {
+      await handleCardPrediction(currentFixture.id, '2');
+    }
+  }, [currentFixture, handleSkip, controls, handleCardPrediction]);
+
+  // Decide if the completion veil should be displayed for the current context - EXACT ORIGINAL LOGIC
+  const canShowVeil = (() => {
+    const result = (() => {
+      if (currentMode === 'test') {
+        console.log('[DEBUG] canShowVeil - TEST MODE:', { 
+          weekComplete, 
+          selectedWeek, 
+          rolledWeek1Once, 
+          userKey 
+        });
+        if (weekComplete !== true) return false;
+        if (selectedWeek === 1 && rolledWeek1Once) return false;
+        // For week 2, only show veil after at least one prediction exists (avoid blocking empty state)
+        if (selectedWeek === 2) {
+          try {
+            const k = hasWeekPredsKey(2, userKey);
+            const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
+            return hasAny;
+          } catch {
+            return false;
+          }
+        }
+        // For other weeks when gating is enabled, show veil normally; for terminal week, also allow veil
+        return true;
+      } else if (currentMode === 'live') {
+        console.log('[DEBUG] canShowVeil - LIVE MODE:', { 
+          currentMode, 
+          fixturesLength: fixtures.length,
+          selectedWeek,
+          fixtures: fixtures.map(f => ({ id: f.id, date: f.date, teams: f.teams }))
+        });
+        
+        // In live mode, veil should only show if user completed predictions for current active week
+        // NOT when matches have started - we should load the next upcoming week instead
+        if (fixtures.length === 0) return false;
+        
+        const now = Date.now();
+        console.log('[DEBUG] Current time:', new Date(now).toISOString());
+        
+        const upcomingMatches = fixtures.filter(f => {
+          const matchTime = new Date(f.date).getTime();
+          const isUpcoming = matchTime > now;
+          console.log('[DEBUG] Match check:', {
+            match: `${f.teams.home.name} vs ${f.teams.away.name}`,
+            date: f.date,
+            matchTime: new Date(matchTime).toISOString(),
+            isUpcoming
+          });
+          return isUpcoming;
+        });
+        
+        console.log('[DEBUG] upcomingMatches:', upcomingMatches.length);
+        
+        // If we have upcoming matches in this week, don't show veil - let user play
+        if (upcomingMatches.length > 0) {
+          return false;
+        }
+        
+        // If no upcoming matches in current week, we should redirect to next week instead of showing veil
+        // For now, don't show veil - let the useFixtures hook handle finding the right week
+        return false;
+      }
+      return false;
+    })();
+    
+    console.log('[DEBUG] canShowVeil RESULT:', {
+      currentMode,
+      selectedWeek,
+      weekComplete,
+      result,
+      fixtures: fixtures.length
+    });
+    
+    return result;
+  })();
 
   // Loading state
   if (loading) {
@@ -211,16 +404,17 @@ function GiocaPageContent() {
         selectedWeek={selectedWeek}
         predictionsCount={predictionsCount}
         timeToMatch={timeToMatch}
+        fixtures={fixtures}
       />
 
       {/* Main Content */}
       <div className="flex-1 relative overflow-hidden px-4">
         {/* Card Stack Container */}
-        <div className="relative h-full flex items-center justify-center">
+        <div className="relative h-full flex items-start justify-center pt-8">
           {/* Preview Card (next card) */}
           {currentFixtureIndex < fixtures.length - 1 && (
             <div 
-              className={`absolute inset-0 flex items-center justify-center ${previewOnTop ? 'z-20' : 'z-10'}`}
+              className={`absolute top-0 left-0 right-0 flex items-start justify-center pt-8 ${previewOnTop ? 'z-20' : 'z-10'}`}
             >
               <div className="w-full max-w-sm transform scale-95 opacity-60">
                 <MatchCard
@@ -235,14 +429,14 @@ function GiocaPageContent() {
           )}
 
           {/* Current Card */}
-          <div className={`absolute inset-0 flex items-center justify-center ${previewOnTop ? 'z-10' : 'z-20'}`}>
+          <div className={`absolute top-0 left-0 right-0 flex items-start justify-center pt-8 ${previewOnTop ? 'z-10' : 'z-20'}`}>
             <div className="w-full max-w-sm">
               <MatchCard
                 fixture={currentFixture}
                 matchCard={currentMatchCard}
                 onPrediction={handleCardPrediction}
                 currentPrediction={currentPrediction}
-                disabled={weekComplete || isComplete}
+                disabled={canShowVeil}
                 dragProps={{
                   drag: true,
                   dragElastic: 0.2,
@@ -257,17 +451,6 @@ function GiocaPageContent() {
             </div>
           </div>
         </div>
-
-        {/* Skip Button */}
-        {!weekComplete && !isComplete && fixtures.length > 1 && (
-          <button
-            onClick={handleSkip}
-            disabled={isSkipAnimating}
-            className="absolute top-4 right-4 z-30 px-3 py-1 bg-gray-800/20 backdrop-blur-sm text-white text-sm rounded-full hover:bg-gray-800/30 transition-colors disabled:opacity-50"
-          >
-            Salta
-          </button>
-        )}
 
         {/* Progress Indicator */}
         <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-30">
@@ -288,6 +471,72 @@ function GiocaPageContent() {
         </div>
       </div>
 
+      {/* Prediction Buttons - Diamond Layout (in-flow; scrolls with content) */}
+      {!canShowVeil && currentFixture && (
+        <div className="relative left-0 right-0 px-4 mt-3 mb-6">
+          <div className="flex justify-center">
+            <div className="grid grid-cols-3 gap-x-4 gap-y-0 justify-items-center items-center max-w-[340px] w-full mx-auto">
+              {/* Top: X */}
+              <div className="col-start-2">
+                <button
+                  onClick={() => animateAndCommit('up')}
+                  disabled={canShowVeil || isSkipAnimating}
+                  className={`relative w-16 text-center text-white text-sm font-bold py-2.5 px-4 rounded-md shadow-lg transition-all duration-200 hover:scale-105 ${
+                    currentPrediction === 'X' ? 'scale-105' : ''
+                  }`}
+                  style={buttonStyle}
+                >
+                  X
+                </button>
+              </div>
+              
+              {/* Middle Left: 1 */}
+              <div className="col-start-1 row-start-2">
+                <button
+                  onClick={() => animateAndCommit('left')}
+                  disabled={canShowVeil || isSkipAnimating}
+                  className={`relative w-16 text-center text-white text-sm font-bold py-2.5 px-4 rounded-md shadow-lg transition-all duration-200 hover:scale-105 ${
+                    currentPrediction === '1' ? 'scale-105' : ''
+                  }`}
+                  style={buttonStyle}
+                >
+                  1
+                </button>
+              </div>
+              
+              {/* Middle Right: 2 */}
+              <div className="col-start-3 row-start-2">
+                <button
+                  onClick={() => animateAndCommit('right')}
+                  disabled={canShowVeil || isSkipAnimating}
+                  className={`relative w-16 text-center text-white text-sm font-bold py-2.5 px-4 rounded-md shadow-lg transition-all duration-200 hover:scale-105 ${
+                    currentPrediction === '2' ? 'scale-105' : ''
+                  }`}
+                  style={buttonStyle}
+                >
+                  2
+                </button>
+              </div>
+              
+              {/* Bottom: Skip */}
+              <div className="col-start-2 row-start-3 -mt-2">
+                <button
+                  onClick={() => animateAndCommit('down')}
+                  disabled={canShowVeil}
+                  className="relative w-16 text-center bg-white text-[#3d2d73] text-sm font-bold py-2.5 px-4 rounded-md shadow-lg transition-all duration-200 hover:scale-105 disabled:opacity-60"
+                  style={skipStyle}
+                >
+                  skip
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* spacer to avoid overlap with bottom nav on short screens */}
+      <div aria-hidden className="w-full" style={{ height: 'calc(env(safe-area-inset-bottom) + 64px)' }} />
+
       {/* Bottom Navigation */}
       <BottomNav
         currentMode={currentMode}
@@ -296,12 +545,26 @@ function GiocaPageContent() {
         onNavigateToProfile={handleGoToProfile}
       />
 
-      {/* Completion Veil Modal */}
-      <CompletionVeilModal
-        isOpen={weekComplete || isComplete}
-        selectedWeek={selectedWeek}
-        onGoToResults={handleGoToResults}
-      />
+      {/* Veil when week is completed (Test Mode). Hidden for Week 1 once rollover occurred, to avoid blocking UI when user navigates back. */}
+      {canShowVeil && (
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+          <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-1/2 -translate-x-1/2 w-[88%] max-w-md pointer-events-auto">
+            <div className="bg-white rounded-2xl shadow-2xl p-6 text-center">
+              <h3 className="text-xl font-semibold text-black mb-2">Giornata completata</h3>
+              <p className="text-sm text-gray-700 mb-5">Hai già effettuato 10 scelte per questa settimana. Vai alla pagina Risultati per rivelare e vedere l&apos;andamento.</p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => router.push(`/risultati?mode=${currentMode}&week=${selectedWeek}`)}
+                  className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
+                >
+                  Vai a Risultati
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (

@@ -12,6 +12,7 @@ export { ProgressBar } from './GameHeader/ProgressBar';
 export { MatchCard } from './MatchCard/MatchCard';
 export { TeamInfo } from './MatchCard/TeamInfo';
 export { MatchDetails } from './MatchCard/MatchDetails';
+export { LastFiveResults } from './MatchCard/LastFiveResults';
 
 // Prediction Controls components
 export { PredictionButtons } from './PredictionControls/PredictionButtons';

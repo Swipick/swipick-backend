@@ -5,13 +5,24 @@
 
 import React from 'react';
 import Image from 'next/image';
+import { LastFiveResults } from './LastFiveResults';
 import type { Team } from '../../types';
+
+interface Last5Item {
+  fixtureId: number;
+  code: '1' | 'X' | '2';
+  predicted: '1' | 'X' | '2' | null;
+  correct: boolean | null;
+  wasHome: boolean;
+}
 
 interface TeamInfoProps {
   team: Team;
   standingsPosition?: number | null;
   winRate?: number | null;
   winRateLabel?: string;
+  last5?: Array<'1' | 'X' | '2'>;
+  form?: Last5Item[];
   className?: string;
 }
 
@@ -20,6 +31,8 @@ export function TeamInfo({
   standingsPosition,
   winRate,
   winRateLabel = 'Win Rate',
+  last5 = [],
+  form,
   className = '',
 }: TeamInfoProps) {
   return (
@@ -29,13 +42,13 @@ export function TeamInfo({
         <Image
           src={team.logo}
           alt={team.name}
-          width={80}
-          height={80}
-          className="w-20 h-20 mx-auto mb-3 object-contain"
+          width={96}
+          height={96}
+          className="team-logo mx-auto mb-3 w-24 h-24 object-contain"
         />
       ) : (
-        <div className="w-20 h-20 mx-auto mb-3 bg-gray-200 rounded-full flex items-center justify-center">
-          <span className="text-gray-600 font-bold text-2xl">
+        <div className="w-12 h-12 mx-auto mb-3 bg-purple-200 rounded-full flex items-center justify-center">
+          <span className="text-purple-600 font-bold text-lg">
             {team.name.charAt(0)}
           </span>
         </div>
@@ -47,21 +60,14 @@ export function TeamInfo({
       </h3>
       
       {/* Statistics */}
-      <div className="space-y-1">
-        {standingsPosition && (
-          <div>
-            <p className="text-xs text-gray-600">Posizione in classifica</p>
-            <p className="font-bold text-black">{standingsPosition}°</p>
-          </div>
-        )}
-        
-        {winRate !== null && winRate !== undefined && (
-          <div>
-            <p className="text-xs text-gray-600">{winRateLabel}</p>
-            <p className="font-bold text-black">{winRate}%</p>
-          </div>
-        )}
-      </div>
+      <p className="text-[11px] text-black">Posizione in classifica</p>
+      <p className="text-sm font-bold text-black">{standingsPosition ?? '—'}</p>
+      
+      <p className="text-[11px] text-black mt-1">{winRateLabel}</p>
+      <p className="text-sm font-bold text-black">{winRate !== null && winRate !== undefined ? `${winRate}%` : '0%'}</p>
+      
+      <p className="text-[11px] text-black mt-1">Ultimi 5 risultati</p>
+      <LastFiveResults results={last5} form={form} />
     </div>
   );
 }
