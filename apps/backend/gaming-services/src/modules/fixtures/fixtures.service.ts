@@ -802,10 +802,32 @@ export class FixturesService {
 
       // Get Serie A 2025-26 fixtures - use season fixtures API for complete data
       this.logger.log('📡 Fetching Serie A 2025-26 current season fixtures...');
-      const apiFixtures = await this.apiFootballService.getSeasonFixtures(
+
+      // Clear cache first to ensure fresh data
+      await this.apiFootballService.clearCache('fixtures:season:135:2025');
+      this.logger.log('🗑️ Cleared cache for Serie A 2025 season fixtures');
+
+      this.logger.log('🔍 API call details: league=135, season=2025');
+      let apiFixtures = await this.apiFootballService.getSeasonFixtures(
         135,
         2025,
       ); // Serie A league ID = 135, season 2025 (represents 2025-26 season)
+
+      // If 2025 season has very few fixtures, try 2024 as fallback
+      if (apiFixtures.length < 100) {
+        this.logger.warn(
+          `⚠️ Only ${apiFixtures.length} fixtures found for 2025 season, trying 2024...`,
+        );
+        await this.apiFootballService.clearCache('fixtures:season:135:2024');
+        const fallbackFixtures = await this.apiFootballService.getSeasonFixtures(135, 2024);
+        if (fallbackFixtures.length > apiFixtures.length) {
+          this.logger.log(
+            `✅ Using 2024 season data with ${fallbackFixtures.length} fixtures`,
+          );
+          apiFixtures = fallbackFixtures;
+        }
+      }
+
       totalFixtures = apiFixtures.length;
 
       this.logger.log(
