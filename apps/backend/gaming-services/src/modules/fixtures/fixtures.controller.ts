@@ -97,13 +97,4 @@ export class FixturesController {
     };
   }
 
-  @Post('populate-season')
-  async populateSerieASeason() {
-    const result = await this.fixturesService.populateSerieASeason();
-    return {
-      success: true,
-      message: 'Serie A 2025-26 current season populated successfully',
-      ...result,
-    };
-  }
 }
