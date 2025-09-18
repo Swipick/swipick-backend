@@ -16,7 +16,7 @@ import * as path from 'path';
       envFilePath: path.resolve(process.cwd(), '.env'),
     }),
     HttpModule.register({
-      timeout: 5000,
+      timeout: 300000, // 5 minutes for heavy operations like season population
       maxRedirects: 5,
     }),
     TypeOrmModule.forRootAsync({

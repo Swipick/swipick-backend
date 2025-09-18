@@ -124,7 +124,7 @@ export class AppController {
 
   @Post('api/fixtures/populate-season')
   async populateSerieASeason() {
-    this.logger.log('Forwarding populate season request to Gaming Services');
+    this.logger.log('Forwarding populate season request to Gaming Services (may take several minutes)');
     return this.appService.forwardToGamingServices(
       '/api/fixtures/populate-season',
       'POST',
