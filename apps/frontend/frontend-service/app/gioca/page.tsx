@@ -277,14 +277,14 @@ function GiocaPageContent() {
       const distance = 350;
       if (choice === '1') {
         // Left
-        void animateValue('x', -distance, { type: 'tween', ease: 'easeOut', duration: 0.35 }).then(() => cardX.set(0));
+        void animateValue('x', -distance, { type: 'tween', ease: 'easeInOut', duration: 0.22 }).then(() => cardX.set(0));
       } else if (choice === '2') {
         // Right
-        void animateValue('x', distance, { type: 'tween', ease: 'easeOut', duration: 0.35 }).then(() => cardX.set(0));
+        void animateValue('x', distance, { type: 'tween', ease: 'easeInOut', duration: 0.22 }).then(() => cardX.set(0));
       } else {
         // Up → animate upward for visual parity with backup
         setPreviewOnTop(true);
-        void animateValue('y', -distance, { type: 'tween', ease: 'easeOut', duration: 0.35 }).then(() => cardY.set(0));
+        void animateValue('y', -distance, { type: 'tween', ease: 'easeInOut', duration: 0.22 }).then(() => cardY.set(0));
       }
 
       // Commit prediction and advance immediately
@@ -292,7 +292,7 @@ function GiocaPageContent() {
         setTimeout(() => {
           setFrozenPreviewIndex(null);
           setPreviewOnTop(false);
-        }, 50);
+        }, 250);
       });
     } else {
       // Not enough movement → snap back
@@ -349,11 +349,11 @@ function GiocaPageContent() {
     // Animate based on direction
     if (direction === 'up') {
       setPreviewOnTop(true);
-      await animateValue('y', -distance, { type: 'tween', ease: 'easeOut', duration: 0.4 });
+      await animateValue('y', -distance, { type: 'tween', ease: 'easeInOut', duration: 0.22 });
       cardY.set(0);
     } else if (direction === 'left' || direction === 'right') {
       const targetX = direction === 'left' ? -distance : distance;
-      await animateValue('x', targetX, { type: 'tween', ease: 'easeOut', duration: 0.4 });
+      await animateValue('x', targetX, { type: 'tween', ease: 'easeInOut', duration: 0.22 });
       cardX.set(0);
     }
     
@@ -472,7 +472,7 @@ function GiocaPageContent() {
           )}
 
           {/* Current Card */}
-          <div className={`absolute top-0 left-0 right-0 flex items-start justify-center pt-8 ${previewOnTop ? 'z-10' : 'z-20'}`}>
+          <div className="absolute top-0 left-0 right-0 flex items-start justify-center pt-8 z-30">
             <div className="w-full max-w-sm">
               <MatchCard
                 fixture={currentFixture}

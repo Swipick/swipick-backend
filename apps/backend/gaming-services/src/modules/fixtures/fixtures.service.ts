@@ -787,7 +787,7 @@ export class FixturesService {
     saved: number;
     errors: number;
   }> {
-    this.logger.log('🏟️ Starting Serie A 2024-25 season population...');
+    this.logger.log('🏟️ Starting Serie A 2025-26 season population...');
 
     let totalFixtures = 0;
     let saved = 0;
@@ -800,9 +800,12 @@ export class FixturesService {
         throw new Error(`API quota exceeded: ${quotaCheck.reason}`);
       }
 
-      // Get Serie A 2025-26 fixtures - use upcoming fixtures that have real team data
+      // Get Serie A 2025-26 fixtures - use season fixtures API for complete data
       this.logger.log('📡 Fetching Serie A 2025-26 current season fixtures...');
-      const apiFixtures = await this.getUpcomingSerieAFixtures(365); // Get full year of fixtures
+      const apiFixtures = await this.apiFootballService.getSeasonFixtures(
+        135,
+        2025,
+      ); // Serie A league ID = 135, season 2025 (represents 2025-26 season)
       totalFixtures = apiFixtures.length;
 
       this.logger.log(
@@ -812,14 +815,26 @@ export class FixturesService {
       // Convert API fixtures to database entities
       for (const apiFixture of apiFixtures) {
         try {
-          // Check if fixture already exists by home team, away team, and date
-          const existingFixture = await this.fixtureRepository.findOne({
-            where: {
-              home_team: apiFixture.teams.home.name,
-              away_team: apiFixture.teams.away.name,
-              match_date: new Date(apiFixture.date),
-            },
-          });
+          // Check if fixture already exists - first by external API ID, then by team and date
+          let existingFixture = null;
+
+          // Primary check: by external API ID (most reliable)
+          if (apiFixture.id) {
+            existingFixture = await this.fixtureRepository.findOne({
+              where: { external_api_id: apiFixture.id.toString() },
+            });
+          }
+
+          // Fallback check: by teams and date (in case external_api_id wasn't stored)
+          if (!existingFixture) {
+            existingFixture = await this.fixtureRepository.findOne({
+              where: {
+                home_team: apiFixture.teams.home.name,
+                away_team: apiFixture.teams.away.name,
+                match_date: new Date(apiFixture.date),
+              },
+            });
+          }
 
           if (existingFixture) {
             this.logger.debug(
@@ -846,6 +861,7 @@ export class FixturesService {
             apiFixture.goals.home,
             apiFixture.goals.away,
           );
+          fixtureEntity.external_api_id = apiFixture.id?.toString() || null;
 
           // Save to database
           await this.fixtureRepository.save(fixtureEntity);
