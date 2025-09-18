@@ -122,6 +122,15 @@ export class AppController {
     );
   }
 
+  @Post('api/fixtures/populate-season')
+  async populateSerieASeason() {
+    this.logger.log('Forwarding populate season request to Gaming Services');
+    return this.appService.forwardToGamingServices(
+      '/api/fixtures/populate-season',
+      'POST',
+    );
+  }
+
   @Get('api/teams')
   async getTeams() {
     this.logger.log('Forwarding teams request to Gaming Services');

@@ -1,6 +1,7 @@
 /**
  * LastFiveResults Component
- * Displays the last 5 match results with color-coded buttons
+ * Displays the last 5 match results showing team position ('1' for home, '2' for away)
+ * with color-coded buttons based on result (green=win, gray=draw, red=loss)
  */
 
 import React from 'react';
@@ -37,42 +38,35 @@ export function LastFiveResults({ results, form, className = '' }: LastFiveResul
           );
         }
         
+        // Display team position: '1' if home, '2' if away
+        const displayCode = it.wasHome ? '1' : '2';
+        const positionLabel = it.wasHome ? 'Casa' : 'Trasferta';
+
         let color = 'bg-gray-100 text-gray-700 border border-gray-700';
-        let titleStr: string = it.code;
-        
-        // Color based on team perspective (win/loss/draw)
+        let resultLabel = '';
+
+        // Color based on team's actual result in this match
         if (it.code === 'X') {
           // Draw - gray for both teams
           color = 'bg-gray-100 text-gray-700 border border-gray-700';
-          titleStr = 'X — Pareggio';
+          resultLabel = 'Pareggio';
         } else if (it.wasHome !== undefined) {
-          // Win/Loss based on whether team was home/away in this specific match
+          // Determine if this team won or lost
           // it.code: '1' = home won, '2' = away won
           // it.wasHome: true = this team was home, false = this team was away
-          const isGoodResult = (it.wasHome && it.code === '1') || (!it.wasHome && it.code === '2');
-          if (isGoodResult) {
-            // Win - green with darker green text and border
+          const teamWon = (it.wasHome && it.code === '1') || (!it.wasHome && it.code === '2');
+          if (teamWon) {
+            // Win - green
             color = 'bg-green-100 text-green-800 font-bold border border-green-800';
-            titleStr = `${it.code} — Vittoria`;
+            resultLabel = 'Vittoria';
           } else {
-            // Loss - red with darker red text and border
+            // Loss - red
             color = 'bg-red-100 text-red-800 font-bold border border-red-800';
-            titleStr = `${it.code} — Sconfitta`;
-          }
-        } else {
-          // Fallback to prediction-based coloring if team perspective unknown
-          const pick = it.predicted;
-          if (pick === '1' || pick === 'X' || pick === '2') {
-            const matchesPrediction = pick === it.code;
-            if (matchesPrediction) {
-              color = 'bg-green-100 text-green-800 font-bold border border-green-800';
-              titleStr = `${it.code} — Predizione corretta`;
-            } else {
-              color = 'bg-red-100 text-red-800 font-bold border border-red-800';
-              titleStr = `${it.code} — Predizione errata`;
-            }
+            resultLabel = 'Sconfitta';
           }
         }
+
+        const titleStr = `${displayCode} — ${positionLabel} — ${resultLabel}`;
 
         return (
           <div
@@ -81,7 +75,7 @@ export function LastFiveResults({ results, form, className = '' }: LastFiveResul
             title={titleStr}
             aria-label={titleStr}
           >
-            {it.code}
+            {displayCode}
           </div>
         );
       })}

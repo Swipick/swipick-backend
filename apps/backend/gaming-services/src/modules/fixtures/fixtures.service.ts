@@ -201,10 +201,7 @@ export class FixturesService {
 
       return fixtures;
     } catch (error) {
-      this.logger.error(
-        `Failed to get fixtures for week ${weekNumber}`,
-        error,
-      );
+      this.logger.error(`Failed to get fixtures for week ${weekNumber}`, error);
       throw error;
     }
   }
@@ -233,20 +230,20 @@ export class FixturesService {
 
       // Get min and max dates
       const dates = fixtures.map((f) => new Date(f.match_date));
-      const startDate = new Date(Math.min(...dates.map(d => d.getTime())));
-      const endDate = new Date(Math.max(...dates.map(d => d.getTime())));
+      const startDate = new Date(Math.min(...dates.map((d) => d.getTime())));
+      const endDate = new Date(Math.max(...dates.map((d) => d.getTime())));
 
       // Format dates for Italian display (dd/mm)
       const formatItalian = (date: Date) => {
-        return date.toLocaleDateString('it-IT', { 
-          day: '2-digit', 
+        return date.toLocaleDateString('it-IT', {
+          day: '2-digit',
           month: '2-digit',
-          timeZone: 'Europe/Rome'
+          timeZone: 'Europe/Rome',
         });
       };
 
       this.logger.debug(
-        `Week ${weekNumber} date range: ${startDate.toISOString()} to ${endDate.toISOString()}`
+        `Week ${weekNumber} date range: ${startDate.toISOString()} to ${endDate.toISOString()}`,
       );
 
       return {
