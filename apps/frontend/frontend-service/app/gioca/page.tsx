@@ -153,6 +153,8 @@ function GiocaPageContent() {
   const [isSkipAnimating, setIsSkipAnimating] = useState(false);
   const [previewOnTop, setPreviewOnTop] = useState(false);
   const [frozenPreviewIndex, setFrozenPreviewIndex] = useState<number | null>(null);
+  const [cardZIndex, setCardZIndex] = useState<'normal' | 'above-buttons' | 'below-deck'>('normal');
+  const cardOpacity = useMotionValue(1);
 
   // Animation controls
   const cardX = useMotionValue(0);
@@ -225,9 +227,9 @@ function GiocaPageContent() {
 
   // Promise-based helper for MotionValue animations (type-safe, no .finished)
   const animateValue = useCallback(
-    (axis: 'x' | 'y', to: number, opts: MotionAnimateOptions = {}): Promise<void> => {
+    (axis: 'x' | 'y' | 'opacity', to: number, opts: MotionAnimateOptions = {}): Promise<void> => {
       return new Promise((resolve) => {
-        const mv = axis === 'x' ? cardX : cardY;
+        const mv = axis === 'x' ? cardX : axis === 'y' ? cardY : cardOpacity;
         const anim = animate as unknown as (
           value: MotionValue<number>,
           to: number,
@@ -244,8 +246,43 @@ function GiocaPageContent() {
         });
       });
     },
-    [cardX, cardY]
+    [cardX, cardY, cardOpacity]
   );
+
+  // Skip animation - enhanced down motion that scrolls over buttons and bottom modal
+  const handleSkip = useCallback(async () => {
+    if (isSkipAnimating) return;
+    setIsSkipAnimating(true);
+    setPreviewOnTop(true);
+    setFrozenPreviewIndex(currentFixtureIndex + 1);
+    try {
+      // Phase 1: Move card above everything and animate down to scroll over buttons and bottom modal
+      setCardZIndex('above-buttons');
+      await animateValue('y', 600, { type: 'tween', ease: 'easeOut', duration: 0.6 });
+
+      // Phase 2: Move card behind deck and start fade out during snap back
+      setCardZIndex('below-deck');
+
+      // Start both animations simultaneously - snap back and fade out
+      const snapBackPromise = animateValue('y', -100, { type: 'spring', stiffness: 150, damping: 25, duration: 0.675 });
+      const fadeOutPromise = animateValue('opacity', 0, { type: 'tween', ease: 'easeOut', duration: 0.1875 }); // 50% of snap back duration
+
+      await Promise.all([snapBackPromise, fadeOutPromise]);
+
+      // Phase 3: Fall to last position (invisible, still behind deck)
+      await animateValue('y', 50, { type: 'tween', ease: 'easeInOut', duration: 0.4 });
+
+      // Reset position, opacity and advance to next card
+      cardY.set(0);
+      cardOpacity.set(1);
+      setCardZIndex('normal');
+      handleNext();
+    } finally {
+      setIsSkipAnimating(false);
+      setPreviewOnTop(false);
+      setTimeout(() => setFrozenPreviewIndex(null), 50);
+    }
+  }, [isSkipAnimating, handleNext, currentFixtureIndex, cardY, cardOpacity, animateValue]);
 
   const handleDragEnd = useCallback((_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const { offset, velocity } = info;
@@ -259,65 +296,58 @@ function GiocaPageContent() {
 
     // Determine primary swipe direction and map to a choice
     let choice: PredictionChoice | null = null;
+    let isSkip = false;
+
     if (ax >= ay) {
       // Horizontal swipe dominates → Left= '1', Right= '2'
       if (ax > threshold || vx > 500) {
         choice = dx < 0 ? '1' : '2';
       }
     } else {
-      // Vertical swipe dominates → Up = 'X' only
+      // Vertical swipe dominates
       if (dy < -threshold || vy < -500) {
+        // Up = 'X'
         choice = 'X';
+      } else if (dy > threshold || vy > 500) {
+        // Down = skip
+        isSkip = true;
       }
     }
 
-    if (choice && currentFixture) {
-      setFrozenPreviewIndex(currentFixtureIndex + 1);
-      // Animate off-screen for horizontal swipes; up uses vertical animation
-      const distance = 350;
-      if (choice === '1') {
-        // Left
-        void animateValue('x', -distance, { type: 'tween', ease: 'easeInOut', duration: 0.22 }).then(() => cardX.set(0));
-      } else if (choice === '2') {
-        // Right
-        void animateValue('x', distance, { type: 'tween', ease: 'easeInOut', duration: 0.22 }).then(() => cardX.set(0));
+    if ((choice || isSkip) && currentFixture) {
+      if (isSkip) {
+        // Handle skip animation (down motion)
+        void handleSkip();
       } else {
-        // Up → animate upward for visual parity with backup
-        setPreviewOnTop(true);
-        void animateValue('y', -distance, { type: 'tween', ease: 'easeInOut', duration: 0.22 }).then(() => cardY.set(0));
-      }
+        setFrozenPreviewIndex(currentFixtureIndex + 1);
+        // Animate off-screen for horizontal swipes; up uses vertical animation
+        const distance = 350;
+        if (choice === '1') {
+          // Left
+          void animateValue('x', -distance, { type: 'tween', ease: 'easeInOut', duration: 0.22 }).then(() => cardX.set(0));
+        } else if (choice === '2') {
+          // Right
+          void animateValue('x', distance, { type: 'tween', ease: 'easeInOut', duration: 0.22 }).then(() => cardX.set(0));
+        } else {
+          // Up → animate upward for visual parity with backup
+          setPreviewOnTop(true);
+          void animateValue('y', -distance, { type: 'tween', ease: 'easeInOut', duration: 0.22 }).then(() => cardY.set(0));
+        }
 
-      // Commit prediction and advance immediately
-      void commitPredictionImmediate(currentFixture.id, choice).finally(() => {
-        setTimeout(() => {
-          setFrozenPreviewIndex(null);
-          setPreviewOnTop(false);
-        }, 250);
-      });
+        // Commit prediction and advance immediately
+        void commitPredictionImmediate(currentFixture.id, choice!).finally(() => {
+          setTimeout(() => {
+            setFrozenPreviewIndex(null);
+            setPreviewOnTop(false);
+          }, 250);
+        });
+      }
     } else {
       // Not enough movement → snap back
       animate(cardX, 0, { type: 'spring', stiffness: 300, damping: 30 });
       animate(cardY, 0, { type: 'spring', stiffness: 300, damping: 30 });
     }
-  }, [cardX, cardY, currentFixture, currentFixtureIndex, commitPredictionImmediate]);
-
-  // Skip animation
-  const handleSkip = useCallback(async () => {
-    if (isSkipAnimating) return;
-    setIsSkipAnimating(true);
-    setPreviewOnTop(true);
-    setFrozenPreviewIndex(currentFixtureIndex + 1);
-    try {
-      // Animate downward similar to original smoothness
-      await animateValue('y', 380, { type: 'tween', ease: 'easeInOut', duration: 0.45 });
-      cardY.set(0);
-      handleNext();
-    } finally {
-      setIsSkipAnimating(false);
-      setPreviewOnTop(false);
-      setTimeout(() => setFrozenPreviewIndex(null), 50);
-    }
-  }, [isSkipAnimating, handleNext, currentFixtureIndex, cardY]);
+  }, [cardX, cardY, currentFixture, currentFixtureIndex, commitPredictionImmediate, handleSkip]);
 
   // (definition moved above)
 
@@ -472,7 +502,11 @@ function GiocaPageContent() {
           )}
 
           {/* Current Card */}
-          <div className="absolute top-0 left-0 right-0 flex items-start justify-center pt-8 z-30">
+          <div className={`absolute top-0 left-0 right-0 flex items-start justify-center pt-8 ${
+            cardZIndex === 'above-buttons' ? 'z-40' :
+            cardZIndex === 'below-deck' ? 'z-5' :
+            'z-30'
+          }`}>
             <div className="w-full max-w-sm">
               <MatchCard
                 fixture={currentFixture}
@@ -489,6 +523,7 @@ function GiocaPageContent() {
                   x: cardX,
                   y: cardY,
                   rotate: cardRotate,
+                  opacity: cardOpacity,
                 }}
               />
             </div>
