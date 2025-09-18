@@ -819,7 +819,8 @@ export class FixturesService {
           `⚠️ Only ${apiFixtures.length} fixtures found for 2025 season, trying 2024...`,
         );
         await this.apiFootballService.clearCache('fixtures:season:135:2024');
-        const fallbackFixtures = await this.apiFootballService.getSeasonFixtures(135, 2024);
+        const fallbackFixtures =
+          await this.apiFootballService.getSeasonFixtures(135, 2024);
         if (fallbackFixtures.length > apiFixtures.length) {
           this.logger.log(
             `✅ Using 2024 season data with ${fallbackFixtures.length} fixtures`,
