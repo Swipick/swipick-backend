@@ -23,3 +23,6 @@ export { CompletionVeilModal } from './Modals/CompletionVeilModal';
 
 // Navigation components
 export { BottomNav } from './Navigation/BottomNav';
+
+// Game Summary components
+export { GameSummaryScreen } from './GameSummaryScreen/GameSummaryScreen';

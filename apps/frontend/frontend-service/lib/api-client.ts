@@ -298,6 +298,19 @@ class ApiClient {
     });
   }
 
+  // Unified prediction API for both live and test modes
+  async createPrediction(data: {
+    userId: string | number;
+    mode: 'live' | 'test';
+    fixtureId: number;
+    choice: '1' | 'X' | '2' | 'SKIP';
+  }) {
+    return this.request('/predictions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async getTestWeeklyStats(userId: string | number, week: number) {
     // Use BFF mode-switching endpoint to reach gaming test-mode stats
     return this.request(`/predictions/user/${userId}/week/${week}?mode=test`);

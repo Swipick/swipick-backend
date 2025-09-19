@@ -6,13 +6,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient } from "@/lib/api-client";
 
-import type { 
-  PredictionRecord, 
-  GiocaPersistState, 
-  Fixture, 
-  GameMode 
+import type {
+  PredictionRecord,
+  GiocaPersistState,
+  Fixture,
+  GameMode
 } from '../types';
-import { DEBUG_GIOCA, STORAGE_KEYS } from '../utils/constants';
+import { DEBUG_GIOCA, STORAGE_KEYS, GAME_CONFIG } from '../utils/constants';
 
 interface UsePredictionsParams {
   currentMode: GameMode;
@@ -29,6 +29,7 @@ interface UsePredictionsReturn {
   isComplete: boolean;
   localComplete: boolean;
   setLocalComplete: (complete: boolean) => void;
+  resetPredictions: () => void;
 }
 
 export function usePredictions({
@@ -90,23 +91,24 @@ export function usePredictions({
 
     // Check if this completes all predictions
     const completedCount = Object.keys(newPredictions).length;
-    const nowComplete = completedCount >= 10; // Using hardcoded value for now, could use GAME_CONFIG.TOTAL_PREDICTIONS
+    const nowComplete = completedCount >= GAME_CONFIG.TOTAL_PREDICTIONS;
     
     if (nowComplete) {
       setLocalComplete(true);
     }
 
     // Submit to backend if we have a user
-    if (userKey && currentMode === 'test') {
+    if (userKey) {
       try {
-        await apiClient.createTestPrediction({
+        await apiClient.createPrediction({
           userId: userKey,
+          mode: currentMode,
           fixtureId,
           choice,
         });
-        
+
         if (DEBUG_GIOCA) {
-          console.log('[gioca] prediction submitted successfully', { fixtureId, choice });
+          console.log('[gioca] prediction submitted successfully', { fixtureId, choice, mode: currentMode });
         }
       } catch (error) {
         console.error('[gioca] prediction submission failed:', error);
@@ -142,9 +144,27 @@ export function usePredictions({
     readyToPersistRef.current = true;
   }, [safeReadState, selectedWeek]);
 
+  // Reset predictions function
+  const resetPredictions = useCallback(() => {
+    setPredictions({});
+    setLocalComplete(false);
+
+    // Clear localStorage for current context
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(persistKey());
+        if (DEBUG_GIOCA) {
+          console.log('[gioca] predictions reset for', { mode: currentMode, week: selectedWeek });
+        }
+      }
+    } catch (error) {
+      console.error('[gioca] failed to clear localStorage:', error);
+    }
+  }, [persistKey, currentMode, selectedWeek]);
+
   // Calculate derived state
   const predictionsCount = Object.keys(predictions).length;
-  const isComplete = localComplete || predictionsCount >= 10; // Could use GAME_CONFIG.TOTAL_PREDICTIONS
+  const isComplete = localComplete || predictionsCount >= GAME_CONFIG.TOTAL_PREDICTIONS;
 
   return {
     predictions,
@@ -154,5 +174,6 @@ export function usePredictions({
     isComplete,
     localComplete,
     setLocalComplete,
+    resetPredictions,
   };
 }

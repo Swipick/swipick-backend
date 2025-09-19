@@ -116770,21 +116770,6 @@ let ApiFootballService = ApiFootballService_1 = class ApiFootballService {
             return false;
         }
     }
-    async getSeasonFixtures(leagueId, season) {
-        const cacheKey = `fixtures:season:${leagueId}:${season}`;
-        const cached = await this.cacheService.get(cacheKey);
-        if (cached) {
-            this.logger.debug(`Cache hit for season fixtures: league ${leagueId}, season ${season}`);
-            return cached;
-        }
-        const fixtures = await this.apiFootballClient.getFixtures({
-            league: leagueId,
-            season: season,
-        });
-        await this.cacheService.set(cacheKey, fixtures, 7 * 24 * 60 * 60);
-        this.logger.log(`Fetched ${fixtures.length} season fixtures for league ${leagueId}, season ${season}`);
-        return fixtures;
-    }
     async clearCache(pattern) {
         if (pattern) {
             const keys = await this.cacheService.keys(pattern);
@@ -117600,14 +117585,6 @@ let FixturesController = class FixturesController {
             message: 'All cache cleared successfully',
         };
     }
-    async populateSerieASeason() {
-        const result = await this.fixturesService.populateSerieASeason();
-        return {
-            success: true,
-            message: 'Serie A 2025-26 current season populated successfully',
-            ...result,
-        };
-    }
 };
 exports.FixturesController = FixturesController;
 __decorate([
@@ -117679,12 +117656,6 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], FixturesController.prototype, "clearCache", null);
-__decorate([
-    (0, common_1.Post)('populate-season'),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", Promise)
-], FixturesController.prototype, "populateSerieASeason", null);
 exports.FixturesController = FixturesController = __decorate([
     (0, common_1.Controller)('fixtures'),
     __metadata("design:paramtypes", [typeof (_a = typeof fixtures_service_1.FixturesService !== "undefined" && fixtures_service_1.FixturesService) === "function" ? _a : Object, typeof (_b = typeof api_rate_limit_service_1.ApiRateLimitService !== "undefined" && api_rate_limit_service_1.ApiRateLimitService) === "function" ? _b : Object, typeof (_c = typeof database_persistence_service_1.DatabasePersistenceService !== "undefined" && database_persistence_service_1.DatabasePersistenceService) === "function" ? _c : Object])
@@ -117899,13 +117870,13 @@ let FixturesService = FixturesService_1 = class FixturesService {
                 return null;
             }
             const dates = fixtures.map((f) => new Date(f.match_date));
-            const startDate = new Date(Math.min(...dates.map(d => d.getTime())));
-            const endDate = new Date(Math.max(...dates.map(d => d.getTime())));
+            const startDate = new Date(Math.min(...dates.map((d) => d.getTime())));
+            const endDate = new Date(Math.max(...dates.map((d) => d.getTime())));
             const formatItalian = (date) => {
                 return date.toLocaleDateString('it-IT', {
                     day: '2-digit',
                     month: '2-digit',
-                    timeZone: 'Europe/Rome'
+                    timeZone: 'Europe/Rome',
                 });
             };
             this.logger.debug(`Week ${weekNumber} date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
@@ -118346,191 +118317,6 @@ let FixturesService = FixturesService_1 = class FixturesService {
                 },
             },
         ];
-    }
-    async populateSerieASeason() {
-        this.logger.log('🏟️ Starting Serie A 2024-25 season population...');
-        let totalFixtures = 0;
-        let saved = 0;
-        let errors = 0;
-        try {
-            const quotaCheck = await this.rateLimitService.canMakeApiCall();
-            if (!quotaCheck.allowed) {
-                throw new Error(`API quota exceeded: ${quotaCheck.reason}`);
-            }
-            this.logger.log('📡 Fetching Serie A 2025-26 current season fixtures...');
-            const apiFixtures = await this.getUpcomingSerieAFixtures(365);
-            totalFixtures = apiFixtures.length;
-            this.logger.log(`📊 Retrieved ${totalFixtures} Serie A fixtures from API-Football`);
-            for (const apiFixture of apiFixtures) {
-                try {
-                    const existingFixture = await this.fixtureRepository.findOne({
-                        where: {
-                            home_team: apiFixture.teams.home.name,
-                            away_team: apiFixture.teams.away.name,
-                            match_date: new Date(apiFixture.date),
-                        },
-                    });
-                    if (existingFixture) {
-                        this.logger.debug(`⏭️ Fixture ${apiFixture.id} already exists, skipping`);
-                        continue;
-                    }
-                    const fixtureEntity = new fixture_entity_1.Fixture();
-                    fixtureEntity.week = this.extractWeekFromRound(apiFixture.league.round);
-                    fixtureEntity.match_date = new Date(apiFixture.date);
-                    fixtureEntity.home_team = apiFixture.teams.home.name;
-                    fixtureEntity.away_team = apiFixture.teams.away.name;
-                    fixtureEntity.home_score = apiFixture.goals.home;
-                    fixtureEntity.away_score = apiFixture.goals.away;
-                    fixtureEntity.stadium = apiFixture.venue?.name || 'TBD';
-                    fixtureEntity.status = this.mapApiStatusToDbStatus(apiFixture.status.short);
-                    fixtureEntity.result = this.calculateResultFromScores(apiFixture.goals.home, apiFixture.goals.away);
-                    await this.fixtureRepository.save(fixtureEntity);
-                    saved++;
-                    this.logger.debug(`✅ Saved: ${apiFixture.teams.home.name} vs ${apiFixture.teams.away.name} (Week ${fixtureEntity.week})`);
-                }
-                catch (error) {
-                    this.logger.error(`❌ Failed to save fixture ${apiFixture.id}:`, error);
-                    errors++;
-                }
-            }
-            await this.dbPersistenceService.logApiUsage('/fixtures/populate-season', true, false);
-            this.logger.log(`🏆 Serie A 2025-26 season population complete:`);
-            this.logger.log(`   Total fixtures: ${totalFixtures}`);
-            this.logger.log(`   Successfully saved: ${saved}`);
-            this.logger.log(`   Errors: ${errors}`);
-            return {
-                totalFixtures,
-                saved,
-                errors,
-            };
-        }
-        catch (error) {
-            this.logger.error('💥 Failed to populate Serie A season:', error);
-            throw error;
-        }
-    }
-    extractWeekFromRound(round) {
-        const match = round.match(/Regular Season - (\d+)/);
-        return match ? parseInt(match[1], 10) : 1;
-    }
-    mapApiStatusToDbStatus(apiStatus) {
-        const statusMap = {
-            NS: 'SCHEDULED',
-            '1H': 'LIVE',
-            HT: 'LIVE',
-            '2H': 'LIVE',
-            FT: 'FINISHED',
-            AET: 'FINISHED',
-            PEN: 'FINISHED',
-            PST: 'POSTPONED',
-            CANC: 'CANCELLED',
-        };
-        return statusMap[apiStatus] || 'SCHEDULED';
-    }
-    calculateResultFromScores(homeScore, awayScore) {
-        if (homeScore === null || awayScore === null) {
-            return null;
-        }
-        if (homeScore > awayScore) {
-            return '1';
-        }
-        else if (homeScore < awayScore) {
-            return '2';
-        }
-        else {
-            return 'X';
-        }
-    }
-    async createComprehensiveSerieAFixtures() {
-        const serieATeams = [
-            { id: 488, name: 'Atalanta', stadium: 'Gewiss Stadium' },
-            { id: 489, name: 'Bologna', stadium: "Stadio Renato Dall'Ara" },
-            { id: 490, name: 'Cagliari', stadium: 'Unipol Domus' },
-            { id: 863, name: 'Como', stadium: 'Stadio Giuseppe Sinigaglia' },
-            { id: 491, name: 'Empoli', stadium: 'Stadio Carlo Castellani' },
-            { id: 492, name: 'Fiorentina', stadium: 'Stadio Artemio Franchi' },
-            { id: 495, name: 'Genoa', stadium: 'Stadio Luigi Ferraris' },
-            {
-                id: 496,
-                name: 'Hellas Verona',
-                stadium: 'Stadio Marcantonio Bentegodi',
-            },
-            { id: 497, name: 'Inter', stadium: 'San Siro' },
-            { id: 498, name: 'Juventus', stadium: 'Allianz Stadium' },
-            { id: 499, name: 'Lazio', stadium: 'Stadio Olimpico' },
-            { id: 500, name: 'Lecce', stadium: 'Stadio Via del Mare' },
-            { id: 489, name: 'Milan', stadium: 'San Siro' },
-            { id: 502, name: 'Monza', stadium: 'U-Power Stadium' },
-            { id: 503, name: 'Napoli', stadium: 'Stadio Diego Armando Maradona' },
-            { id: 867, name: 'Parma', stadium: 'Stadio Ennio Tardini' },
-            { id: 487, name: 'Roma', stadium: 'Stadio Olimpico' },
-            { id: 488, name: 'Sassuolo', stadium: 'Mapei Stadium' },
-            { id: 506, name: 'Torino', stadium: 'Stadio Olimpico Grande Torino' },
-            { id: 507, name: 'Udinese', stadium: 'Dacia Arena' },
-        ];
-        const fixtures = [];
-        const baseDate = new Date('2025-08-17');
-        for (let week = 1; week <= 10; week++) {
-            const weekDate = new Date(baseDate);
-            weekDate.setDate(baseDate.getDate() + (week - 1) * 7);
-            const shuffledTeams = [...serieATeams].sort(() => Math.random() - 0.5);
-            for (let i = 0; i < shuffledTeams.length; i += 2) {
-                if (i + 1 < shuffledTeams.length) {
-                    const homeTeam = shuffledTeams[i];
-                    const awayTeam = shuffledTeams[i + 1];
-                    const matchDate = new Date(weekDate);
-                    matchDate.setHours(week <= 3 ? 15 : 20, 0, 0, 0);
-                    if (Math.random() > 0.5) {
-                        matchDate.setDate(matchDate.getDate() + 1);
-                    }
-                    let homeScore = null;
-                    let awayScore = null;
-                    let status = 'NS';
-                    if (week <= 3) {
-                        status = 'FT';
-                        homeScore = Math.floor(Math.random() * 4);
-                        awayScore = Math.floor(Math.random() * 3);
-                    }
-                    else if (week <= 5) {
-                        if (Math.random() > 0.3) {
-                            status = 'FT';
-                            homeScore = Math.floor(Math.random() * 4);
-                            awayScore = Math.floor(Math.random() * 3);
-                        }
-                    }
-                    const fixture = {
-                        id: `comp_${week}_${i / 2 + 1}`,
-                        date: matchDate.toISOString(),
-                        teams: {
-                            home: {
-                                id: homeTeam.id,
-                                name: homeTeam.name,
-                            },
-                            away: {
-                                id: awayTeam.id,
-                                name: awayTeam.name,
-                            },
-                        },
-                        goals: {
-                            home: homeScore,
-                            away: awayScore,
-                        },
-                        venue: {
-                            name: homeTeam.stadium,
-                        },
-                        status: {
-                            short: status,
-                        },
-                        league: {
-                            round: `Regular Season - ${week}`,
-                        },
-                    };
-                    fixtures.push(fixture);
-                }
-            }
-        }
-        this.logger.log(`🏗️ Created ${fixtures.length} comprehensive Serie A fixtures for client audit`);
-        return fixtures;
     }
 };
 exports.FixturesService = FixturesService;

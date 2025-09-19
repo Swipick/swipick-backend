@@ -32,7 +32,7 @@ export function PredictionButtons({
   };
 
   return (
-    <div className="relative left-0 right-0 px-4 mt-3 mb-16">
+    <div className="relative left-0 right-0 px-4 mt-3 mb-8">
       <div className="flex justify-center">
         <div className="grid grid-cols-3 gap-x-4 gap-y-0 justify-items-center items-center max-w-[340px] w-full mx-auto">
           {/* Top: X */}

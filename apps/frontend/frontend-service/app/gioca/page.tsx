@@ -18,6 +18,7 @@ import {
   MatchCard,
   BottomNav,
   PredictionButtons,
+  GameSummaryScreen,
 } from './components';
 
 // Types and constants
@@ -73,7 +74,7 @@ function GiocaPageContent() {
   const handleGoToProfile = useCallback(() => {
     router.push('/profilo');
   }, [router]);
-  
+
   // Fixtures and match cards
   const {
     fixtures,
@@ -81,15 +82,30 @@ function GiocaPageContent() {
     loading,
     error,
   } = useFixtures({ currentMode, selectedWeek, userKey, currentLiveWeek });
-  
+
   // Predictions management
   const {
     predictions,
     handlePrediction,
     predictionsCount,
     isComplete,
+    resetPredictions,
   } = usePredictions({ currentMode, selectedWeek, userKey, fixtures });
-  
+
+  // Summary screen state
+  const [showSummaryScreen, setShowSummaryScreen] = useState(false);
+
+  // Handle game completion and show summary screen
+  useEffect(() => {
+    if (isComplete && currentMode === 'live' && fixtures.length > 0 && !showSummaryScreen) {
+      // Small delay to allow last animation to complete
+      const timer = setTimeout(() => {
+        setShowSummaryScreen(true);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isComplete, currentMode, fixtures.length, showSummaryScreen]);
+
   // Countdown timer
   const {
     timeToMatch,
@@ -157,10 +173,37 @@ function GiocaPageContent() {
   const [cardZIndex, setCardZIndex] = useState<'normal' | 'above-buttons' | 'below-deck'>('normal');
   const cardOpacity = useMotionValue(1);
 
+  // Skip card management - track skipped cards to loop back to them
+  const [skippedCardIndexes, setSkippedCardIndexes] = useState<number[]>([]);
+  const [isInSkippedMode, setIsInSkippedMode] = useState(false);
+
   // Animation controls
   const cardX = useMotionValue(0);
   const cardY = useMotionValue(0);
   const cardRotate = useTransform(cardX, [-320, 0, 320], [-10, 0, 10]);
+
+  // Summary screen handlers (defined after motion values are available)
+  const handlePlayAgain = useCallback(() => {
+    // Reset all game state
+    resetPredictions();
+    setCurrentFixtureIndex(0);
+    setShowSummaryScreen(false);
+    cardX.set(0);
+    cardY.set(0);
+    cardOpacity.set(1);
+    setCardZIndex('normal');
+    setIsSkipAnimating(false);
+    setPreviewOnTop(false);
+    setFrozenPreviewIndex(null);
+    // Reset skip card management
+    setSkippedCardIndexes([]);
+    setIsInSkippedMode(false);
+  }, [resetPredictions, cardX, cardY, cardOpacity]);
+
+  const handleViewResults = useCallback(() => {
+    setShowSummaryScreen(false);
+    router.push(`/risultati?mode=${currentMode}`);
+  }, [router, currentMode]);
 
   // Current fixture data
   const currentFixture = fixtures[currentFixtureIndex];
@@ -169,20 +212,53 @@ function GiocaPageContent() {
 
   // Navigation handlers
   const handleNext = useCallback(() => {
-    if (currentFixtureIndex < fixtures.length - 1) {
-      setCurrentFixtureIndex(prev => prev + 1);
-      cardX.set(0);
-      cardY.set(0);
+    if (isInSkippedMode) {
+      // In skipped mode: cycle through skipped cards
+      const currentSkippedIndex = skippedCardIndexes.indexOf(currentFixtureIndex);
+      if (currentSkippedIndex < skippedCardIndexes.length - 1) {
+        // Move to next skipped card
+        setCurrentFixtureIndex(skippedCardIndexes[currentSkippedIndex + 1]);
+      } else {
+        // Loop back to first skipped card
+        setCurrentFixtureIndex(skippedCardIndexes[0]);
+      }
+    } else {
+      // Normal mode: advance through original fixtures
+      if (currentFixtureIndex < fixtures.length - 1) {
+        setCurrentFixtureIndex(prev => prev + 1);
+      } else {
+        // Reached end of original fixtures
+        if (skippedCardIndexes.length > 0) {
+          // Switch to skipped mode and show first skipped card
+          setIsInSkippedMode(true);
+          setCurrentFixtureIndex(skippedCardIndexes[0]);
+        }
+        // If no skipped cards, stay at last card (no more navigation)
+      }
     }
-  }, [currentFixtureIndex, fixtures.length, cardX, cardY]);
+
+    // Reset card state for next card
+    cardX.set(0);
+    cardY.set(0);
+    cardOpacity.set(1);
+    setCardZIndex('normal');
+
+    // Clear preview states after navigation is complete
+    setTimeout(() => {
+      setFrozenPreviewIndex(null);
+      setPreviewOnTop(false);
+    }, 0);
+  }, [currentFixtureIndex, fixtures.length, skippedCardIndexes, isInSkippedMode, cardX, cardY, cardOpacity]);
 
   const handlePrev = useCallback(() => {
     if (currentFixtureIndex > 0) {
       setCurrentFixtureIndex(prev => prev - 1);
       cardX.set(0);
       cardY.set(0);
+      cardOpacity.set(1); // Ensure previous card is always visible
+      setCardZIndex('normal'); // Reset z-index for previous card
     }
-  }, [currentFixtureIndex, cardX, cardY]);
+  }, [currentFixtureIndex, cardX, cardY, cardOpacity]);
 
   // Prediction handling (moved above drag handler to avoid TDZ issues)
   const handleCardPrediction = useCallback(async (fixtureId: number, choice: PredictionChoice) => {
@@ -256,6 +332,17 @@ function GiocaPageContent() {
     setIsSkipAnimating(true);
     setPreviewOnTop(true);
     setFrozenPreviewIndex(currentFixtureIndex + 1);
+
+    // Track this card as skipped (only if not already in skipped mode)
+    if (!isInSkippedMode) {
+      setSkippedCardIndexes(prev => {
+        if (!prev.includes(currentFixtureIndex)) {
+          return [...prev, currentFixtureIndex];
+        }
+        return prev;
+      });
+    }
+
     try {
       // Phase 1: Move card above everything and animate down to scroll over buttons and bottom modal
       setCardZIndex('above-buttons');
@@ -273,17 +360,23 @@ function GiocaPageContent() {
       // Phase 3: Fall to last position (invisible, still behind deck)
       await animateValue('y', 50, { type: 'tween', ease: 'easeInOut', duration: 0.4 });
 
-      // Reset position, opacity and advance to next card
-      cardY.set(0);
+      // IMPORTANT: Reset opacity to 1 immediately after animation completes
+      // This ensures the card is ready when it becomes active again
       cardOpacity.set(1);
+
+      // Reset position and advance to next card
+      cardY.set(0);
       setCardZIndex('normal');
       handleNext();
     } finally {
       setIsSkipAnimating(false);
-      setPreviewOnTop(false);
-      setTimeout(() => setFrozenPreviewIndex(null), 50);
+      // Delay clearing to allow navigation to complete smoothly
+      setTimeout(() => {
+        setFrozenPreviewIndex(null);
+        setPreviewOnTop(false);
+      }, 150);
     }
-  }, [isSkipAnimating, handleNext, currentFixtureIndex, cardY, cardOpacity, animateValue]);
+  }, [isSkipAnimating, handleNext, currentFixtureIndex, cardY, cardOpacity, animateValue, isInSkippedMode]);
 
   const handleDragEnd = useCallback((_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const { offset, velocity } = info;
@@ -337,10 +430,11 @@ function GiocaPageContent() {
 
         // Commit prediction and advance immediately
         void commitPredictionImmediate(currentFixture.id, choice!).finally(() => {
+          // Delay clearing to allow navigation to complete smoothly
           setTimeout(() => {
             setFrozenPreviewIndex(null);
             setPreviewOnTop(false);
-          }, 250);
+          }, 150);
         });
       }
     } else {
@@ -348,7 +442,7 @@ function GiocaPageContent() {
       animate(cardX, 0, { type: 'spring', stiffness: 300, damping: 30 });
       animate(cardY, 0, { type: 'spring', stiffness: 300, damping: 30 });
     }
-  }, [cardX, cardY, currentFixture, currentFixtureIndex, commitPredictionImmediate, handleSkip]);
+  }, [cardX, cardY, currentFixture, currentFixtureIndex, commitPredictionImmediate, handleSkip, animateValue]);
 
   // (definition moved above)
 
@@ -385,7 +479,7 @@ function GiocaPageContent() {
       await commitPredictionImmediate(currentFixture.id, '2');
     }
     setTimeout(() => { setFrozenPreviewIndex(null); setPreviewOnTop(false); }, 50);
-  }, [currentFixture, handleSkip, cardX, cardY, currentFixtureIndex, commitPredictionImmediate]);
+  }, [currentFixture, handleSkip, cardX, cardY, currentFixtureIndex, commitPredictionImmediate, animateValue]);
 
   // Decide if the completion veil should be displayed for the current context - EXACT ORIGINAL LOGIC
   const canShowVeil = (() => {
@@ -469,54 +563,128 @@ function GiocaPageContent() {
         fixtures={fixtures}
       />
 
+      {/* Temporary Reset Button for Live Mode Testing */}
+      {currentMode === 'live' && (
+        <div className="px-4 py-2 bg-red-50 border-b border-red-200">
+          <button
+            onClick={handlePlayAgain}
+            className="text-xs bg-red-500 text-white px-3 py-1 rounded font-medium hover:bg-red-600"
+          >
+            🔄 Reset Game (Test Button)
+          </button>
+          <span className="text-xs text-red-600 ml-2">
+            Current: {predictionsCount}/10 predictions
+          </span>
+          {isInSkippedMode && (
+            <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded ml-2">
+              📄 Skipped Cards Mode ({skippedCardIndexes.length} cards) - Current: {currentFixtureIndex}
+            </span>
+          )}
+          {skippedCardIndexes.length > 0 && !isInSkippedMode && (
+            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded ml-2">
+              🔄 Skipped: [{skippedCardIndexes.join(', ')}]
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="flex-1 relative overflow-hidden px-4">
         {/* Card Stack Container */}
         <div className="relative h-full flex items-start justify-center pt-8">
-          {/* Preview Card (next card) */}
-          {currentFixtureIndex < fixtures.length - 1 && (
-            <div
-              className={`absolute top-0 left-0 right-0 flex items-start justify-center pt-8 ${previewOnTop ? 'z-20' : 'z-10'} pointer-events-none`}
-            >
-              <div className={`w-full max-w-sm transform scale-95 ${isSkipAnimating ? 'backdrop-opacity-100 ' : 'opacity-60'}`}>
+          {/* Preview Card (next card) - Use a separate component to avoid re-render issues */}
+          {(() => {
+            // Calculate next card index more deterministically
+            let nextCardIndex: number | null = null;
+
+            if (isInSkippedMode) {
+              // In skipped mode, show next skipped card
+              const currentPos = skippedCardIndexes.indexOf(currentFixtureIndex);
+              if (currentPos >= 0) {
+                if (currentPos < skippedCardIndexes.length - 1) {
+                  nextCardIndex = skippedCardIndexes[currentPos + 1];
+                } else if (skippedCardIndexes.length > 1) {
+                  nextCardIndex = skippedCardIndexes[0]; // Loop back
+                }
+              }
+            } else {
+              // Normal mode - show natural next card
+              if (currentFixtureIndex < fixtures.length - 1) {
+                nextCardIndex = currentFixtureIndex + 1;
+              } else if (skippedCardIndexes.length > 0) {
+                nextCardIndex = skippedCardIndexes[0]; // Show first skipped as preview
+              }
+            }
+
+            // Use frozen preview only during actual animations
+            const displayIndex = (frozenPreviewIndex !== null && (isSkipAnimating || previewOnTop))
+              ? frozenPreviewIndex
+              : nextCardIndex;
+
+            const previewFixture = displayIndex !== null ? fixtures[displayIndex] : null;
+
+            return previewFixture ? (
+              <div
+                className={`absolute top-0 left-0 right-0 flex items-start justify-center pt-8 ${previewOnTop ? 'z-20' : 'z-10'} pointer-events-none`}
+              >
+                <div className={`w-full max-w-sm transform scale-95 ${isSkipAnimating ? 'opacity-100' : 'opacity-60'}`}>
+                  <MatchCard
+                    fixture={previewFixture}
+                    matchCard={matchCards.find(mc => mc.fixtureId === previewFixture.id)}
+                    onPrediction={handleCardPrediction}
+                    currentPrediction={predictions[previewFixture.id]}
+                    disabled={true}
+                  />
+                </div>
+              </div>
+            ) : null;
+          })()}
+
+          {/* Current Card */}
+          {currentFixture && (
+            <div className={`absolute top-0 left-0 right-0 flex items-start justify-center pt-8 ${
+              cardZIndex === 'above-buttons' ? 'z-40' :
+              cardZIndex === 'below-deck' ? 'z-5' :
+              'z-30'
+            }`}>
+              <div className="w-full max-w-sm">
                 <MatchCard
-                  fixture={fixtures[(frozenPreviewIndex ?? (currentFixtureIndex + 1))]}
-                  matchCard={matchCards.find(mc => mc.fixtureId === fixtures[(frozenPreviewIndex ?? (currentFixtureIndex + 1))]?.id)}
+                  fixture={currentFixture}
+                  matchCard={currentMatchCard}
                   onPrediction={handleCardPrediction}
-                  currentPrediction={predictions[fixtures[(frozenPreviewIndex ?? (currentFixtureIndex + 1))]?.id]}
-                  disabled={true}
+                  currentPrediction={currentPrediction}
+                  disabled={canShowVeil}
+                  dragProps={{
+                    drag: true,
+                    dragElastic: 0.2,
+                    onDragEnd: handleDragEnd,
+                  }}
+                  style={{
+                    x: cardX,
+                    y: cardY,
+                    rotate: cardRotate,
+                    opacity: cardOpacity,
+                  }}
                 />
               </div>
             </div>
           )}
 
-          {/* Current Card */}
-          <div className={`absolute top-0 left-0 right-0 flex items-start justify-center pt-8 ${
-            cardZIndex === 'above-buttons' ? 'z-40' :
-            cardZIndex === 'below-deck' ? 'z-5' :
-            'z-30'
-          }`}>
-            <div className="w-full max-w-sm">
-              <MatchCard
-                fixture={currentFixture}
-                matchCard={currentMatchCard}
-                onPrediction={handleCardPrediction}
-                currentPrediction={currentPrediction}
-                disabled={canShowVeil}
-                dragProps={{
-                  drag: true,
-                  dragElastic: 0.2,
-                  onDragEnd: handleDragEnd,
-                }}
-                style={{
-                  x: cardX,
-                  y: cardY,
-                  rotate: cardRotate,
-                  opacity: cardOpacity,
-                }}
-              />
+          {/* End of Cards Message */}
+          {!currentFixture && skippedCardIndexes.length === 0 && (
+            <div className="absolute top-0 left-0 right-0 flex items-start justify-center pt-8 z-30">
+              <div className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-lg border border-gray-200 text-center">
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">Tutte le carte completate!</h3>
+                <p className="text-gray-600 mb-4">Hai raggiunto la fine del mazzo.</p>
+                <button
+                  onClick={handlePlayAgain}
+                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+                >
+                  Ricomincia
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
       </div>
@@ -561,6 +729,16 @@ function GiocaPageContent() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Game Summary Screen */}
+      {showSummaryScreen && (
+        <GameSummaryScreen
+          predictions={predictions}
+          fixtures={fixtures}
+          onPlayAgain={handlePlayAgain}
+          onViewResults={handleViewResults}
+        />
       )}
 
       {/* Toast */}
