@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { MdOutlineIosShare } from 'react-icons/md';
 import { CountdownTimer } from './CountdownTimer';
 import { ProgressBar } from './ProgressBar';
 import type { TimeToMatch, GameMode } from '../../types';
@@ -57,6 +58,31 @@ export function GameHeader({
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
   }, [currentMode, onHeightChange]);
+
+  // Share functionality
+  const [shareLoading, setShareLoading] = useState(false);
+
+  const handleShare = async () => {
+    setShareLoading(true);
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: 'Swipick - Football Predictions',
+          text: 'Check out my football predictions on Swipick!',
+          url: window.location.origin,
+        });
+      } else {
+        // Fallback for browsers without Web Share API
+        await navigator.clipboard.writeText(window.location.origin);
+        // Could add a toast notification here
+      }
+    } catch (error) {
+      console.log('Error sharing:', error);
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
   const modeLabel = currentMode === 'test' ? 'Modalità Test' : 'Live';
   
   // Calculate week date range from fixtures and determine week number
@@ -147,6 +173,27 @@ export function GameHeader({
                   🔄 Skipped: [{skippedCardIndexes.join(', ')}]
                 </span>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Share Button (only when sticky/summary screen active) */}
+        {isSticky && (
+          <div className="mt-3 pt-3 border-t border-white/20">
+            <div className="flex justify-center">
+              <button
+                className={`w-fit inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium shadow ${
+                  shareLoading
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : 'bg-white text-purple-600 hover:bg-gray-50'
+                }`}
+                onClick={handleShare}
+                disabled={shareLoading}
+                title="Condividi profilo"
+              >
+                <MdOutlineIosShare className="w-4 h-4" />
+                Condividi profilo
+              </button>
             </div>
           </div>
         )}
