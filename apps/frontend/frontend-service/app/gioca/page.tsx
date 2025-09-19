@@ -176,6 +176,7 @@ function GiocaPageContent() {
   // Skip card management - track skipped cards to loop back to them
   const [skippedCardIndexes, setSkippedCardIndexes] = useState<number[]>([]);
   const [isInSkippedMode, setIsInSkippedMode] = useState(false);
+  const [isTransitioningToSkipped, setIsTransitioningToSkipped] = useState(false);
 
   // Animation controls
   const cardX = useMotionValue(0);
@@ -198,6 +199,7 @@ function GiocaPageContent() {
     // Reset skip card management
     setSkippedCardIndexes([]);
     setIsInSkippedMode(false);
+    setIsTransitioningToSkipped(false);
   }, [resetPredictions, cardX, cardY, cardOpacity]);
 
   const handleViewResults = useCallback(() => {
@@ -229,9 +231,14 @@ function GiocaPageContent() {
       } else {
         // Reached end of original fixtures
         if (skippedCardIndexes.length > 0) {
-          // Switch to skipped mode and show first skipped card
-          setIsInSkippedMode(true);
-          setCurrentFixtureIndex(skippedCardIndexes[0]);
+          // Show transition loading state first
+          setIsTransitioningToSkipped(true);
+          // Brief delay for UX, then switch to skipped mode
+          setTimeout(() => {
+            setIsInSkippedMode(true);
+            setCurrentFixtureIndex(skippedCardIndexes[0]);
+            setIsTransitioningToSkipped(false);
+          }, 500); // 500ms transition
         }
         // If no skipped cards, stay at last card (no more navigation)
       }
@@ -670,8 +677,15 @@ function GiocaPageContent() {
             </div>
           )}
 
+          {/* Simple Loading for Skipped Cards */}
+          {isTransitioningToSkipped && (
+            <div className="flex items-center justify-center h-32">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+            </div>
+          )}
+
           {/* End of Cards Message */}
-          {!currentFixture && skippedCardIndexes.length === 0 && (
+          {!currentFixture && skippedCardIndexes.length === 0 && !isTransitioningToSkipped && (
             <div className="absolute top-0 left-0 right-0 flex items-start justify-center pt-8 z-30">
               <div className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-lg border border-gray-200 text-center">
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">Tutte le carte completate!</h3>
