@@ -3,7 +3,7 @@
  * Complete header with week info, countdown, and progress
  */
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CountdownTimer } from './CountdownTimer';
 import { ProgressBar } from './ProgressBar';
 import type { TimeToMatch, GameMode } from '../../types';
@@ -16,6 +16,13 @@ interface GameHeaderProps {
   predictionsCount: number;
   className?: string;
   fixtures?: Array<{ date: string }>;
+  isSticky?: boolean;
+  onHeightChange?: (height: number) => void;
+  // Testing props
+  onReset?: () => void;
+  isInSkippedMode?: boolean;
+  skippedCardIndexes?: number[];
+  currentFixtureIndex?: number;
 }
 
 export function GameHeader({
@@ -25,7 +32,31 @@ export function GameHeader({
   predictionsCount,
   className = '',
   fixtures = [],
+  isSticky = false,
+  onHeightChange,
+  onReset,
+  isInSkippedMode = false,
+  skippedCardIndexes = [],
+  currentFixtureIndex = 0,
 }: GameHeaderProps) {
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const [headerHeight, setHeaderHeight] = useState<number>(160);
+
+  // Measure header height and notify parent
+  useEffect(() => {
+    const measure = () => {
+      if (headerRef.current) {
+        const height = headerRef.current.getBoundingClientRect().height;
+        setHeaderHeight(height);
+        onHeightChange?.(height);
+      }
+    };
+
+    // Measure on mount and resize
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [currentMode, onHeightChange]);
   const modeLabel = currentMode === 'test' ? 'Modalità Test' : 'Live';
   
   // Calculate week date range from fixtures and determine week number
@@ -57,14 +88,17 @@ export function GameHeader({
   const { from, to, weekNumber } = getWeekData();
   
   return (
-    <div className={`
-      w-full mx-0 mt-0 mb-6 rounded-b-2xl rounded-t-none text-white p-6
-      ${className}
-    `}
-    style={{
-      background: 'radial-gradient(circle at center, #554099, #3d2d73)',
-      boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
-    }}>
+    <div
+      ref={headerRef}
+      className={`
+        w-full mx-0 mt-0 rounded-b-2xl rounded-t-none text-white p-6
+        ${isSticky ? 'fixed left-0 right-0 top-0 z-40 pt-[max(env(safe-area-inset-top),8px)]' : 'mb-6'}
+        ${className}
+      `}
+      style={{
+        background: 'radial-gradient(circle at center, #554099, #3d2d73)',
+        boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
+      }}>
       <div className="text-center">
         {/* Mode indicator */}
         {currentMode === 'test' && (
@@ -85,10 +119,37 @@ export function GameHeader({
         <CountdownTimer timeToMatch={timeToMatch} className="mb-4" />
         
         {/* Progress bar */}
-        <ProgressBar 
-          current={predictionsCount} 
-          total={GAME_CONFIG.TOTAL_PREDICTIONS} 
+        <ProgressBar
+          current={predictionsCount}
+          total={GAME_CONFIG.TOTAL_PREDICTIONS}
         />
+
+        {/* Reset Button for Testing (Live Mode) */}
+        {currentMode === 'live' && onReset && (
+          <div className="mt-3 pt-3 border-t border-white/20">
+            <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+              <button
+                onClick={onReset}
+                className="bg-red-500 text-white px-3 py-1 rounded font-medium hover:bg-red-600"
+              >
+                🔄 Reset Game (Test Button)
+              </button>
+              <span className="text-white/80">
+                Current: {predictionsCount}/10 predictions
+              </span>
+              {isInSkippedMode && (
+                <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded">
+                  📄 Skipped Cards Mode ({skippedCardIndexes.length} cards) - Current: {currentFixtureIndex}
+                </span>
+              )}
+              {skippedCardIndexes.length > 0 && !isInSkippedMode && (
+                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                  🔄 Skipped: [{skippedCardIndexes.join(', ')}]
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

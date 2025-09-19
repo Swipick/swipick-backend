@@ -94,6 +94,7 @@ function GiocaPageContent() {
 
   // Summary screen state
   const [showSummaryScreen, setShowSummaryScreen] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState<number>(160);
 
   // Handle game completion and show summary screen
   useEffect(() => {
@@ -262,7 +263,7 @@ function GiocaPageContent() {
 
     return previewFixture ? (
       <div
-        className={`absolute top-0 left-0 right-0 flex items-start justify-center pt-8 ${previewOnTop ? 'z-20' : 'z-10'} pointer-events-none`}
+        className={`absolute top-0 left-0 right-0 flex items-start justify-center ${previewOnTop ? 'z-20' : 'z-10'} pointer-events-none`}
       >
         <div className={`w-full max-w-sm transform scale-95 ${isSkipAnimating ? 'opacity-100' : 'opacity-60'}`}>
           <MatchCard
@@ -615,43 +616,25 @@ function GiocaPageContent() {
         predictionsCount={predictionsCount}
         timeToMatch={timeToMatch}
         fixtures={fixtures}
+        isSticky={showSummaryScreen}
+        onHeightChange={setHeaderHeight}
+        onReset={handlePlayAgain}
+        isInSkippedMode={isInSkippedMode}
+        skippedCardIndexes={skippedCardIndexes}
+        currentFixtureIndex={currentFixtureIndex}
       />
 
-      {/* Temporary Reset Button for Live Mode Testing */}
-      {currentMode === 'live' && (
-        <div className="px-4 py-2 bg-red-50 border-b border-red-200">
-          <button
-            onClick={handlePlayAgain}
-            className="text-xs bg-red-500 text-white px-3 py-1 rounded font-medium hover:bg-red-600"
-          >
-            🔄 Reset Game (Test Button)
-          </button>
-          <span className="text-xs text-red-600 ml-2">
-            Current: {predictionsCount}/10 predictions
-          </span>
-          {isInSkippedMode && (
-            <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded ml-2">
-              📄 Skipped Cards Mode ({skippedCardIndexes.length} cards) - Current: {currentFixtureIndex}
-            </span>
-          )}
-          {skippedCardIndexes.length > 0 && !isInSkippedMode && (
-            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded ml-2">
-              🔄 Skipped: [{skippedCardIndexes.join(', ')}]
-            </span>
-          )}
-        </div>
-      )}
 
       {/* Main Content */}
       <div className="flex-1 relative overflow-hidden px-4">
         {/* Card Stack Container */}
-        <div className="relative h-full flex items-start justify-center pt-8">
+        <div className="relative h-full flex items-start justify-center">
           {/* Preview Card (next card) - Memoized to prevent flash re-renders */}
           {previewCard}
 
           {/* Current Card */}
           {currentFixture && (
-            <div className={`absolute top-0 left-0 right-0 flex items-start justify-center pt-8 ${
+            <div className={`absolute top-0 left-0 right-0 flex items-start justify-center ${
               cardZIndex === 'above-buttons' ? 'z-40' :
               cardZIndex === 'below-deck' ? 'z-5' :
               'z-30'
@@ -688,7 +671,7 @@ function GiocaPageContent() {
 
           {/* End of Cards Message */}
           {!currentFixture && skippedCardIndexes.length === 0 && !isTransitioningToSkipped && (
-            <div className="absolute top-0 left-0 right-0 flex items-start justify-center pt-8 z-30">
+            <div className="absolute top-0 left-0 right-0 flex items-start justify-center z-30">
               <div className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-lg border border-gray-200 text-center">
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">Tutte le carte completate!</h3>
                 <p className="text-gray-600 mb-4">Hai raggiunto la fine del mazzo.</p>
@@ -752,6 +735,7 @@ function GiocaPageContent() {
         <GameSummaryScreen
           predictions={predictions}
           fixtures={fixtures}
+          headerHeight={headerHeight}
         />
       )}
 
