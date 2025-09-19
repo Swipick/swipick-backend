@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, Suspense, useEffect } from "react";
+import React, { useState, useCallback, Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMotionValue, useTransform, PanInfo, animate, MotionValue } from 'framer-motion';
 import { Toast } from '@/src/components/Toast';
@@ -177,6 +177,7 @@ function GiocaPageContent() {
   const [skippedCardIndexes, setSkippedCardIndexes] = useState<number[]>([]);
   const [isInSkippedMode, setIsInSkippedMode] = useState(false);
   const [isTransitioningToSkipped, setIsTransitioningToSkipped] = useState(false);
+  const [previewCardOpacity, setPreviewCardOpacity] = useState(1);
 
   // Animation controls
   const cardX = useMotionValue(0);
@@ -200,6 +201,7 @@ function GiocaPageContent() {
     setSkippedCardIndexes([]);
     setIsInSkippedMode(false);
     setIsTransitioningToSkipped(false);
+    setPreviewCardOpacity(1);
   }, [resetPredictions, cardX, cardY, cardOpacity]);
 
   const handleViewResults = useCallback(() => {
@@ -211,6 +213,70 @@ function GiocaPageContent() {
   const currentFixture = fixtures[currentFixtureIndex];
   const currentMatchCard = matchCards.find(mc => mc.fixtureId === currentFixture?.id);
   const currentPrediction = currentFixture ? predictions[currentFixture.id] : undefined;
+
+  // Prediction handling (moved above preview card to avoid TDZ issues)
+  const handleCardPrediction = useCallback(async (fixtureId: number, choice: PredictionChoice) => {
+    await handlePrediction(fixtureId, choice);
+
+    // Mark that the user has at least one prediction for this week (to enable weekly-stats checks later) - ORIGINAL LOGIC
+    if (currentMode === 'test' && userKey) {
+      try {
+        const k = hasWeekPredsKey(selectedWeek, userKey);
+        localStorage.setItem(k, '1');
+      } catch {}
+    }
+
+    // Note: Auto-advance removed to avoid circular dependency - handled elsewhere
+  }, [handlePrediction, currentMode, userKey, selectedWeek, hasWeekPredsKey]);
+
+  // Preview card calculation - memoized to prevent flash re-renders
+  const previewCard = React.useMemo(() => {
+    // Calculate next card index more deterministically
+    let nextCardIndex: number | null = null;
+
+    if (isInSkippedMode) {
+      // In skipped mode, show next skipped card
+      const currentPos = skippedCardIndexes.indexOf(currentFixtureIndex);
+      if (currentPos >= 0) {
+        if (currentPos < skippedCardIndexes.length - 1) {
+          nextCardIndex = skippedCardIndexes[currentPos + 1];
+        } else if (skippedCardIndexes.length > 1) {
+          nextCardIndex = skippedCardIndexes[0]; // Loop back
+        }
+      }
+    } else {
+      // Normal mode - show natural next card
+      if (currentFixtureIndex < fixtures.length - 1) {
+        nextCardIndex = currentFixtureIndex + 1;
+      } else if (skippedCardIndexes.length > 0) {
+        nextCardIndex = skippedCardIndexes[0]; // Show first skipped as preview
+      }
+    }
+
+    // Use frozen preview only during actual animations and if it's still valid (ahead of current card)
+    const displayIndex = (frozenPreviewIndex !== null && (isSkipAnimating || previewOnTop) && frozenPreviewIndex > currentFixtureIndex)
+      ? frozenPreviewIndex
+      : nextCardIndex;
+
+    const previewFixture = displayIndex !== null ? fixtures[displayIndex] : null;
+
+    return previewFixture ? (
+      <div
+        className={`absolute top-0 left-0 right-0 flex items-start justify-center pt-8 ${previewOnTop ? 'z-20' : 'z-10'} pointer-events-none`}
+      >
+        <div className={`w-full max-w-sm transform scale-95 ${isSkipAnimating ? 'opacity-100' : 'opacity-60'}`}>
+          <MatchCard
+            key={`preview-${previewFixture.id}-${displayIndex}`}
+            fixture={previewFixture}
+            matchCard={matchCards.find(mc => mc.fixtureId === previewFixture.id)}
+            onPrediction={handleCardPrediction}
+            currentPrediction={predictions[previewFixture.id]}
+            disabled={true}
+          />
+        </div>
+      </div>
+    ) : null;
+  }, [currentFixtureIndex, skippedCardIndexes, isInSkippedMode, frozenPreviewIndex, isSkipAnimating, previewOnTop, fixtures, matchCards, predictions, handleCardPrediction]);
 
   // Navigation handlers
   const handleNext = useCallback(() => {
@@ -238,7 +304,7 @@ function GiocaPageContent() {
             setIsInSkippedMode(true);
             setCurrentFixtureIndex(skippedCardIndexes[0]);
             setIsTransitioningToSkipped(false);
-          }, 500); // 500ms transition
+          }, 0); // 500ms transition
         }
         // If no skipped cards, stay at last card (no more navigation)
       }
@@ -267,25 +333,6 @@ function GiocaPageContent() {
     }
   }, [currentFixtureIndex, cardX, cardY, cardOpacity]);
 
-  // Prediction handling (moved above drag handler to avoid TDZ issues)
-  const handleCardPrediction = useCallback(async (fixtureId: number, choice: PredictionChoice) => {
-    await handlePrediction(fixtureId, choice);
-    
-    // Mark that the user has at least one prediction for this week (to enable weekly-stats checks later) - ORIGINAL LOGIC
-    if (currentMode === 'test' && userKey) {
-      try {
-        const k = hasWeekPredsKey(selectedWeek, userKey);
-        localStorage.setItem(k, '1');
-      } catch {}
-    }
-    
-    // Auto-advance to next card after prediction
-    setTimeout(() => {
-      if (currentFixtureIndex < fixtures.length - 1) {
-        handleNext();
-      }
-    }, 500);
-  }, [handlePrediction, currentFixtureIndex, fixtures.length, handleNext, currentMode, userKey, selectedWeek, hasWeekPredsKey]);
 
   // Commit immediately (no delay) to avoid race with animations
   const commitPredictionImmediate = useCallback(async (fixtureId: number, choice: PredictionChoice) => {
@@ -599,53 +646,8 @@ function GiocaPageContent() {
       <div className="flex-1 relative overflow-hidden px-4">
         {/* Card Stack Container */}
         <div className="relative h-full flex items-start justify-center pt-8">
-          {/* Preview Card (next card) - Use a separate component to avoid re-render issues */}
-          {(() => {
-            // Calculate next card index more deterministically
-            let nextCardIndex: number | null = null;
-
-            if (isInSkippedMode) {
-              // In skipped mode, show next skipped card
-              const currentPos = skippedCardIndexes.indexOf(currentFixtureIndex);
-              if (currentPos >= 0) {
-                if (currentPos < skippedCardIndexes.length - 1) {
-                  nextCardIndex = skippedCardIndexes[currentPos + 1];
-                } else if (skippedCardIndexes.length > 1) {
-                  nextCardIndex = skippedCardIndexes[0]; // Loop back
-                }
-              }
-            } else {
-              // Normal mode - show natural next card
-              if (currentFixtureIndex < fixtures.length - 1) {
-                nextCardIndex = currentFixtureIndex + 1;
-              } else if (skippedCardIndexes.length > 0) {
-                nextCardIndex = skippedCardIndexes[0]; // Show first skipped as preview
-              }
-            }
-
-            // Use frozen preview only during actual animations
-            const displayIndex = (frozenPreviewIndex !== null && (isSkipAnimating || previewOnTop))
-              ? frozenPreviewIndex
-              : nextCardIndex;
-
-            const previewFixture = displayIndex !== null ? fixtures[displayIndex] : null;
-
-            return previewFixture ? (
-              <div
-                className={`absolute top-0 left-0 right-0 flex items-start justify-center pt-8 ${previewOnTop ? 'z-20' : 'z-10'} pointer-events-none`}
-              >
-                <div className={`w-full max-w-sm transform scale-95 ${isSkipAnimating ? 'opacity-100' : 'opacity-60'}`}>
-                  <MatchCard
-                    fixture={previewFixture}
-                    matchCard={matchCards.find(mc => mc.fixtureId === previewFixture.id)}
-                    onPrediction={handleCardPrediction}
-                    currentPrediction={predictions[previewFixture.id]}
-                    disabled={true}
-                  />
-                </div>
-              </div>
-            ) : null;
-          })()}
+          {/* Preview Card (next card) - Memoized to prevent flash re-renders */}
+          {previewCard}
 
           {/* Current Card */}
           {currentFixture && (
@@ -704,7 +706,7 @@ function GiocaPageContent() {
       </div>
 
       {/* Prediction Buttons - Diamond Layout (in-flow; scrolls with content) */}
-      {!canShowVeil && currentFixture && (
+      {!canShowVeil && currentFixture && !showSummaryScreen && (
         <PredictionButtons
           currentPrediction={currentPrediction}
           canShowVeil={canShowVeil}
@@ -750,8 +752,6 @@ function GiocaPageContent() {
         <GameSummaryScreen
           predictions={predictions}
           fixtures={fixtures}
-          onPlayAgain={handlePlayAgain}
-          onViewResults={handleViewResults}
         />
       )}
 
