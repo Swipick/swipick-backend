@@ -15,7 +15,7 @@ export { MatchDetails } from './MatchCard/MatchDetails';
 export { LastFiveResults } from './MatchCard/LastFiveResults';
 
 // Prediction Controls components
-export { PredictionButtons } from './PredictionControls/PredictionButtons';
+export { PredictionButtons } from './PredictionButtons/PredictionButtons';
 export { PredictionButton } from './PredictionControls/PredictionButton';
 
 // Modal components
