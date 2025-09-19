@@ -26,6 +26,7 @@ interface MatchCardProps {
     x?: MotionValue<number>;
     y?: MotionValue<number>;
     rotate?: MotionValue<number>;
+    opacity?: MotionValue<number>;
   };
   
   className?: string;

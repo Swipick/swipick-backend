@@ -264,8 +264,8 @@ function GiocaPageContent() {
       setCardZIndex('below-deck');
 
       // Start both animations simultaneously - snap back and fade out
-      const snapBackPromise = animateValue('y', -100, { type: 'spring', stiffness: 150, damping: 25, duration: 0.675 });
-      const fadeOutPromise = animateValue('opacity', 0, { type: 'tween', ease: 'easeOut', duration: 0.1875 }); // 50% of snap back duration
+      const snapBackPromise = animateValue('y', -100, { type: 'spring', stiffness: 150, damping: 25, duration: 0.84375 });
+      const fadeOutPromise = animateValue('opacity', 0, { type: 'tween', ease: 'easeOut', duration: 0.421875 }); // 50% of snap back duration
 
       await Promise.all([snapBackPromise, fadeOutPromise]);
 
@@ -486,10 +486,10 @@ function GiocaPageContent() {
         <div className="relative h-full flex items-start justify-center pt-8">
           {/* Preview Card (next card) */}
           {currentFixtureIndex < fixtures.length - 1 && (
-            <div 
+            <div
               className={`absolute top-0 left-0 right-0 flex items-start justify-center pt-8 ${previewOnTop ? 'z-20' : 'z-10'} pointer-events-none`}
             >
-              <div className="w-full max-w-sm transform scale-95 opacity-60">
+              <div className={`w-full max-w-sm transform scale-95 ${isSkipAnimating ? 'backdrop-opacity-100 ' : 'opacity-60'}`}>
                 <MatchCard
                   fixture={fixtures[(frozenPreviewIndex ?? (currentFixtureIndex + 1))]}
                   matchCard={matchCards.find(mc => mc.fixtureId === fixtures[(frozenPreviewIndex ?? (currentFixtureIndex + 1))]?.id)}
