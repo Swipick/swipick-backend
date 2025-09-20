@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MdOutlineIosShare } from 'react-icons/md';
 import { CountdownTimer } from './CountdownTimer';
 import { ProgressBar } from './ProgressBar';
+import { useLiveWeek } from '../../hooks/useLiveWeek';
 import type { TimeToMatch, GameMode } from '../../types';
 import { GAME_CONFIG } from '../../utils/constants';
 
@@ -84,34 +85,65 @@ export function GameHeader({
   };
 
   const modeLabel = currentMode === 'test' ? 'Modalità Test' : 'Live';
-  
-  // Calculate week date range from fixtures and determine week number
+
+  // Get reliable live week data from database (live mode only)
+  const { liveWeekData, loading: liveWeekLoading, error: liveWeekError } = useLiveWeek();
+
+  // Determine week data based on mode
   const getWeekData = () => {
-    if (!fixtures.length) return { from: '', to: '', weekNumber: selectedWeek || 1 };
-    
-    const dates = fixtures.map(f => new Date(f.date)).sort((a, b) => a.getTime() - b.getTime());
-    const firstDate = dates[0];
-    const lastDate = dates[dates.length - 1];
-    
-    const from = firstDate.toLocaleDateString('it-IT', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      timeZone: 'Europe/Rome' 
-    });
-    const to = lastDate.toLocaleDateString('it-IT', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      timeZone: 'Europe/Rome' 
-    });
-    
-    // For live mode, try to determine week from fixtures data
-    // We can look at the fixture.league.round or try to extract from dates
-    const weekNumber = selectedWeek || 3; // Default to week 3 as that's what we populated
-    
-    return { from, to, weekNumber };
+    if (currentMode === 'live') {
+      // Live mode: use reliable database data, no fallbacks
+      if (liveWeekError) {
+        return {
+          from: '',
+          to: '',
+          weekNumber: null,
+          error: `Live week error: ${liveWeekError}`
+        };
+      }
+
+      if (liveWeekLoading || !liveWeekData) {
+        return {
+          from: '',
+          to: '',
+          weekNumber: null,
+          error: null
+        };
+      }
+
+      // Use reliable data from database
+      return {
+        from: liveWeekData.weekDateRange.from,
+        to: liveWeekData.weekDateRange.to,
+        weekNumber: liveWeekData.currentWeek,
+        error: null
+      };
+    } else {
+      // Test mode: use selectedWeek with fixture-based date calculation fallback
+      if (!fixtures.length) {
+        return { from: '', to: '', weekNumber: selectedWeek || 1, error: null };
+      }
+
+      const dates = fixtures.map(f => new Date(f.date)).sort((a, b) => a.getTime() - b.getTime());
+      const firstDate = dates[0];
+      const lastDate = dates[dates.length - 1];
+
+      const from = firstDate.toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        timeZone: 'Europe/Rome'
+      });
+      const to = lastDate.toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        timeZone: 'Europe/Rome'
+      });
+
+      return { from, to, weekNumber: selectedWeek || 1, error: null };
+    }
   };
-  
-  const { from, to, weekNumber } = getWeekData();
+
+  const { from, to, weekNumber, error: weekDataError } = getWeekData();
   
   return (
     <div
@@ -135,9 +167,21 @@ export function GameHeader({
         
         {/* Week title */}
         <h1 className="text-base md:text-lg mb-1 whitespace-nowrap">
-          Giornata {weekNumber}
-          {from && to && (
-            <span className="opacity-90"> dal {from} al {to}</span>
+          {weekDataError ? (
+            <span className="text-red-200">
+              Errore settimana: {weekDataError}
+            </span>
+          ) : weekNumber ? (
+            <>
+              Giornata {weekNumber}
+              {from && to && (
+                <span className="opacity-90"> dal {from} al {to}</span>
+              )}
+            </>
+          ) : (
+            <span className="opacity-70">
+              {currentMode === 'live' ? 'Caricamento settimana...' : 'Giornata --'}
+            </span>
           )}
         </h1>
         
@@ -189,10 +233,10 @@ export function GameHeader({
                 }`}
                 onClick={handleShare}
                 disabled={shareLoading}
-                title="Condividi profilo"
+                title="Condividi previsione"
               >
                 <MdOutlineIosShare className="w-4 h-4" />
-                Condividi profilo
+                Condividi previsione
               </button>
             </div>
           </div>

@@ -51,9 +51,16 @@ export function useFixtures({
   const fetchGuardRef = useRef<string | null>(null);
 
   const fetchFixtures = useCallback(async () => {
-    const fetchKey = `${currentMode}:${currentMode === 'test' ? (selectedWeek ?? 'auto') : 'live'}:${userKey || 'anon'}`;
-    
+    const fetchKey = `${currentMode}:${selectedWeek ?? 'null'}:${userKey || 'anon'}`;
+
+    if (DEBUG_GIOCA) {
+      console.log('[gioca] fetchFixtures called with key:', fetchKey, 'previous key:', fetchGuardRef.current);
+    }
+
     if (fetchGuardRef.current === fetchKey) {
+      if (DEBUG_GIOCA) {
+        console.log('[gioca] skipping fetch - same key as previous');
+      }
       return; // Already fetched for this key
     }
     fetchGuardRef.current = fetchKey;
@@ -217,32 +224,21 @@ export function useFixtures({
         // Live mode logic - fetch from database fixtures by week
         try {
           // In live mode, find the current active week with upcoming matches
-          let targetWeek = selectedWeek || 1;
-          
-          // If we're in live mode and no specific week selected (null/undefined), find the week with upcoming matches
-          if (selectedWeek === null || selectedWeek === undefined) {
-            console.log('[DEBUG] Finding current active week with upcoming matches...');
-            const now = Date.now();
-            
-            // Check weeks 1-10 to find one with upcoming fixtures
-            for (let week = 1; week <= 10; week++) {
-              try {
-                const weekFixtures = await apiClient.getFixturesByWeek(week);
-                if (Array.isArray(weekFixtures) && weekFixtures.length > 0) {
-                  const upcomingInWeek = weekFixtures.filter(f => new Date(f.match_date).getTime() > now);
-                  console.log(`[DEBUG] Week ${week}: ${weekFixtures.length} total, ${upcomingInWeek.length} upcoming`);
-                  
-                  if (upcomingInWeek.length > 0) {
-                    targetWeek = week;
-                    console.log(`[DEBUG] Found active week: ${week} with ${upcomingInWeek.length} upcoming matches`);
-                    break;
-                  }
-                }
-              } catch (weekError) {
-                console.log(`[DEBUG] Week ${week} not available:`, weekError);
-              }
+          // For live mode, require selectedWeek to be explicitly provided
+          // No auto-detection fallbacks - this prevents unreliable data
+          if (!selectedWeek) {
+            if (DEBUG_GIOCA) {
+              console.log('[gioca] Live mode: waiting for selectedWeek to be provided');
             }
+            // Don't throw error immediately - let the loading state handle this
+            // Clear any existing data while waiting for selectedWeek
+            setFixtures([]);
+            setMatchCards([]);
+            setLoading(false);
+            return;
           }
+
+          const targetWeek = selectedWeek;
           
           // Fetch fixtures for the current week from database
           const dbFixtures = await apiClient.getFixturesByWeek(targetWeek);
@@ -335,6 +331,13 @@ export function useFixtures({
   }, [currentMode, selectedWeek, userKey, router, fixtures.length]);
 
   useEffect(() => {
+    if (DEBUG_GIOCA) {
+      console.log('[gioca] useEffect triggered for fetchFixtures', {
+        currentMode,
+        selectedWeek,
+        userKey: userKey ? 'present' : 'null'
+      });
+    }
     fetchFixtures();
   }, [fetchFixtures]);
 

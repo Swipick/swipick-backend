@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, Suspense, useEffect } from "react";
+import React, { useState, useCallback, Suspense, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMotionValue, useTransform, PanInfo, animate, MotionValue } from 'framer-motion';
 import { Toast } from '@/src/components/Toast';
@@ -11,6 +11,7 @@ import { apiClient } from "@/lib/api-client";
 import { useFixtures } from './hooks/useFixtures';
 import { usePredictions } from './hooks/usePredictions';
 import { useCountdown } from './hooks/useCountdown';
+import { useLiveWeek } from './hooks/useLiveWeek';
 
 // Components
 import {
@@ -34,24 +35,35 @@ function GiocaPageContent() {
   
   // Get mode from URL parameters or context
   const currentMode = ((searchParams?.get('mode') as 'live' | 'test' | null) ?? null) || mode;
-  
-  // Live week state  
-  const [currentLiveWeek] = useState<number | null>(null);
-  
-  // Selected week logic
-  const selectedWeek = (() => {
+
+  // Get reliable live week data (live mode only)
+  const { liveWeekData, loading: liveWeekLoading, error: liveWeekError } = useLiveWeek();
+
+  // Selected week logic - reliable, no fallbacks
+  const selectedWeek = useMemo(() => {
     if (currentMode === 'live') {
-      // In live mode, if no specific week is set, let useFixtures find the active week
+      // Live mode: use URL parameter if valid, otherwise use reliable database week
       const urlWeek = Number(searchParams?.get('week') ?? NaN);
       if (Number.isFinite(urlWeek) && urlWeek >= 1 && urlWeek <= 38) {
+        console.log('[page] Using URL week:', urlWeek);
         return urlWeek; // Use URL week if valid
       }
-      return currentLiveWeek || null; // Let useFixtures auto-find the week
+
+      // Use reliable current week from database
+      if (liveWeekData?.currentWeek) {
+        console.log('[page] Using live week from database:', liveWeekData.currentWeek);
+        return liveWeekData.currentWeek;
+      }
+
+      // If no reliable data available, return null (will cause error in useFixtures)
+      console.log('[page] No live week data available yet, returning null');
+      return null;
     } else {
+      // Test mode logic unchanged
       const w = Number(searchParams?.get('week') ?? NaN);
       return Number.isFinite(w) && w >= 1 && w <= 38 ? w : 1;
     }
-  })();
+  }, [currentMode, searchParams, liveWeekData]);
   
   // UI state
   const [userKey, setUserKey] = useState<string | null>(null);
@@ -81,7 +93,7 @@ function GiocaPageContent() {
     matchCards,
     loading,
     error,
-  } = useFixtures({ currentMode, selectedWeek, userKey, currentLiveWeek });
+  } = useFixtures({ currentMode, selectedWeek, userKey, currentLiveWeek: null });
 
   // Predictions management
   const {
@@ -561,13 +573,35 @@ function GiocaPageContent() {
     return false;
   })();
 
-  // Loading state
-  if (loading) {
+  // Live week error state (live mode only)
+  if (currentMode === 'live' && liveWeekError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center p-6">
+          <p className="text-red-600 mb-4">Impossibile determinare la settimana corrente: {liveWeekError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+          >
+            Riprova
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state (including live week loading)
+  if (loading || (currentMode === 'live' && liveWeekLoading)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Caricamento partite...</p>
+          <p className="text-gray-600">
+            {currentMode === 'live' && liveWeekLoading
+              ? 'Caricamento settimana corrente...'
+              : 'Caricamento partite...'
+            }
+          </p>
         </div>
       </div>
     );
