@@ -1,8 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { ApiFootballService } from '../api-football/api-football.service';
 import { CacheService } from '../cache/cache.service';
 import { FixturesService } from '../fixtures/fixtures.service';
+import { Fixture } from '../../entities/fixture.entity';
+import { Fixture as ApiFixture } from '../api-football/interfaces/fixture.interface';
 
 interface MatchCheckpoint {
   id: string;
@@ -27,6 +31,8 @@ export class SimpleMatchPollingService {
   private readonly MATCH_DURATION_MINUTES = 105; // 90 + 15 injury time
 
   constructor(
+    @InjectRepository(Fixture)
+    private readonly fixtureRepository: Repository<Fixture>,
     private readonly fixturesService: FixturesService,
     private readonly apiFootballService: ApiFootballService,
     private readonly cacheService: CacheService,
@@ -130,12 +136,7 @@ export class SimpleMatchPollingService {
           );
 
           if (this.canMakeApiCall()) {
-            // For now, just simulate the check
-            this.simulateApiCall();
-            checkpoint.kickoffChecked = true;
-            this.logger.log(
-              `✅ Kickoff confirmed for ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`,
-            );
+            await this.performKickoffCheck(checkpoint);
           } else {
             this.logger.warn(`⚠️ Cannot check kickoff - API limit reached`);
           }
@@ -152,12 +153,7 @@ export class SimpleMatchPollingService {
           );
 
           if (this.canMakeApiCall()) {
-            // For now, just simulate the check
-            this.simulateApiCall();
-            checkpoint.endChecked = true;
-            this.logger.log(
-              `🏁 Match end confirmed for ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`,
-            );
+            await this.performEndCheck(checkpoint);
           } else {
             this.logger.warn(`⚠️ Cannot check end - API limit reached`);
           }
@@ -192,13 +188,196 @@ export class SimpleMatchPollingService {
   }
 
   /**
-   * API budget management
+   * Perform actual kickoff check via API and update database
    */
-  private canMakeApiCall(): boolean {
-    return this.dailyApiCalls < this.MAX_DAILY_CALLS;
+  private async performKickoffCheck(checkpoint: MatchCheckpoint) {
+    try {
+      this.recordApiCall();
+
+      // Fetch live match data from API
+      const liveMatches = await this.apiFootballService.getLiveMatches();
+
+      // Look for our specific match in live data
+      const matchFound = liveMatches.find((match) =>
+        this.matchesCheckpoint(match, checkpoint),
+      );
+
+      if (matchFound) {
+        // Match is live - update database
+        await this.updateFixtureStatus(checkpoint.id, 'LIVE');
+        checkpoint.kickoffChecked = true;
+        checkpoint.status = 'LIVE';
+
+        this.logger.log(
+          `✅ Kickoff confirmed: ${checkpoint.homeTeam} vs ${checkpoint.awayTeam} is LIVE`,
+        );
+      } else {
+        // Check if match exists but is finished
+        const todayMatches = await this.apiFootballService.getDailyFixtures(
+          new Date().toISOString().split('T')[0],
+        );
+
+        const finishedMatch = todayMatches.find(
+          (match) =>
+            this.matchesCheckpoint(match, checkpoint) &&
+            (match.status?.short === 'FT' || match.status?.short === 'AET'),
+        );
+
+        if (finishedMatch) {
+          // Match finished before we could catch it live
+          await this.updateFixtureWithResults(checkpoint.id, finishedMatch);
+          checkpoint.kickoffChecked = true;
+          checkpoint.endChecked = true;
+          checkpoint.status = 'FINISHED';
+
+          this.logger.log(
+            `⚡ Match already finished: ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`,
+          );
+        } else {
+          // Match hasn't started yet or not in API data
+          checkpoint.kickoffChecked = true; // Mark as checked to avoid repeated checks
+
+          this.logger.warn(
+            `⚠️ Match not found in live/finished data: ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`,
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed kickoff check for ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`,
+        error,
+      );
+    }
   }
 
-  private simulateApiCall() {
+  /**
+   * Perform actual end check via API and update database
+   */
+  private async performEndCheck(checkpoint: MatchCheckpoint) {
+    try {
+      this.recordApiCall();
+
+      // Fetch daily fixtures to check for finished status
+      const todayMatches = await this.apiFootballService.getDailyFixtures(
+        new Date().toISOString().split('T')[0],
+      );
+
+      const matchData = todayMatches.find((match) =>
+        this.matchesCheckpoint(match, checkpoint),
+      );
+
+      if (
+        matchData &&
+        (matchData.status?.short === 'FT' || matchData.status?.short === 'AET')
+      ) {
+        // Match is finished - update database with final results
+        await this.updateFixtureWithResults(checkpoint.id, matchData);
+        checkpoint.endChecked = true;
+        checkpoint.status = 'FINISHED';
+
+        this.logger.log(
+          `🏁 Match completed: ${checkpoint.homeTeam} vs ${checkpoint.awayTeam} - ${matchData.goals?.home || 0}:${matchData.goals?.away || 0}`,
+        );
+      } else {
+        // Match still ongoing or not found
+        this.logger.debug(
+          `⏳ Match still ongoing: ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed end check for ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`,
+        error,
+      );
+    }
+  }
+
+  /**
+   * Update fixture status in database
+   */
+  private async updateFixtureStatus(
+    fixtureId: string,
+    status: 'LIVE' | 'FINISHED',
+  ) {
+    try {
+      await this.fixtureRepository.update(fixtureId, {
+        status,
+        updated_at: new Date(),
+      });
+
+      this.logger.debug(`Updated fixture ${fixtureId} status to ${status}`);
+    } catch (error) {
+      this.logger.error(`Failed to update fixture status: ${fixtureId}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update fixture with final results (scores, status, result)
+   */
+  private async updateFixtureWithResults(
+    fixtureId: string,
+    matchData: ApiFixture,
+  ) {
+    try {
+      const homeScore = matchData.goals?.home || 0;
+      const awayScore = matchData.goals?.away || 0;
+      const result = this.calculateResult(homeScore, awayScore);
+
+      await this.fixtureRepository.update(fixtureId, {
+        status: 'FINISHED',
+        home_score: homeScore,
+        away_score: awayScore,
+        result,
+        updated_at: new Date(),
+      });
+
+      this.logger.log(
+        `Updated fixture ${fixtureId} with final result: ${homeScore}-${awayScore} (${result})`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to update fixture results: ${fixtureId}`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Calculate match result (1, X, 2)
+   */
+  private calculateResult(
+    homeScore: number,
+    awayScore: number,
+  ): '1' | 'X' | '2' {
+    if (homeScore > awayScore) return '1'; // Home win
+    if (homeScore < awayScore) return '2'; // Away win
+    return 'X'; // Draw
+  }
+
+  /**
+   * Check if API match data matches our checkpoint
+   */
+  private matchesCheckpoint(
+    matchData: ApiFixture,
+    checkpoint: MatchCheckpoint,
+  ): boolean {
+    const homeTeam = matchData.teams?.home?.name || '';
+    const awayTeam = matchData.teams?.away?.name || '';
+
+    return (
+      (homeTeam.toLowerCase().includes(checkpoint.homeTeam.toLowerCase()) ||
+        checkpoint.homeTeam.toLowerCase().includes(homeTeam.toLowerCase())) &&
+      (awayTeam.toLowerCase().includes(checkpoint.awayTeam.toLowerCase()) ||
+        checkpoint.awayTeam.toLowerCase().includes(awayTeam.toLowerCase()))
+    );
+  }
+
+  /**
+   * Record API call for budget tracking
+   */
+  private recordApiCall() {
     this.dailyApiCalls++;
     this.cacheService.set(
       'simple-polling:daily-calls',
@@ -206,8 +385,15 @@ export class SimpleMatchPollingService {
       24 * 60 * 60,
     );
     this.logger.debug(
-      `📞 API call simulated (${this.dailyApiCalls}/${this.MAX_DAILY_CALLS})`,
+      `📞 API call made (${this.dailyApiCalls}/${this.MAX_DAILY_CALLS})`,
     );
+  }
+
+  /**
+   * API budget management
+   */
+  private canMakeApiCall(): boolean {
+    return this.dailyApiCalls < this.MAX_DAILY_CALLS;
   }
 
   private async resetDailyCounterIfNeeded() {
@@ -269,12 +455,23 @@ export class SimpleMatchPollingService {
     this.logger.log(
       `🔧 Manual check triggered for ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`,
     );
-    this.simulateApiCall();
+
+    // Determine what type of check to perform
+    if (!checkpoint.kickoffChecked) {
+      await this.performKickoffCheck(checkpoint);
+    } else if (!checkpoint.endChecked) {
+      await this.performEndCheck(checkpoint);
+    }
 
     return {
       success: true,
       message: `Manual check completed for ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`,
       apiCallsRemaining: this.MAX_DAILY_CALLS - this.dailyApiCalls,
+      checkpoint: {
+        kickoffChecked: checkpoint.kickoffChecked,
+        endChecked: checkpoint.endChecked,
+        status: checkpoint.status,
+      },
     };
   }
 }

@@ -717,8 +717,8 @@ function RisultatiPageContent() {
       if (mode === 'test') {
         resp = await apiClient.getTestWeeklyStats(userId, week);
       } else {
-        // For live mode, use user summary endpoint (working endpoint)
-        resp = await apiClient.getUserSummary(userId, 'live');
+        // For live mode, use week-specific endpoint to get fixture predictions
+        resp = await apiClient.getLiveWeeklyStats(userId, week);
       }
 
       const stats: TestWeeklyStatsResp | null = (resp && typeof resp === 'object' && 'data' in (resp as Record<string, unknown>))
@@ -808,6 +808,29 @@ function RisultatiPageContent() {
   }, [selectedWeek, meter]);
 
   const onReveal = async (fixtureId: string, anchorEl?: HTMLElement) => {
+    // Guard: in Live Mode, prevent revealing future matches
+    if (mode === 'live') {
+      const match = weekCards.find(m => m.fixtureId === fixtureId);
+      if (match) {
+        const kickoffTime = new Date(match.kickoff.iso);
+        const now = new Date();
+        if (kickoffTime > now) {
+          if (DEBUG_RISULTATI) {
+            try {
+              console.warn('[risultati] reveal blocked - future match', {
+                fixtureId,
+                kickoff: match.kickoff.iso,
+                now: now.toISOString(),
+                reason: 'match not started yet'
+              });
+            } catch {}
+          }
+          setToast('Non puoi rivelare risultati di partite non ancora iniziate.');
+          return;
+        }
+      }
+    }
+
     // Guard: in Test Mode, for weeks > 1, require at least 10 predictions to reveal
     if (mode === 'test' && selectedWeek > 1) {
       // Fast-path: if current stats show not allowed, block and try re-check to be safe

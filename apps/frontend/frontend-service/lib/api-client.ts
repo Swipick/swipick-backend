@@ -316,6 +316,11 @@ class ApiClient {
     return this.request(`/predictions/user/${userId}/week/${week}?mode=test`);
   }
 
+  async getLiveWeeklyStats(userId: string | number, week: number) {
+    // Use BFF mode-switching endpoint to reach gaming live-mode stats
+    return this.request(`/predictions/user/${userId}/week/${week}?mode=live`);
+  }
+
   async getTestUserSummary(userId: string | number) {
     // Use BFF mode-switching endpoint to reach gaming test-mode summary
     return this.request(`/predictions/user/${userId}/summary?mode=test`);

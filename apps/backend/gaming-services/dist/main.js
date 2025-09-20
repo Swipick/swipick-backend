@@ -118525,6 +118525,94 @@ exports.HealthService = HealthService = HealthService_1 = __decorate([
 
 /***/ }),
 
+/***/ "./src/modules/live-updates/live-updates.controller.ts":
+/*!*************************************************************!*\
+  !*** ./src/modules/live-updates/live-updates.controller.ts ***!
+  \*************************************************************/
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+var _a;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.LiveUpdatesController = void 0;
+const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
+const simple_match_polling_service_1 = __webpack_require__(/*! ./simple-match-polling.service */ "./src/modules/live-updates/simple-match-polling.service.ts");
+let LiveUpdatesController = class LiveUpdatesController {
+    constructor(simpleMatchPollingService) {
+        this.simpleMatchPollingService = simpleMatchPollingService;
+    }
+    async getPollingStats() {
+        return this.simpleMatchPollingService.getPollingStats();
+    }
+    async triggerManualCheck(fixtureId) {
+        return this.simpleMatchPollingService.triggerManualCheck(fixtureId);
+    }
+    async triggerManualCheckAll() {
+        const stats = await this.simpleMatchPollingService.getPollingStats();
+        const results = [];
+        for (const checkpoint of stats.checkpoints) {
+            if (!checkpoint.kickoffChecked || !checkpoint.endChecked) {
+                try {
+                    const result = await this.simpleMatchPollingService.triggerManualCheck(checkpoint.id);
+                    results.push({ fixtureId: checkpoint.id, ...result });
+                }
+                catch (error) {
+                    results.push({
+                        fixtureId: checkpoint.id,
+                        success: false,
+                        error: error.message,
+                    });
+                }
+            }
+        }
+        return {
+            success: true,
+            processed: results.length,
+            results,
+        };
+    }
+};
+exports.LiveUpdatesController = LiveUpdatesController;
+__decorate([
+    (0, common_1.Get)('polling-stats'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], LiveUpdatesController.prototype, "getPollingStats", null);
+__decorate([
+    (0, common_1.Post)('manual-check/:fixtureId'),
+    __param(0, (0, common_1.Param)('fixtureId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], LiveUpdatesController.prototype, "triggerManualCheck", null);
+__decorate([
+    (0, common_1.Post)('manual-check-all'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], LiveUpdatesController.prototype, "triggerManualCheckAll", null);
+exports.LiveUpdatesController = LiveUpdatesController = __decorate([
+    (0, common_1.Controller)('live-updates'),
+    __metadata("design:paramtypes", [typeof (_a = typeof simple_match_polling_service_1.SimpleMatchPollingService !== "undefined" && simple_match_polling_service_1.SimpleMatchPollingService) === "function" ? _a : Object])
+], LiveUpdatesController);
+
+
+/***/ }),
+
 /***/ "./src/modules/live-updates/live-updates.gateway.ts":
 /*!**********************************************************!*\
   !*** ./src/modules/live-updates/live-updates.gateway.ts ***!
@@ -118672,27 +118760,35 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.LiveUpdatesModule = void 0;
 const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
+const typeorm_1 = __webpack_require__(/*! @nestjs/typeorm */ "../../../node_modules/@nestjs/typeorm/index.js");
 const live_updates_service_1 = __webpack_require__(/*! ./live-updates.service */ "./src/modules/live-updates/live-updates.service.ts");
 const live_updates_gateway_1 = __webpack_require__(/*! ./live-updates.gateway */ "./src/modules/live-updates/live-updates.gateway.ts");
 const live_updates_scheduler_1 = __webpack_require__(/*! ./live-updates.scheduler */ "./src/modules/live-updates/live-updates.scheduler.ts");
 const simple_match_polling_service_1 = __webpack_require__(/*! ./simple-match-polling.service */ "./src/modules/live-updates/simple-match-polling.service.ts");
 const polling_stats_controller_1 = __webpack_require__(/*! ./polling-stats.controller */ "./src/modules/live-updates/polling-stats.controller.ts");
+const live_updates_controller_1 = __webpack_require__(/*! ./live-updates.controller */ "./src/modules/live-updates/live-updates.controller.ts");
 const fixtures_module_1 = __webpack_require__(/*! ../fixtures/fixtures.module */ "./src/modules/fixtures/fixtures.module.ts");
 const api_football_module_1 = __webpack_require__(/*! ../api-football/api-football.module */ "./src/modules/api-football/api-football.module.ts");
 const cache_module_1 = __webpack_require__(/*! ../cache/cache.module */ "./src/modules/cache/cache.module.ts");
+const fixture_entity_1 = __webpack_require__(/*! ../../entities/fixture.entity */ "./src/entities/fixture.entity.ts");
 let LiveUpdatesModule = class LiveUpdatesModule {
 };
 exports.LiveUpdatesModule = LiveUpdatesModule;
 exports.LiveUpdatesModule = LiveUpdatesModule = __decorate([
     (0, common_1.Module)({
-        imports: [fixtures_module_1.FixturesModule, api_football_module_1.ApiFootballModule, cache_module_1.CacheServiceModule],
+        imports: [
+            typeorm_1.TypeOrmModule.forFeature([fixture_entity_1.Fixture]),
+            fixtures_module_1.FixturesModule,
+            api_football_module_1.ApiFootballModule,
+            cache_module_1.CacheServiceModule,
+        ],
         providers: [
             live_updates_service_1.LiveUpdatesService,
             live_updates_gateway_1.LiveUpdatesGateway,
             live_updates_scheduler_1.LiveUpdatesScheduler,
             simple_match_polling_service_1.SimpleMatchPollingService,
         ],
-        controllers: [polling_stats_controller_1.PollingStatsController],
+        controllers: [polling_stats_controller_1.PollingStatsController, live_updates_controller_1.LiveUpdatesController],
         exports: [live_updates_service_1.LiveUpdatesService, live_updates_gateway_1.LiveUpdatesGateway, simple_match_polling_service_1.SimpleMatchPollingService],
     })
 ], LiveUpdatesModule);
@@ -119048,17 +119144,24 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 var SimpleMatchPollingService_1;
-var _a, _b, _c;
+var _a, _b, _c, _d;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SimpleMatchPollingService = void 0;
 const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
 const schedule_1 = __webpack_require__(/*! @nestjs/schedule */ "../../../node_modules/@nestjs/schedule/index.js");
+const typeorm_1 = __webpack_require__(/*! @nestjs/typeorm */ "../../../node_modules/@nestjs/typeorm/index.js");
+const typeorm_2 = __webpack_require__(/*! typeorm */ "../../../node_modules/typeorm/index.js");
 const api_football_service_1 = __webpack_require__(/*! ../api-football/api-football.service */ "./src/modules/api-football/api-football.service.ts");
 const cache_service_1 = __webpack_require__(/*! ../cache/cache.service */ "./src/modules/cache/cache.service.ts");
 const fixtures_service_1 = __webpack_require__(/*! ../fixtures/fixtures.service */ "./src/modules/fixtures/fixtures.service.ts");
+const fixture_entity_1 = __webpack_require__(/*! ../../entities/fixture.entity */ "./src/entities/fixture.entity.ts");
 let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchPollingService {
-    constructor(fixturesService, apiFootballService, cacheService) {
+    constructor(fixtureRepository, fixturesService, apiFootballService, cacheService) {
+        this.fixtureRepository = fixtureRepository;
         this.fixturesService = fixturesService;
         this.apiFootballService = apiFootballService;
         this.cacheService = cacheService;
@@ -119130,9 +119233,7 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
                     this.shouldCheckKickoff(checkpoint, now)) {
                     this.logger.log(`🏁 KICKOFF CHECK: ${checkpoint.homeTeam} vs ${checkpoint.awayTeam} (${this.dailyApiCalls}/${this.MAX_DAILY_CALLS} API calls used)`);
                     if (this.canMakeApiCall()) {
-                        this.simulateApiCall();
-                        checkpoint.kickoffChecked = true;
-                        this.logger.log(`✅ Kickoff confirmed for ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`);
+                        await this.performKickoffCheck(checkpoint);
                     }
                     else {
                         this.logger.warn(`⚠️ Cannot check kickoff - API limit reached`);
@@ -119143,9 +119244,7 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
                     this.shouldCheckEnd(checkpoint, now)) {
                     this.logger.log(`⏰ END CHECK: ${checkpoint.homeTeam} vs ${checkpoint.awayTeam} (${this.dailyApiCalls}/${this.MAX_DAILY_CALLS} API calls used)`);
                     if (this.canMakeApiCall()) {
-                        this.simulateApiCall();
-                        checkpoint.endChecked = true;
-                        this.logger.log(`🏁 Match end confirmed for ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`);
+                        await this.performEndCheck(checkpoint);
                     }
                     else {
                         this.logger.warn(`⚠️ Cannot check end - API limit reached`);
@@ -119166,13 +119265,112 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
             this.MATCH_DURATION_MINUTES * 60 * 1000);
         return now.getTime() >= endCheckTime.getTime();
     }
-    canMakeApiCall() {
-        return this.dailyApiCalls < this.MAX_DAILY_CALLS;
+    async performKickoffCheck(checkpoint) {
+        try {
+            this.recordApiCall();
+            const liveMatches = await this.apiFootballService.getLiveMatches();
+            const matchFound = liveMatches.find((match) => this.matchesCheckpoint(match, checkpoint));
+            if (matchFound) {
+                await this.updateFixtureStatus(checkpoint.id, 'LIVE');
+                checkpoint.kickoffChecked = true;
+                checkpoint.status = 'LIVE';
+                this.logger.log(`✅ Kickoff confirmed: ${checkpoint.homeTeam} vs ${checkpoint.awayTeam} is LIVE`);
+            }
+            else {
+                const todayMatches = await this.apiFootballService.getDailyFixtures(new Date().toISOString().split('T')[0]);
+                const finishedMatch = todayMatches.find((match) => this.matchesCheckpoint(match, checkpoint) &&
+                    (match.status?.short === 'FT' || match.status?.short === 'AET'));
+                if (finishedMatch) {
+                    await this.updateFixtureWithResults(checkpoint.id, finishedMatch);
+                    checkpoint.kickoffChecked = true;
+                    checkpoint.endChecked = true;
+                    checkpoint.status = 'FINISHED';
+                    this.logger.log(`⚡ Match already finished: ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`);
+                }
+                else {
+                    checkpoint.kickoffChecked = true;
+                    this.logger.warn(`⚠️ Match not found in live/finished data: ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`);
+                }
+            }
+        }
+        catch (error) {
+            this.logger.error(`Failed kickoff check for ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`, error);
+        }
     }
-    simulateApiCall() {
+    async performEndCheck(checkpoint) {
+        try {
+            this.recordApiCall();
+            const todayMatches = await this.apiFootballService.getDailyFixtures(new Date().toISOString().split('T')[0]);
+            const matchData = todayMatches.find((match) => this.matchesCheckpoint(match, checkpoint));
+            if (matchData &&
+                (matchData.status?.short === 'FT' || matchData.status?.short === 'AET')) {
+                await this.updateFixtureWithResults(checkpoint.id, matchData);
+                checkpoint.endChecked = true;
+                checkpoint.status = 'FINISHED';
+                this.logger.log(`🏁 Match completed: ${checkpoint.homeTeam} vs ${checkpoint.awayTeam} - ${matchData.goals?.home || 0}:${matchData.goals?.away || 0}`);
+            }
+            else {
+                this.logger.debug(`⏳ Match still ongoing: ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`);
+            }
+        }
+        catch (error) {
+            this.logger.error(`Failed end check for ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`, error);
+        }
+    }
+    async updateFixtureStatus(fixtureId, status) {
+        try {
+            await this.fixtureRepository.update(fixtureId, {
+                status,
+                updated_at: new Date(),
+            });
+            this.logger.debug(`Updated fixture ${fixtureId} status to ${status}`);
+        }
+        catch (error) {
+            this.logger.error(`Failed to update fixture status: ${fixtureId}`, error);
+            throw error;
+        }
+    }
+    async updateFixtureWithResults(fixtureId, matchData) {
+        try {
+            const homeScore = matchData.goals?.home || 0;
+            const awayScore = matchData.goals?.away || 0;
+            const result = this.calculateResult(homeScore, awayScore);
+            await this.fixtureRepository.update(fixtureId, {
+                status: 'FINISHED',
+                home_score: homeScore,
+                away_score: awayScore,
+                result,
+                updated_at: new Date(),
+            });
+            this.logger.log(`Updated fixture ${fixtureId} with final result: ${homeScore}-${awayScore} (${result})`);
+        }
+        catch (error) {
+            this.logger.error(`Failed to update fixture results: ${fixtureId}`, error);
+            throw error;
+        }
+    }
+    calculateResult(homeScore, awayScore) {
+        if (homeScore > awayScore)
+            return '1';
+        if (homeScore < awayScore)
+            return '2';
+        return 'X';
+    }
+    matchesCheckpoint(matchData, checkpoint) {
+        const homeTeam = matchData.teams?.home?.name || '';
+        const awayTeam = matchData.teams?.away?.name || '';
+        return ((homeTeam.toLowerCase().includes(checkpoint.homeTeam.toLowerCase()) ||
+            checkpoint.homeTeam.toLowerCase().includes(homeTeam.toLowerCase())) &&
+            (awayTeam.toLowerCase().includes(checkpoint.awayTeam.toLowerCase()) ||
+                checkpoint.awayTeam.toLowerCase().includes(awayTeam.toLowerCase())));
+    }
+    recordApiCall() {
         this.dailyApiCalls++;
         this.cacheService.set('simple-polling:daily-calls', this.dailyApiCalls, 24 * 60 * 60);
-        this.logger.debug(`📞 API call simulated (${this.dailyApiCalls}/${this.MAX_DAILY_CALLS})`);
+        this.logger.debug(`📞 API call made (${this.dailyApiCalls}/${this.MAX_DAILY_CALLS})`);
+    }
+    canMakeApiCall() {
+        return this.dailyApiCalls < this.MAX_DAILY_CALLS;
     }
     async resetDailyCounterIfNeeded() {
         const now = new Date();
@@ -119214,11 +119412,21 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
             throw new Error('Daily API limit reached');
         }
         this.logger.log(`🔧 Manual check triggered for ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`);
-        this.simulateApiCall();
+        if (!checkpoint.kickoffChecked) {
+            await this.performKickoffCheck(checkpoint);
+        }
+        else if (!checkpoint.endChecked) {
+            await this.performEndCheck(checkpoint);
+        }
         return {
             success: true,
             message: `Manual check completed for ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`,
             apiCallsRemaining: this.MAX_DAILY_CALLS - this.dailyApiCalls,
+            checkpoint: {
+                kickoffChecked: checkpoint.kickoffChecked,
+                endChecked: checkpoint.endChecked,
+                status: checkpoint.status,
+            },
         };
     }
 };
@@ -119234,7 +119442,8 @@ __decorate([
 ], SimpleMatchPollingService.prototype, "checkMatchCheckpoints", null);
 exports.SimpleMatchPollingService = SimpleMatchPollingService = SimpleMatchPollingService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [typeof (_a = typeof fixtures_service_1.FixturesService !== "undefined" && fixtures_service_1.FixturesService) === "function" ? _a : Object, typeof (_b = typeof api_football_service_1.ApiFootballService !== "undefined" && api_football_service_1.ApiFootballService) === "function" ? _b : Object, typeof (_c = typeof cache_service_1.CacheService !== "undefined" && cache_service_1.CacheService) === "function" ? _c : Object])
+    __param(0, (0, typeorm_1.InjectRepository)(fixture_entity_1.Fixture)),
+    __metadata("design:paramtypes", [typeof (_a = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _a : Object, typeof (_b = typeof fixtures_service_1.FixturesService !== "undefined" && fixtures_service_1.FixturesService) === "function" ? _b : Object, typeof (_c = typeof api_football_service_1.ApiFootballService !== "undefined" && api_football_service_1.ApiFootballService) === "function" ? _c : Object, typeof (_d = typeof cache_service_1.CacheService !== "undefined" && cache_service_1.CacheService) === "function" ? _d : Object])
 ], SimpleMatchPollingService);
 
 
