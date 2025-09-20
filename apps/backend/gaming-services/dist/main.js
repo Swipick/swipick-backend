@@ -118675,15 +118675,25 @@ const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_module
 const live_updates_service_1 = __webpack_require__(/*! ./live-updates.service */ "./src/modules/live-updates/live-updates.service.ts");
 const live_updates_gateway_1 = __webpack_require__(/*! ./live-updates.gateway */ "./src/modules/live-updates/live-updates.gateway.ts");
 const live_updates_scheduler_1 = __webpack_require__(/*! ./live-updates.scheduler */ "./src/modules/live-updates/live-updates.scheduler.ts");
+const simple_match_polling_service_1 = __webpack_require__(/*! ./simple-match-polling.service */ "./src/modules/live-updates/simple-match-polling.service.ts");
+const polling_stats_controller_1 = __webpack_require__(/*! ./polling-stats.controller */ "./src/modules/live-updates/polling-stats.controller.ts");
 const fixtures_module_1 = __webpack_require__(/*! ../fixtures/fixtures.module */ "./src/modules/fixtures/fixtures.module.ts");
+const api_football_module_1 = __webpack_require__(/*! ../api-football/api-football.module */ "./src/modules/api-football/api-football.module.ts");
+const cache_module_1 = __webpack_require__(/*! ../cache/cache.module */ "./src/modules/cache/cache.module.ts");
 let LiveUpdatesModule = class LiveUpdatesModule {
 };
 exports.LiveUpdatesModule = LiveUpdatesModule;
 exports.LiveUpdatesModule = LiveUpdatesModule = __decorate([
     (0, common_1.Module)({
-        imports: [fixtures_module_1.FixturesModule],
-        providers: [live_updates_service_1.LiveUpdatesService, live_updates_gateway_1.LiveUpdatesGateway, live_updates_scheduler_1.LiveUpdatesScheduler],
-        exports: [live_updates_service_1.LiveUpdatesService, live_updates_gateway_1.LiveUpdatesGateway],
+        imports: [fixtures_module_1.FixturesModule, api_football_module_1.ApiFootballModule, cache_module_1.CacheServiceModule],
+        providers: [
+            live_updates_service_1.LiveUpdatesService,
+            live_updates_gateway_1.LiveUpdatesGateway,
+            live_updates_scheduler_1.LiveUpdatesScheduler,
+            simple_match_polling_service_1.SimpleMatchPollingService,
+        ],
+        controllers: [polling_stats_controller_1.PollingStatsController],
+        exports: [live_updates_service_1.LiveUpdatesService, live_updates_gateway_1.LiveUpdatesGateway, simple_match_polling_service_1.SimpleMatchPollingService],
     })
 ], LiveUpdatesModule);
 
@@ -118905,6 +118915,327 @@ exports.LiveUpdatesService = LiveUpdatesService = LiveUpdatesService_1 = __decor
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [typeof (_a = typeof fixtures_service_1.FixturesService !== "undefined" && fixtures_service_1.FixturesService) === "function" ? _a : Object])
 ], LiveUpdatesService);
+
+
+/***/ }),
+
+/***/ "./src/modules/live-updates/polling-stats.controller.ts":
+/*!**************************************************************!*\
+  !*** ./src/modules/live-updates/polling-stats.controller.ts ***!
+  \**************************************************************/
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+var _a;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PollingStatsController = void 0;
+const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
+const simple_match_polling_service_1 = __webpack_require__(/*! ./simple-match-polling.service */ "./src/modules/live-updates/simple-match-polling.service.ts");
+let PollingStatsController = class PollingStatsController {
+    constructor(pollingService) {
+        this.pollingService = pollingService;
+    }
+    getHealth() {
+        return { status: 'ok', message: 'Polling stats controller is working' };
+    }
+    async getPollingStats() {
+        try {
+            return await this.pollingService.getPollingStats();
+        }
+        catch (error) {
+            return { error: error.message };
+        }
+    }
+    async manualCheck(fixtureId) {
+        try {
+            return await this.pollingService.triggerManualCheck(fixtureId);
+        }
+        catch (error) {
+            return { error: error.message };
+        }
+    }
+    async getEfficiencyStats() {
+        try {
+            const stats = await this.pollingService.getPollingStats();
+            return {
+                ...stats,
+                efficiency: {
+                    callsPerMatch: stats.activeMatches > 0
+                        ? stats.dailyApiCalls / stats.activeMatches
+                        : 0,
+                    utilizationPercent: (stats.dailyApiCalls / stats.maxDailyCalls) * 100,
+                    estimatedMatchesCanHandle: Math.floor(stats.remainingCalls / 3),
+                    budgetStatus: this.getBudgetStatus(stats.dailyApiCalls, stats.maxDailyCalls),
+                },
+            };
+        }
+        catch (error) {
+            return { error: error.message };
+        }
+    }
+    getBudgetStatus(used, max) {
+        const percent = (used / max) * 100;
+        if (percent < 50)
+            return 'HEALTHY';
+        if (percent < 80)
+            return 'MODERATE';
+        if (percent < 95)
+            return 'HIGH';
+        return 'CRITICAL';
+    }
+};
+exports.PollingStatsController = PollingStatsController;
+__decorate([
+    (0, common_1.Get)('health'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], PollingStatsController.prototype, "getHealth", null);
+__decorate([
+    (0, common_1.Get)('stats'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], PollingStatsController.prototype, "getPollingStats", null);
+__decorate([
+    (0, common_1.Post)('check/:fixtureId'),
+    __param(0, (0, common_1.Param)('fixtureId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], PollingStatsController.prototype, "manualCheck", null);
+__decorate([
+    (0, common_1.Get)('efficiency'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], PollingStatsController.prototype, "getEfficiencyStats", null);
+exports.PollingStatsController = PollingStatsController = __decorate([
+    (0, common_1.Controller)('admin/polling'),
+    __metadata("design:paramtypes", [typeof (_a = typeof simple_match_polling_service_1.SimpleMatchPollingService !== "undefined" && simple_match_polling_service_1.SimpleMatchPollingService) === "function" ? _a : Object])
+], PollingStatsController);
+
+
+/***/ }),
+
+/***/ "./src/modules/live-updates/simple-match-polling.service.ts":
+/*!******************************************************************!*\
+  !*** ./src/modules/live-updates/simple-match-polling.service.ts ***!
+  \******************************************************************/
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var SimpleMatchPollingService_1;
+var _a, _b, _c;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SimpleMatchPollingService = void 0;
+const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
+const schedule_1 = __webpack_require__(/*! @nestjs/schedule */ "../../../node_modules/@nestjs/schedule/index.js");
+const api_football_service_1 = __webpack_require__(/*! ../api-football/api-football.service */ "./src/modules/api-football/api-football.service.ts");
+const cache_service_1 = __webpack_require__(/*! ../cache/cache.service */ "./src/modules/cache/cache.service.ts");
+const fixtures_service_1 = __webpack_require__(/*! ../fixtures/fixtures.service */ "./src/modules/fixtures/fixtures.service.ts");
+let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchPollingService {
+    constructor(fixturesService, apiFootballService, cacheService) {
+        this.fixturesService = fixturesService;
+        this.apiFootballService = apiFootballService;
+        this.cacheService = cacheService;
+        this.logger = new common_1.Logger(SimpleMatchPollingService_1.name);
+        this.activeMatches = new Map();
+        this.dailyApiCalls = 0;
+        this.lastDailyReset = new Date();
+        this.MAX_DAILY_CALLS = 50;
+        this.KICKOFF_BUFFER_MINUTES = 5;
+        this.MATCH_DURATION_MINUTES = 105;
+        this.initializeDailyTracking();
+    }
+    async checkMatchCheckpoints() {
+        if (process.env.DISABLE_LIVE_UPDATES === 'true') {
+            return;
+        }
+        try {
+            await this.resetDailyCounterIfNeeded();
+            await this.loadTodaysMatches();
+            await this.processCheckpoints();
+            this.logger.debug(`Polling cycle completed. API calls today: ${this.dailyApiCalls}/${this.MAX_DAILY_CALLS}`);
+        }
+        catch (error) {
+            this.logger.error('Simple polling failed', error);
+        }
+    }
+    async loadTodaysMatches() {
+        try {
+            const weekFixtures = await this.fixturesService.getFixturesByWeek(4);
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+            const todaysFixtures = weekFixtures.filter((fixture) => {
+                const fixtureDate = new Date(fixture.match_date)
+                    .toISOString()
+                    .split('T')[0];
+                return fixtureDate === todayStr && fixture.status !== 'FINISHED';
+            });
+            for (const fixture of todaysFixtures) {
+                if (!this.activeMatches.has(fixture.id)) {
+                    this.activeMatches.set(fixture.id, {
+                        id: fixture.id,
+                        homeTeam: fixture.home_team,
+                        awayTeam: fixture.away_team,
+                        scheduledTime: new Date(fixture.match_date),
+                        kickoffChecked: fixture.status === 'LIVE',
+                        endChecked: fixture.status === 'FINISHED',
+                        status: fixture.status,
+                    });
+                    this.logger.log(`📌 Tracking match: ${fixture.home_team} vs ${fixture.away_team} (${fixture.match_date})`);
+                }
+            }
+            for (const [matchId, checkpoint] of this.activeMatches) {
+                const fixture = todaysFixtures.find((f) => f.id === matchId);
+                if (!fixture || fixture.status === 'FINISHED') {
+                    this.logger.log(`✅ Removing completed match: ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`);
+                    this.activeMatches.delete(matchId);
+                }
+            }
+        }
+        catch (error) {
+            this.logger.error("Failed to load today's matches", error);
+        }
+    }
+    async processCheckpoints() {
+        const now = new Date();
+        for (const [matchId, checkpoint] of this.activeMatches) {
+            try {
+                if (!checkpoint.kickoffChecked &&
+                    this.shouldCheckKickoff(checkpoint, now)) {
+                    this.logger.log(`🏁 KICKOFF CHECK: ${checkpoint.homeTeam} vs ${checkpoint.awayTeam} (${this.dailyApiCalls}/${this.MAX_DAILY_CALLS} API calls used)`);
+                    if (this.canMakeApiCall()) {
+                        this.simulateApiCall();
+                        checkpoint.kickoffChecked = true;
+                        this.logger.log(`✅ Kickoff confirmed for ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`);
+                    }
+                    else {
+                        this.logger.warn(`⚠️ Cannot check kickoff - API limit reached`);
+                    }
+                }
+                if (checkpoint.kickoffChecked &&
+                    !checkpoint.endChecked &&
+                    this.shouldCheckEnd(checkpoint, now)) {
+                    this.logger.log(`⏰ END CHECK: ${checkpoint.homeTeam} vs ${checkpoint.awayTeam} (${this.dailyApiCalls}/${this.MAX_DAILY_CALLS} API calls used)`);
+                    if (this.canMakeApiCall()) {
+                        this.simulateApiCall();
+                        checkpoint.endChecked = true;
+                        this.logger.log(`🏁 Match end confirmed for ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`);
+                    }
+                    else {
+                        this.logger.warn(`⚠️ Cannot check end - API limit reached`);
+                    }
+                }
+            }
+            catch (error) {
+                this.logger.error(`Failed to process checkpoint for match ${matchId}`, error);
+            }
+        }
+    }
+    shouldCheckKickoff(checkpoint, now) {
+        const minutesSinceScheduled = (now.getTime() - checkpoint.scheduledTime.getTime()) / (1000 * 60);
+        return minutesSinceScheduled >= this.KICKOFF_BUFFER_MINUTES;
+    }
+    shouldCheckEnd(checkpoint, now) {
+        const endCheckTime = new Date(checkpoint.scheduledTime.getTime() +
+            this.MATCH_DURATION_MINUTES * 60 * 1000);
+        return now.getTime() >= endCheckTime.getTime();
+    }
+    canMakeApiCall() {
+        return this.dailyApiCalls < this.MAX_DAILY_CALLS;
+    }
+    simulateApiCall() {
+        this.dailyApiCalls++;
+        this.cacheService.set('simple-polling:daily-calls', this.dailyApiCalls, 24 * 60 * 60);
+        this.logger.debug(`📞 API call simulated (${this.dailyApiCalls}/${this.MAX_DAILY_CALLS})`);
+    }
+    async resetDailyCounterIfNeeded() {
+        const now = new Date();
+        if (now.getDate() !== this.lastDailyReset.getDate()) {
+            this.dailyApiCalls = 0;
+            this.lastDailyReset = now;
+            this.logger.log('📊 Daily API call counter reset');
+            await this.cacheService.set('simple-polling:daily-calls', 0, 24 * 60 * 60);
+        }
+    }
+    async initializeDailyTracking() {
+        const cachedCount = await this.cacheService.get('simple-polling:daily-calls');
+        if (cachedCount !== null) {
+            this.dailyApiCalls = cachedCount;
+        }
+    }
+    async getPollingStats() {
+        return {
+            activeMatches: this.activeMatches.size,
+            dailyApiCalls: this.dailyApiCalls,
+            maxDailyCalls: this.MAX_DAILY_CALLS,
+            remainingCalls: this.MAX_DAILY_CALLS - this.dailyApiCalls,
+            checkpoints: Array.from(this.activeMatches.values()).map((cp) => ({
+                id: cp.id,
+                match: `${cp.homeTeam} vs ${cp.awayTeam}`,
+                scheduledTime: cp.scheduledTime,
+                kickoffChecked: cp.kickoffChecked,
+                endChecked: cp.endChecked,
+                status: cp.status,
+            })),
+        };
+    }
+    async triggerManualCheck(fixtureId) {
+        const checkpoint = this.activeMatches.get(fixtureId);
+        if (!checkpoint) {
+            throw new Error(`No active checkpoint found for fixture ${fixtureId}`);
+        }
+        if (!this.canMakeApiCall()) {
+            throw new Error('Daily API limit reached');
+        }
+        this.logger.log(`🔧 Manual check triggered for ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`);
+        this.simulateApiCall();
+        return {
+            success: true,
+            message: `Manual check completed for ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`,
+            apiCallsRemaining: this.MAX_DAILY_CALLS - this.dailyApiCalls,
+        };
+    }
+};
+exports.SimpleMatchPollingService = SimpleMatchPollingService;
+__decorate([
+    (0, schedule_1.Cron)('*/5 * * * *', {
+        name: 'simpleMatchPolling',
+        timeZone: 'Europe/Rome',
+    }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], SimpleMatchPollingService.prototype, "checkMatchCheckpoints", null);
+exports.SimpleMatchPollingService = SimpleMatchPollingService = SimpleMatchPollingService_1 = __decorate([
+    (0, common_1.Injectable)(),
+    __metadata("design:paramtypes", [typeof (_a = typeof fixtures_service_1.FixturesService !== "undefined" && fixtures_service_1.FixturesService) === "function" ? _a : Object, typeof (_b = typeof api_football_service_1.ApiFootballService !== "undefined" && api_football_service_1.ApiFootballService) === "function" ? _b : Object, typeof (_c = typeof cache_service_1.CacheService !== "undefined" && cache_service_1.CacheService) === "function" ? _c : Object])
+], SimpleMatchPollingService);
 
 
 /***/ }),

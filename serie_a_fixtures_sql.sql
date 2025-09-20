@@ -21,7 +21,7 @@ INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, h
 INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Genoa', 'Juventus', '2025-08-31 00:00:00', 'Stadio Luigi Ferraris', 2, '2', 0, 1, 'FINISHED', 'serie_a_2025_2_Genoa_vs_Juventus', NOW(), NOW());
 INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Inter', 'Udinese', '2025-08-31 00:00:00', 'San Siro', 2, '2', 1, 2, 'FINISHED', 'serie_a_2025_2_Inter_vs_Udinese', NOW(), NOW());
 INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lazio', 'Verona', '2025-08-31 00:00:00', 'Stadio Olimpico', 2, '1', 4, 0, 'FINISHED', 'serie_a_2025_2_Lazio_vs_Verona', NOW(), NOW());
-INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cagliari', 'Parma', '2025-09-13 15:00:00', 'Unipol Domus', 3, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_3_Cagliari_vs_Parma', NOW(), NOW());
+INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cagliari', 'Parma', '2025-09-13 15:00:00', 'Unipol Domus', 3, 'X', 0, 0, 'FINISHED', 'serie_a_2025_3_Cagliari_vs_Parma', NOW(), NOW());
 INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cagliari', 'Parma', '2025-09-13 14:00:00', 'Unipol Domus', 3, '1', 2, 0, 'FINISHED', 'serie_a_2025_3_Cagliari_vs_Parma', NOW(), NOW());
 INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Juventus', 'Inter', '2025-09-13 17:00:00', 'Allianz Stadium', 3, '1', 4, 3, 'FINISHED', 'serie_a_2025_3_Juventus_vs_Inter', NOW(), NOW());
 INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Fiorentina', 'Napoli', '2025-09-13 19:45:00', 'Stadio Artemio Franchi', 3, '2', 1, 3, 'FINISHED', 'serie_a_2025_3_Fiorentina_vs_Napoli', NOW(), NOW());
@@ -30,18 +30,46 @@ INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, h
 INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Pisa', 'Udinese', '2025-09-14 14:00:00', 'Arena Garibaldi', 3, '2', 0, 1, 'FINISHED', 'serie_a_2025_3_Pisa_vs_Udinese', NOW(), NOW());
 INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Sassuolo', 'Lazio', '2025-09-14 17:00:00', 'Mapei Stadium', 3, '1', 1, 0, 'FINISHED', 'serie_a_2025_3_Sassuolo_vs_Lazio', NOW(), NOW());
 INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Milan', 'Bologna', '2025-09-14 19:45:00', 'San Siro', 3, 'X', 1, 1, 'FINISHED', 'serie_a_2025_3_Milan_vs_Bologna', NOW(), NOW());
-INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Verona', 'Cremonese', '2025-09-15 17:30:00', 'Stadio Marcantonio Bentegodi', 3, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_3_Verona_vs_Cremonese', NOW(), NOW());
-INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Como', 'Genoa', '2025-09-15 19:45:00', 'Stadio Giuseppe Sinigaglia', 3, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_3_Como_vs_Genoa', NOW(), NOW());
-INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Bologna', 'Sassuolo', '2025-09-21 15:00:00', 'Stadio Renato Dall Ara', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Bologna_vs_Sassuolo', NOW(), NOW());
-INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cremonese', 'Torino', '2025-09-21 15:00:00', 'Stadio Giovanni Zini', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Cremonese_vs_Torino', NOW(), NOW());
-INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Genoa', 'Roma', '2025-09-21 15:00:00', 'Stadio Luigi Ferraris', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Genoa_vs_Roma', NOW(), NOW());
-INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Inter', 'Cagliari', '2025-09-21 18:00:00', 'San Siro', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Inter_vs_Cagliari', NOW(), NOW());
-INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lecce', 'Verona', '2025-09-22 12:30:00', 'Stadio Via del Mare', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Lecce_vs_Verona', NOW(), NOW());
-INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lazio', 'Como', '2025-09-22 15:00:00', 'Stadio Olimpico', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Lazio_vs_Como', NOW(), NOW());
-INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Milan', 'Pisa', '2025-09-22 15:00:00', 'San Siro', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Milan_vs_Pisa', NOW(), NOW());
-INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Napoli', 'Juventus', '2025-09-22 18:00:00', 'Stadio Diego Armando Maradona', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Napoli_vs_Juventus', NOW(), NOW());
-INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Parma', 'Fiorentina', '2025-09-22 20:45:00', 'Stadio Ennio Tardini', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Parma_vs_Fiorentina', NOW(), NOW());
-INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Udinese', 'Atalanta', '2025-09-23 20:45:00', 'Stadio Friuli', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Udinese_vs_Atalanta', NOW(), NOW());
+INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Verona', 'Cremonese', '2025-09-15 17:30:00', 'Stadio Marcantonio Bentegodi', 3, 0, 'X', 0, 'FINISHED', 'serie_a_2025_3_Verona_vs_Cremonese', NOW(), NOW());
+INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Como', 'Genoa', '2025-09-15 19:45:00', 'Stadio Giuseppe Sinigaglia', 3, 1, 'X', 1, 'FINISHED', 'serie_a_2025_3_Como_vs_Genoa', NOW(), NOW());
+-- Serie A Matchday 4 Fixtures - Corrected based on image data
+-- All times are in Italy time (CET/CEST)
+
+-- Match played on September 19, 2025 (Yesterday)
+INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) 
+VALUES ('Lecce', 'Cagliari', '2025-09-19 19:45:00', 'Stadio Via del Mare', 4, '1', 1, 2, 'FINISHED', 'serie_a_2025_4_Lecce_vs_Cagliari', NOW(), NOW());
+
+-- Matches for Today (September 20, 2025)
+INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) 
+VALUES ('Bologna', 'Genoa', '2025-09-20 15:00:00', 'Stadio Renato Dall Ara', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Bologna_vs_Genoa', NOW(), NOW());
+
+INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) 
+VALUES ('Verona', 'Juventus', '2025-09-20 18:00:00', 'Stadio Marcantonio Bentegodi', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Verona_vs_Juventus', NOW(), NOW());
+
+INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) 
+VALUES ('Udinese', 'Milan', '2025-09-20 20:45:00', 'Stadio Friuli', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Udinese_vs_Milan', NOW(), NOW());
+
+-- Matches for Tomorrow (September 21, 2025)
+INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) 
+VALUES ('Lazio', 'Roma', '2025-09-21 12:30:00', 'Stadio Olimpico', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Lazio_vs_Roma', NOW(), NOW());
+
+INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) 
+VALUES ('Torino', 'Atalanta', '2025-09-21 15:00:00', 'Stadio Olimpico Grande Torino', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Torino_vs_Atalanta', NOW(), NOW());
+
+INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) 
+VALUES ('Cremonese', 'Parma', '2025-09-21 15:00:00', 'Stadio Giovanni Zini', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Cremonese_vs_Parma', NOW(), NOW());
+
+INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) 
+VALUES ('Fiorentina', 'Como', '2025-09-21 18:00:00', 'Stadio Artemio Franchi', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Fiorentina_vs_Como', NOW(), NOW());
+
+-- Match for Monday (September 22, 2025)
+INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) 
+VALUES ('Inter', 'Sassuolo', '2025-09-22 20:45:00', 'San Siro', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Inter_vs_Sassuolo', NOW(), NOW());
+
+INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) 
+VALUES ('Napoli', 'Pisa', '2025-09-22 20:45:00', 'Stadio Diego Armando Maradona', 4, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_4_Napoli_vs_Pisa', NOW(), NOW());
+
+
 INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Atalanta', 'Cremonese', '2025-09-28 15:00:00', 'Gewiss Stadium', 5, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_5_Atalanta_vs_Cremonese', NOW(), NOW());
 INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Como', 'Verona', '2025-09-28 15:00:00', 'Stadio Giuseppe Sinigaglia', 5, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_5_Como_vs_Verona', NOW(), NOW());
 INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Fiorentina', 'Lecce', '2025-09-28 15:00:00', 'Stadio Artemio Franchi', 5, 'X', 0, 0, 'SCHEDULED', 'serie_a_2025_5_Fiorentina_vs_Lecce', NOW(), NOW());

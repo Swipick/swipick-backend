@@ -7,13 +7,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
 
+interface Fixture {
+  id: number;
+  date: string;
+  league?: {
+    round?: string;
+  };
+}
+
 interface LiveWeekData {
   currentWeek: number;
   weekDateRange: {
     from: string;
     to: string;
   };
-  nextFixtures?: any[];
+  nextFixtures?: Fixture[];
 }
 
 interface UseLiveWeekReturn {
@@ -74,7 +82,7 @@ export function useLiveWeek(): UseLiveWeekReturn {
       }
 
       // Calculate actual week date range from fixtures
-      const dates = fixtures.map((f: any) => new Date(f.date)).sort((a: Date, b: Date) => a.getTime() - b.getTime());
+      const dates = fixtures.map((f: Fixture) => new Date(f.date)).sort((a: Date, b: Date) => a.getTime() - b.getTime());
       const firstDate = dates[0];
       const lastDate = dates[dates.length - 1];
 
