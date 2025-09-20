@@ -6,6 +6,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { LastFiveResults } from './LastFiveResults';
+import { resolveTeamLogo } from '@/lib/club-logos';
 import type { Team } from '../../types';
 import type { Last5Item } from '../../types/matchCards';
 
@@ -28,19 +29,22 @@ export function TeamInfo({
   form,
   className = '',
 }: TeamInfoProps) {
+  // Use centralized logo resolution (mapping function as primary source)
+  const logoPath = resolveTeamLogo(team.name, team.logo);
+
   return (
     <div className={`flex-1 text-center ${className}`}>
       {/* Team logo */}
-      {team.logo ? (
+      {logoPath ? (
         <Image
-          src={team.logo}
+          src={logoPath}
           alt={team.name}
           width={96}
           height={96}
           className="team-logo mx-auto mb-3 w-24 h-24 object-contain"
         />
       ) : (
-        <div className="w-12 h-12 mx-auto mb-3 bg-purple-200 rounded-full flex items-center justify-center">
+        <div className="w-24 h-24 mx-auto mb-3 bg-purple-200 rounded-full flex items-center justify-center">
           <span className="text-purple-600 font-bold text-lg">
             {team.name.charAt(0)}
           </span>

@@ -69,3 +69,27 @@ export function getLogoForTeam(name?: string): string | undefined {
   const finalKey = aliases[key] ?? key;
   return map[finalKey];
 }
+
+/**
+ * Enhanced logo resolution function that handles fallbacks and ensures reliable logo paths
+ * This is the primary function all components should use for team logos
+ */
+export function resolveTeamLogo(teamName?: string, backendLogoPath?: string | null): string {
+  if (!teamName) {
+    return ''; // Return empty string for missing team names
+  }
+
+  // First, try to get logo from our mapping function (primary source of truth)
+  const mappedLogo = getLogoForTeam(teamName);
+  if (mappedLogo) {
+    return mappedLogo;
+  }
+
+  // Fallback to backend path if it exists and looks valid
+  if (backendLogoPath && backendLogoPath.startsWith('/teams/') && !backendLogoPath.includes('undefined')) {
+    return backendLogoPath;
+  }
+
+  // Return empty string if no valid logo found (components should handle this gracefully)
+  return '';
+}

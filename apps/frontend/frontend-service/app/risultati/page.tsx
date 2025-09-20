@@ -5,6 +5,8 @@ import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthContext } from '@/src/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
+import { useLiveWeek } from '@/app/gioca/hooks/useLiveWeek';
+import { resolveTeamLogo } from '@/lib/club-logos';
 import { IoShareOutline } from 'react-icons/io5';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FaMedal } from 'react-icons/fa';
@@ -136,6 +138,9 @@ function RisultatiPageContent() {
   const [nextWeekRange, setNextWeekRange] = useState<{ from: string; to: string } | null>(null);
   const [navDir, setNavDir] = useState<1 | -1 | 0>(0);
   const [pendingWeekForUrl, setPendingWeekForUrl] = useState<number | null>(null);
+
+  // Use reliable live week detection for live mode (same as GameHeader)
+  const { liveWeekData, loading: liveWeekLoading, error: liveWeekError } = useLiveWeek();
   const [fixtureScores, setFixtureScores] = useState<Map<number, { homeScore: number | null; awayScore: number | null; actual?: Choice }>>(new Map());
   // Final completion veil (after last reveal in Giornata 4)
   const [finalVeilOpen, setFinalVeilOpen] = useState(false);
@@ -306,7 +311,15 @@ function RisultatiPageContent() {
     }
   }, [searchParams]);
 
-  // (moved below revealKey)
+  // Set selectedWeek from live week data when in live mode (unless explicitly set via URL)
+  useEffect(() => {
+    if (mode === 'live' && liveWeekData && !searchParams?.get('week')) {
+      setSelectedWeek(liveWeekData.currentWeek);
+      if (DEBUG_RISULTATI) {
+        try { console.log('[risultati] setting live week from useLiveWeek', { week: liveWeekData.currentWeek }); } catch {}
+      }
+    }
+  }, [mode, liveWeekData, searchParams]);
 
   // If no explicit tab was set via query, align the visible tab to the current mode
   useEffect(() => {
@@ -648,8 +661,8 @@ function RisultatiPageContent() {
       if (mode === 'test') {
         resp = await apiClient.getTestWeeklyStats(userId, week);
       } else {
-        // For live mode, use weekly predictions endpoint 
-        resp = await apiClient.getUserWeeklyPredictions(userId, 'live');
+        // For live mode, use user summary endpoint (working endpoint)
+        resp = await apiClient.getUserSummary(userId, 'live');
       }
 
       const stats: TestWeeklyStatsResp | null = (resp && typeof resp === 'object' && 'data' in (resp as Record<string, unknown>))
@@ -1053,20 +1066,26 @@ function RisultatiPageContent() {
                         {/* Col 1: Teams (no date) */}
                         <div className="flex flex-col gap-3">
                           <div className="flex items-center gap-3 h-12">
-                            {m.home.logo ? (
-                              <Image src={m.home.logo} alt={m.home.name} width={48} height={48} className="rounded" />
-                            ) : (
-                              <div className="w-12 h-12 rounded bg-gray-100" />
-                            )}
+                            {(() => {
+                              const logoPath = resolveTeamLogo(m.home.name, m.home.logo);
+                              return logoPath ? (
+                                <Image src={logoPath} alt={m.home.name} width={48} height={48} className="rounded" />
+                              ) : (
+                                <div className="w-12 h-12 rounded bg-gray-100" />
+                              );
+                            })()}
               <div className="text-black font-bold truncate">{m.home.name}</div>
                           </div>
                           {/* last-5 removed as requested */}
                           <div className="flex items-center gap-3 h-12">
-                            {m.away.logo ? (
-                              <Image src={m.away.logo} alt={m.away.name} width={48} height={48} className="rounded" />
-                            ) : (
-                              <div className="w-12 h-12 rounded bg-gray-100" />
-                            )}
+                            {(() => {
+                              const logoPath = resolveTeamLogo(m.away.name, m.away.logo);
+                              return logoPath ? (
+                                <Image src={logoPath} alt={m.away.name} width={48} height={48} className="rounded" />
+                              ) : (
+                                <div className="w-12 h-12 rounded bg-gray-100" />
+                              );
+                            })()}
               <div className="text-black font-bold truncate">{m.away.name}</div>
                           </div>
                           {/* last-5 removed as requested */}
