@@ -146,6 +146,7 @@ function RisultatiPageContent() {
   const [weekCards, setWeekCards] = useState<MatchCard[]>([]);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [weeklyStats, setWeeklyStats] = useState<TestWeeklyStatsResp | null>(null);
+  const [fixtureScoresLoaded, setFixtureScoresLoaded] = useState(false);
   // Unified multi-week guard veil (weeks > 1) when predictions < 10 for that week
   const [guardVeilOpen, setGuardVeilOpen] = useState(false);
   const [guardTargetWeek, setGuardTargetWeek] = useState<number | null>(null);
@@ -697,10 +698,14 @@ function RisultatiPageContent() {
           } catch {}
         }
         setFixtureScores(map);
+        setFixtureScoresLoaded(true);
       } catch {
         setFixtureScores(new Map());
+        setFixtureScoresLoaded(true);
       }
     };
+
+    setFixtureScoresLoaded(false); // Reset loading state when week changes
     run();
   }, [mode, selectedWeek]);
 
@@ -1091,7 +1096,11 @@ function RisultatiPageContent() {
             </div>
 
             {/* Matches list */}
-            {weekCards.length === 0 ? (
+            {!fixtureScoresLoaded ? (
+              <div className="bg-white rounded-xl p-8 text-center text-black border border-black/5">
+                <div className="animate-pulse">Caricamento partite...</div>
+              </div>
+            ) : weekCards.length === 0 ? (
               <div className="bg-white rounded-xl p-8 text-center text-black border border-black/5">Nessuna partita trovata</div>
             ) : (
               <div className="space-y-3">
@@ -1106,8 +1115,8 @@ function RisultatiPageContent() {
                   const isRevealed = !!revealed[m.fixtureId] || isPreviousWeek;
                   const statusLabel = isRevealed ? 'FINE PARTITA' : 'MOSTRA RISULTATO';
                   const statusColor = isRevealed ? 'bg-gray-200 text-gray-700' : 'bg-indigo-500 bg-opacity-90 text-white';
-                  if (isRevealed && !pred && !scoreFallback) {
-                    // Minimal diagnostic to help trace missing scores in prod without spamming
+                  if (isRevealed && !pred && !scoreFallback && fixtureScoresLoaded) {
+                    // Minimal diagnostic to help trace missing scores in prod without spamming (only after scores loaded)
                     console.warn('No score data found for fixture', fid, 'in week', selectedWeek);
                   }
                   const homeVal = isRevealed ? (pred?.homeScore ?? scoreFallback?.homeScore) : undefined;
