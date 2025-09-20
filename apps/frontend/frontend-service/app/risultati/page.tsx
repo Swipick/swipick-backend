@@ -1124,7 +1124,9 @@ function RisultatiPageContent() {
                             {(() => {
                               const logoPath = resolveTeamLogo(m.home.name, m.home.logo);
                               return logoPath ? (
-                                <Image src={logoPath} alt={m.home.name} width={48} height={48} className="rounded" />
+                                <div className="w-12 h-12 rounded bg-gray-50 flex items-center justify-center overflow-hidden">
+                                  <Image src={logoPath} alt={m.home.name} width={48} height={48} className="object-contain max-w-full max-h-full" />
+                                </div>
                               ) : (
                                 <div className="w-12 h-12 rounded bg-gray-100" />
                               );
@@ -1136,7 +1138,9 @@ function RisultatiPageContent() {
                             {(() => {
                               const logoPath = resolveTeamLogo(m.away.name, m.away.logo);
                               return logoPath ? (
-                                <Image src={logoPath} alt={m.away.name} width={48} height={48} className="rounded" />
+                                <div className="w-12 h-12 rounded bg-gray-50 flex items-center justify-center overflow-hidden">
+                                  <Image src={logoPath} alt={m.away.name} width={48} height={48} className="object-contain max-w-full max-h-full" />
+                                </div>
                               ) : (
                                 <div className="w-12 h-12 rounded bg-gray-100" />
                               );
