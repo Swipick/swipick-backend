@@ -29,18 +29,22 @@ export class ApiFootballService {
       return cached;
     }
 
-    // Fetch from API
-    const fixtures = await this.apiFootballClient.getFixtures({ date });
+    // Fetch from API - filter for Serie A (league ID 135)
+    const fixtures = await this.apiFootballClient.getFixtures({
+      date,
+      league: 135,
+      season: 2025,
+    });
 
     // Cache for 24 hours
     await this.cacheService.set(cacheKey, fixtures, 24 * 60 * 60);
 
-    this.logger.log(`Fetched ${fixtures.length} fixtures for ${date}`);
+    this.logger.log(`Fetched ${fixtures.length} Serie A fixtures for ${date}`);
     return fixtures;
   }
 
   async getLiveMatches(): Promise<LiveMatch[]> {
-    const cacheKey = 'fixtures:live';
+    const cacheKey = 'fixtures:live:serie-a';
 
     // Try cache first (short TTL)
     const cached = await this.cacheService.get<LiveMatch[]>(cacheKey);
@@ -49,13 +53,20 @@ export class ApiFootballService {
     }
 
     // Fetch from API
-    const liveMatches = await this.apiFootballClient.getLiveFixtures();
+    const allLiveMatches = await this.apiFootballClient.getLiveFixtures();
+
+    // Filter for Serie A only (league ID 135)
+    const serieALiveMatches = allLiveMatches.filter(
+      (match) => match.league?.id === 135,
+    );
 
     // Cache for 15 seconds
-    await this.cacheService.set(cacheKey, liveMatches, 15);
+    await this.cacheService.set(cacheKey, serieALiveMatches, 15);
 
-    this.logger.log(`Fetched ${liveMatches.length} live matches`);
-    return liveMatches;
+    this.logger.log(
+      `Fetched ${serieALiveMatches.length} Serie A live matches out of ${allLiveMatches.length} total`,
+    );
+    return serieALiveMatches;
   }
 
   async getTeams(params: GetTeamsDto): Promise<Team[]> {
@@ -136,7 +147,6 @@ export class ApiFootballService {
       return false;
     }
   }
-
 
   async clearCache(pattern?: string): Promise<void> {
     if (pattern) {

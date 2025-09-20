@@ -777,4 +777,42 @@ export class FixturesService {
       },
     ];
   }
+
+  /**
+   * Get active matches from database (SCHEDULED or LIVE) that need API polling
+   */
+  async getActiveMatches(): Promise<FixtureEntity[]> {
+    try {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Get matches that are either:
+      // 1. SCHEDULED for today/tomorrow (might start soon)
+      // 2. Currently LIVE
+      const activeMatches = await this.fixtureRepository
+        .createQueryBuilder('fixture')
+        .where(
+          '(fixture.status = :scheduled AND fixture.match_date >= :today AND fixture.match_date < :tomorrow) OR fixture.status = :live',
+          {
+            scheduled: 'SCHEDULED',
+            live: 'LIVE',
+            today,
+            tomorrow,
+          },
+        )
+        .orderBy('fixture.match_date', 'ASC')
+        .getMany();
+
+      this.logger.debug(
+        `Found ${activeMatches.length} active matches requiring API polling`,
+      );
+
+      return activeMatches;
+    } catch (error) {
+      this.logger.error('Failed to get active matches from database', error);
+      return [];
+    }
+  }
 }

@@ -55,6 +55,18 @@ export class SimpleMatchPollingService {
     try {
       await this.resetDailyCounterIfNeeded();
       await this.loadTodaysMatches();
+
+      // SMART POLLING: Only process checkpoints if we have active matches
+      if (this.activeMatches.size === 0) {
+        this.logger.debug(
+          'No active matches - skipping API polling to save quota',
+        );
+        return;
+      }
+
+      this.logger.debug(
+        `Processing ${this.activeMatches.size} active match checkpoints`,
+      );
       await this.processCheckpoints();
 
       this.logger.debug(

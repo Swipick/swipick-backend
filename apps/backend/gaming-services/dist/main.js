@@ -116712,21 +116712,26 @@ let ApiFootballService = ApiFootballService_1 = class ApiFootballService {
             this.logger.debug(`Cache hit for daily fixtures: ${date}`);
             return cached;
         }
-        const fixtures = await this.apiFootballClient.getFixtures({ date });
+        const fixtures = await this.apiFootballClient.getFixtures({
+            date,
+            league: 135,
+            season: 2025,
+        });
         await this.cacheService.set(cacheKey, fixtures, 24 * 60 * 60);
-        this.logger.log(`Fetched ${fixtures.length} fixtures for ${date}`);
+        this.logger.log(`Fetched ${fixtures.length} Serie A fixtures for ${date}`);
         return fixtures;
     }
     async getLiveMatches() {
-        const cacheKey = 'fixtures:live';
+        const cacheKey = 'fixtures:live:serie-a';
         const cached = await this.cacheService.get(cacheKey);
         if (cached) {
             return cached;
         }
-        const liveMatches = await this.apiFootballClient.getLiveFixtures();
-        await this.cacheService.set(cacheKey, liveMatches, 15);
-        this.logger.log(`Fetched ${liveMatches.length} live matches`);
-        return liveMatches;
+        const allLiveMatches = await this.apiFootballClient.getLiveFixtures();
+        const serieALiveMatches = allLiveMatches.filter((match) => match.league?.id === 135);
+        await this.cacheService.set(cacheKey, serieALiveMatches, 15);
+        this.logger.log(`Fetched ${serieALiveMatches.length} Serie A live matches out of ${allLiveMatches.length} total`);
+        return serieALiveMatches;
     }
     async getTeams(params) {
         const cacheKey = `teams:${JSON.stringify(params)}`;
@@ -118318,6 +118323,30 @@ let FixturesService = FixturesService_1 = class FixturesService {
             },
         ];
     }
+    async getActiveMatches() {
+        try {
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const activeMatches = await this.fixtureRepository
+                .createQueryBuilder('fixture')
+                .where('(fixture.status = :scheduled AND fixture.match_date >= :today AND fixture.match_date < :tomorrow) OR fixture.status = :live', {
+                scheduled: 'SCHEDULED',
+                live: 'LIVE',
+                today,
+                tomorrow,
+            })
+                .orderBy('fixture.match_date', 'ASC')
+                .getMany();
+            this.logger.debug(`Found ${activeMatches.length} active matches requiring API polling`);
+            return activeMatches;
+        }
+        catch (error) {
+            this.logger.error('Failed to get active matches from database', error);
+            return [];
+        }
+    }
 };
 exports.FixturesService = FixturesService;
 exports.FixturesService = FixturesService = FixturesService_1 = __decorate([
@@ -118545,14 +118574,16 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-var _a;
+var _a, _b;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.LiveUpdatesController = void 0;
 const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
 const simple_match_polling_service_1 = __webpack_require__(/*! ./simple-match-polling.service */ "./src/modules/live-updates/simple-match-polling.service.ts");
+const api_football_service_1 = __webpack_require__(/*! ../api-football/api-football.service */ "./src/modules/api-football/api-football.service.ts");
 let LiveUpdatesController = class LiveUpdatesController {
-    constructor(simpleMatchPollingService) {
+    constructor(simpleMatchPollingService, apiFootballService) {
         this.simpleMatchPollingService = simpleMatchPollingService;
+        this.apiFootballService = apiFootballService;
     }
     async getPollingStats() {
         return this.simpleMatchPollingService.getPollingStats();
@@ -118584,6 +118615,141 @@ let LiveUpdatesController = class LiveUpdatesController {
             results,
         };
     }
+    async debugLiveMatches() {
+        try {
+            const liveMatches = await this.apiFootballService.getLiveMatches();
+            return {
+                success: true,
+                count: liveMatches.length,
+                matches: liveMatches.map((match) => ({
+                    homeTeam: match.teams?.home?.name || 'Unknown',
+                    awayTeam: match.teams?.away?.name || 'Unknown',
+                    status: match.status?.short,
+                    minute: match.fixture?.status?.elapsed,
+                    goals: match.goals,
+                })),
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: error.message,
+            };
+        }
+    }
+    async debugDailyFixtures() {
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const dailyFixtures = await this.apiFootballService.getDailyFixtures(today);
+            return {
+                success: true,
+                count: dailyFixtures.length,
+                matches: dailyFixtures.map((match) => ({
+                    homeTeam: match.teams?.home?.name || 'Unknown',
+                    awayTeam: match.teams?.away?.name || 'Unknown',
+                    status: match.status?.short,
+                    minute: match.fixture?.status?.elapsed,
+                    goals: match.goals,
+                    league: match.league,
+                })),
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: error.message,
+                stack: error.stack,
+            };
+        }
+    }
+    async testApiConnection() {
+        try {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const testDate = yesterday.toISOString().split('T')[0];
+            const fixtures = await this.apiFootballService.getDailyFixtures(testDate);
+            return {
+                success: true,
+                message: 'API connection working',
+                testDate,
+                fixturesFound: fixtures.length,
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: error.message,
+                stack: error.stack,
+            };
+        }
+    }
+    async testRawApi() {
+        try {
+            const fixtures = await this.apiFootballService['apiFootballClient'].getFixtures({
+                date: '2025-09-19',
+            });
+            return {
+                success: true,
+                message: 'Raw API test',
+                fixturesFound: fixtures.length,
+                sampleFixture: fixtures[0] || null,
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: error.message,
+                stack: error.stack,
+            };
+        }
+    }
+    async debugLeagues() {
+        try {
+            const leagues = await this.apiFootballService['apiFootballClient']['makeRequest']('/leagues', {});
+            const serieALeagues = (leagues.response || []).filter((league) => league.league?.name?.toLowerCase().includes('serie a') ||
+                league.league?.name?.toLowerCase().includes('italy'));
+            return {
+                success: true,
+                message: 'Leagues API test',
+                totalLeagues: (leagues.response || []).length,
+                serieAMatches: serieALeagues.length,
+                serieALeagues: serieALeagues.map((league) => ({
+                    id: league.league?.id,
+                    name: league.league?.name,
+                    country: league.country?.name,
+                    type: league.league?.type,
+                    logo: league.league?.logo,
+                    seasons: league.seasons?.map((s) => s.year),
+                    currentSeason: league.seasons?.find((s) => s.current)?.year,
+                    coverage: league.seasons?.find((s) => s.current)?.coverage,
+                })),
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: error.message,
+                stack: error.stack,
+            };
+        }
+    }
+    async debugApiStatus() {
+        try {
+            const status = await this.apiFootballService['apiFootballClient']['makeRequest']('/status', {});
+            return {
+                success: true,
+                message: 'API Status check',
+                status: status,
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                error: error.message,
+                stack: error.stack,
+            };
+        }
+    }
 };
 exports.LiveUpdatesController = LiveUpdatesController;
 __decorate([
@@ -118605,9 +118771,45 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], LiveUpdatesController.prototype, "triggerManualCheckAll", null);
+__decorate([
+    (0, common_1.Get)('debug/live-matches'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], LiveUpdatesController.prototype, "debugLiveMatches", null);
+__decorate([
+    (0, common_1.Get)('debug/daily-fixtures'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], LiveUpdatesController.prototype, "debugDailyFixtures", null);
+__decorate([
+    (0, common_1.Get)('debug/test-connection'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], LiveUpdatesController.prototype, "testApiConnection", null);
+__decorate([
+    (0, common_1.Get)('debug/test-raw-api'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], LiveUpdatesController.prototype, "testRawApi", null);
+__decorate([
+    (0, common_1.Get)('debug/leagues'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], LiveUpdatesController.prototype, "debugLeagues", null);
+__decorate([
+    (0, common_1.Get)('debug/api-status'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], LiveUpdatesController.prototype, "debugApiStatus", null);
 exports.LiveUpdatesController = LiveUpdatesController = __decorate([
     (0, common_1.Controller)('live-updates'),
-    __metadata("design:paramtypes", [typeof (_a = typeof simple_match_polling_service_1.SimpleMatchPollingService !== "undefined" && simple_match_polling_service_1.SimpleMatchPollingService) === "function" ? _a : Object])
+    __metadata("design:paramtypes", [typeof (_a = typeof simple_match_polling_service_1.SimpleMatchPollingService !== "undefined" && simple_match_polling_service_1.SimpleMatchPollingService) === "function" ? _a : Object, typeof (_b = typeof api_football_service_1.ApiFootballService !== "undefined" && api_football_service_1.ApiFootballService) === "function" ? _b : Object])
 ], LiveUpdatesController);
 
 
@@ -118836,9 +119038,15 @@ let LiveUpdatesScheduler = LiveUpdatesScheduler_1 = class LiveUpdatesScheduler {
         }
         try {
             this.logger.debug('Starting live matches update...');
+            const activeMatches = await this.fixturesService.getActiveMatches();
+            if (activeMatches.length === 0) {
+                this.logger.debug('No active matches in database - skipping API calls to save quota');
+                return;
+            }
+            this.logger.debug(`Found ${activeMatches.length} active matches in DB - proceeding with API polling`);
             const liveMatches = await this.liveUpdatesService.processLiveMatches();
             if (liveMatches.length === 0) {
-                this.logger.debug('No live matches found');
+                this.logger.debug('No live matches found in API');
                 return;
             }
             for (const match of liveMatches) {
@@ -119181,6 +119389,11 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
         try {
             await this.resetDailyCounterIfNeeded();
             await this.loadTodaysMatches();
+            if (this.activeMatches.size === 0) {
+                this.logger.debug('No active matches - skipping API polling to save quota');
+                return;
+            }
+            this.logger.debug(`Processing ${this.activeMatches.size} active match checkpoints`);
             await this.processCheckpoints();
             this.logger.debug(`Polling cycle completed. API calls today: ${this.dailyApiCalls}/${this.MAX_DAILY_CALLS}`);
         }

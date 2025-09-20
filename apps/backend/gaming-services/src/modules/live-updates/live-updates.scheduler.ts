@@ -31,10 +31,20 @@ export class LiveUpdatesScheduler {
     try {
       this.logger.debug('Starting live matches update...');
 
+      // SMART POLLING: Check if we have any active/scheduled matches in DB first
+      const activeMatches = await this.fixturesService.getActiveMatches();
+
+      if (activeMatches.length === 0) {
+        this.logger.debug('No active matches in database - skipping API calls to save quota');
+        return;
+      }
+
+      this.logger.debug(`Found ${activeMatches.length} active matches in DB - proceeding with API polling`);
+
       const liveMatches = await this.liveUpdatesService.processLiveMatches();
 
       if (liveMatches.length === 0) {
-        this.logger.debug('No live matches found');
+        this.logger.debug('No live matches found in API');
         return;
       }
 
