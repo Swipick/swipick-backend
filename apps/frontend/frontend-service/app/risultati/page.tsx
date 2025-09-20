@@ -31,12 +31,26 @@ type FixtureRow = {
   fixtureId?: number | string;
   homeScore?: number | null;
   awayScore?: number | null;
+  home_score?: number | null; // Database field
+  away_score?: number | null; // Database field
   home_goals?: number | null;
   away_goals?: number | null;
   homeGoals?: number | null;
   awayGoals?: number | null;
   result_raw?: string;
   resultRaw?: string;
+  // Additional fields for live mode conversion
+  date?: string;
+  kickoff?: string;
+  venue?: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  home_team?: string;
+  away_team?: string;
+  teams?: {
+    home?: { name?: string };
+    away?: { name?: string };
+  };
 };
 
 interface WeeklyStats {
@@ -77,7 +91,7 @@ interface PredictionHistory {
 interface MatchCardKickoff { iso: string; display: string; }
 // Last-5 item shape (optional richer data from backend)
 interface Last5Item {
-  fixtureId: number;
+  fixtureId: string;
   code: '1'|'X'|'2';
   predicted?: '1'|'X'|'2'|null;
   correct?: boolean|null;
@@ -89,13 +103,13 @@ interface Last5Item {
 
 interface MatchCardTeamHome { name: string; logo: string | null; winRateHome: number | null; last5: Array<'1' | 'X' | '2'>; form?: Last5Item[] }
 interface MatchCardTeamAway { name: string; logo: string | null; winRateAway: number | null; last5: Array<'1' | 'X' | '2'>; form?: Last5Item[] }
-interface MatchCard { week: number; fixtureId: number; kickoff: MatchCardKickoff; stadium: string | null; home: MatchCardTeamHome; away: MatchCardTeamAway; }
+interface MatchCard { week: number; fixtureId: string; kickoff: MatchCardKickoff; stadium: string | null; home: MatchCardTeamHome; away: MatchCardTeamAway; }
 
 type Choice = '1' | 'X' | '2';
 
 // Test weekly stats (from BFF -> Gaming Services)
 interface TestWeeklyPrediction {
-  fixtureId: number;
+  fixtureId: string;
   homeTeam: string;
   awayTeam: string;
   userChoice: Choice | 'SKIP';
@@ -130,7 +144,7 @@ function RisultatiPageContent() {
   const [selectedWeek, setSelectedWeek] = useState<number>(1);
   const [userId, setUserId] = useState<string | null>(null);
   const [weekCards, setWeekCards] = useState<MatchCard[]>([]);
-  const [revealed, setRevealed] = useState<Record<number, boolean>>({});
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [weeklyStats, setWeeklyStats] = useState<TestWeeklyStatsResp | null>(null);
   // Unified multi-week guard veil (weeks > 1) when predictions < 10 for that week
   const [guardVeilOpen, setGuardVeilOpen] = useState(false);
@@ -141,13 +155,13 @@ function RisultatiPageContent() {
 
   // Use reliable live week detection for live mode (same as GameHeader)
   const { liveWeekData, loading: liveWeekLoading, error: liveWeekError } = useLiveWeek();
-  const [fixtureScores, setFixtureScores] = useState<Map<number, { homeScore: number | null; awayScore: number | null; actual?: Choice }>>(new Map());
+  const [fixtureScores, setFixtureScores] = useState<Map<string, { homeScore: number | null; awayScore: number | null; actual?: Choice }>>(new Map());
   // Final completion veil (after last reveal in Giornata 4)
   const [finalVeilOpen, setFinalVeilOpen] = useState(false);
   // New: completion veil for non-terminal weeks (1..TERMINAL_WEEK-1)
   const [advanceVeilOpen, setAdvanceVeilOpen] = useState(false);
   // Track the most recently revealed fixture and where to fire confetti
-  const [recentlyRevealed, setRecentlyRevealed] = useState<{ id: number; origin?: { x: number; y: number } } | null>(null);
+  const [recentlyRevealed, setRecentlyRevealed] = useState<{ id: string; origin?: { x: number; y: number } } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   // Fire indigo/white confetti burst (non-blocking), optionally anchored to a viewport origin
@@ -464,9 +478,9 @@ function RisultatiPageContent() {
       if (!gatingApplies) return;
       if (weekCards.length === 0) return;
       // Build reveal map and ids
-      const map: Record<number, boolean> = {};
-      const ids: number[] = [];
-      weekCards.forEach((m) => { map[m.fixtureId] = true; ids.push(Number(m.fixtureId)); });
+      const map: Record<string, boolean> = {};
+      const ids: string[] = [];
+      weekCards.forEach((m) => { map[m.fixtureId] = true; ids.push(m.fixtureId); });
       setRevealed(map);
       // Prevent auto-rollover from triggering due to all 10 being revealed via missed flow
       try {
@@ -514,8 +528,8 @@ function RisultatiPageContent() {
     try {
       const raw = localStorage.getItem(revealKey);
       if (raw) {
-        const parsed = JSON.parse(raw) as number[];
-        const map: Record<number, boolean> = {};
+        const parsed = JSON.parse(raw) as string[];
+        const map: Record<string, boolean> = {};
         parsed.forEach((fid) => { map[fid] = true; });
         setRevealed(map);
       } else {
@@ -549,7 +563,32 @@ function RisultatiPageContent() {
         if (mode === 'test') {
           mcResponse = await apiClient.getTestMatchCardsByWeek(selectedWeek, userId ?? undefined) as unknown as { data?: MatchCard[] } | MatchCard[];
         } else {
-          mcResponse = await apiClient.getLiveMatchCardsByWeek(selectedWeek, userId ?? undefined) as unknown as { data?: MatchCard[] } | MatchCard[];
+          // For live mode, use fixtures table as single source of truth
+          const fixturesResp = await apiClient.getFixturesByWeek(selectedWeek) as unknown as { data?: FixtureRow[] } | FixtureRow[];
+          const fixtures = Array.isArray(fixturesResp) ? fixturesResp : fixturesResp?.data ?? [];
+
+          // Convert fixtures to MatchCard format for consistency
+          mcResponse = fixtures.map((f: FixtureRow) => ({
+            week: selectedWeek,
+            fixtureId: String(f.id ?? f.fixture_id ?? f.fixtureId),
+            kickoff: {
+              iso: f.date || f.kickoff || new Date().toISOString(),
+              display: new Date(f.date || f.kickoff || new Date()).toLocaleDateString()
+            },
+            stadium: f.venue || null,
+            home: {
+              name: f.homeTeam || f.home_team || f.teams?.home?.name || 'Home Team',
+              logo: null,
+              winRateHome: null,
+              last5: []
+            },
+            away: {
+              name: f.awayTeam || f.away_team || f.teams?.away?.name || 'Away Team',
+              logo: null,
+              winRateAway: null,
+              last5: []
+            }
+          }));
         }
         const data = Array.isArray(mcResponse) ? mcResponse : mcResponse?.data ?? [];
         const sorted = (data as MatchCard[]).slice().sort((a, b) => new Date(a.kickoff.iso).getTime() - new Date(b.kickoff.iso).getTime());
@@ -599,11 +638,17 @@ function RisultatiPageContent() {
         if (mode === 'test') {
           resp = await apiClient.getTestFixturesByWeek(selectedWeek) as unknown as { data?: Array<FixtureRow> } | Array<FixtureRow>;
         } else {
-          // For live mode, we can try getLiveFixtures or use match cards data
-          resp = await apiClient.getLiveFixtures() as unknown as { data?: Array<FixtureRow> } | Array<FixtureRow>;
+          // For live mode, get fixtures by specific week from fixtures table
+          resp = await apiClient.getFixturesByWeek(selectedWeek) as unknown as { data?: Array<FixtureRow> } | Array<FixtureRow>;
         }
         const arr: FixtureRow[] = Array.isArray(resp) ? resp : (resp?.data ?? []);
-        const map = new Map<number, { homeScore: number | null; awayScore: number | null; actual?: Choice }>();
+        if (DEBUG_RISULTATI) {
+          try {
+            console.log('[risultati] fixtures API response', { week: selectedWeek, mode, count: arr.length, sample: arr[0] });
+            console.log('[risultati] sample fixture fields', Object.keys(arr[0] || {}));
+          } catch {}
+        }
+        const map = new Map<string, { homeScore: number | null; awayScore: number | null; actual?: Choice }>();
 
         const parseResultRaw = (val: unknown): { hs: number | null; as: number | null } => {
           if (typeof val === 'string') {
@@ -614,15 +659,18 @@ function RisultatiPageContent() {
         };
 
         for (const f of arr) {
-          // Accept several id shapes
+          // Accept several id shapes and keep as string
           const rawId = (f.id ?? f.fixture_id ?? f.fixtureId) as number | string | undefined;
-          const fid = typeof rawId === 'string' ? Number(rawId) : rawId;
+          if (!rawId) continue; // Skip if no ID found
+          const fid = String(rawId); // Always convert to string to match other maps
 
-          // Accept several score shapes: homeScore/awayScore, home_goals/away_goals, homeGoals/awayGoals, result_raw
+          // Accept several score shapes: homeScore/awayScore, home_score/away_score (database fields), home_goals/away_goals, homeGoals/awayGoals, result_raw
           let hs: number | null = null;
           let as: number | null = null;
           if (typeof f.homeScore === 'number' && typeof f.awayScore === 'number') {
             hs = f.homeScore; as = f.awayScore;
+          } else if (typeof f.home_score === 'number' && typeof f.away_score === 'number') {
+            hs = f.home_score; as = f.away_score;
           } else if (typeof f.home_goals === 'number' && typeof f.away_goals === 'number') {
             hs = f.home_goals; as = f.away_goals;
           } else if (typeof f.homeGoals === 'number' && typeof f.awayGoals === 'number') {
@@ -636,8 +684,11 @@ function RisultatiPageContent() {
           if (typeof hs === 'number' && typeof as === 'number') {
             actual = hs > as ? '1' : hs < as ? '2' : 'X';
           }
-          if (Number.isFinite(fid as number)) {
-            map.set(fid as number, { homeScore: hs, awayScore: as, actual });
+          if (fid && fid !== 'undefined') {
+            map.set(fid, { homeScore: hs, awayScore: as, actual });
+            if (DEBUG_RISULTATI && map.size <= 3) {
+              try { console.log('[risultati] fixture added to map', { fid, hs, as, actual, rawId }); } catch {}
+            }
           }
         }
         if (DEBUG_RISULTATI) {
@@ -691,7 +742,7 @@ function RisultatiPageContent() {
 
   // Build lookup by fixtureId from weekly stats predictions
   const predByFixture = useMemo(() => {
-    const map = new Map<number, { prediction: Choice | null; actual?: Choice; isCorrect?: boolean; homeScore?: number | null; awayScore?: number | null }>();
+    const map = new Map<string, { prediction: Choice | null; actual?: Choice; isCorrect?: boolean; homeScore?: number | null; awayScore?: number | null }>();
     if (!weeklyStats) return map;
     for (const p of weeklyStats.predictions || []) {
       const actual = ((): Choice | undefined => {
@@ -751,7 +802,7 @@ function RisultatiPageContent() {
     }
   }, [selectedWeek, meter]);
 
-  const onReveal = async (fixtureId: number, anchorEl?: HTMLElement) => {
+  const onReveal = async (fixtureId: string, anchorEl?: HTMLElement) => {
     // Guard: in Test Mode, for weeks > 1, require at least 10 predictions to reveal
     if (mode === 'test' && selectedWeek > 1) {
       // Fast-path: if current stats show not allowed, block and try re-check to be safe
@@ -1045,10 +1096,14 @@ function RisultatiPageContent() {
             ) : (
               <div className="space-y-3">
                 {weekCards.map((m) => {
-                  const fid = Number(m.fixtureId);
+                  const fid = m.fixtureId; // Keep as string to match revealed state
                   const pred = predByFixture.get(fid);
                   const scoreFallback = fixtureScores.get(fid);
-                  const isRevealed = !!revealed[m.fixtureId];
+
+                  // Auto-reveal previous weeks (weeks before current live week)
+                  const currentLiveWeek = liveWeekData?.currentWeek || 4; // Default to 4 if not loaded
+                  const isPreviousWeek = selectedWeek < currentLiveWeek;
+                  const isRevealed = !!revealed[m.fixtureId] || isPreviousWeek;
                   const statusLabel = isRevealed ? 'FINE PARTITA' : 'MOSTRA RISULTATO';
                   const statusColor = isRevealed ? 'bg-gray-200 text-gray-700' : 'bg-indigo-500 bg-opacity-90 text-white';
                   if (isRevealed && !pred && !scoreFallback) {
@@ -1104,7 +1159,7 @@ function RisultatiPageContent() {
                         {/* Col 3: Status button (centered) */}
             <div className="flex items-center justify-center ml-1.5">
                           <button
-                            onClick={(e) => onReveal(m.fixtureId, e.currentTarget)}
+                            onClick={isPreviousWeek ? undefined : (e) => onReveal(m.fixtureId, e.currentTarget)}
                             disabled={isRevealed}
                             className={`min-w-[72px] px-2 py-2 rounded-md text-[11px] leading-tight text-center font-medium ${statusColor} ${isRevealed ? 'opacity-100 cursor-default' : 'hover:bg-opacity-100'}`}
                           >
