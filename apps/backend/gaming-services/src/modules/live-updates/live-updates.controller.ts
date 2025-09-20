@@ -176,7 +176,77 @@ export class LiveUpdatesController {
           seasons: league.seasons?.map((s) => s.year),
           currentSeason: league.seasons?.find((s) => s.current)?.year,
           coverage: league.seasons?.find((s) => s.current)?.coverage,
+          allSeasons: league.seasons?.map((s) => ({
+            year: s.year,
+            start: s.start,
+            end: s.end,
+            current: s.current,
+            coverage: s.coverage,
+          })),
         })),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        stack: error.stack,
+      };
+    }
+  }
+
+  @Get('debug/find-serie-a-season')
+  async findSerieASeason() {
+    try {
+      // Get Serie A leagues specifically
+      const leagues: any = await this.apiFootballService['apiFootballClient'][
+        'makeRequest'
+      ]('/leagues', {
+        id: 135, // Serie A league ID
+      });
+
+      const serieA = leagues.response?.[0];
+
+      if (!serieA) {
+        return {
+          success: false,
+          message: 'Serie A (ID 135) not found',
+        };
+      }
+
+      // Find current season
+      const currentSeason = serieA.seasons?.find((s: any) => s.current);
+      const allSeasons = serieA.seasons?.map((s: any) => ({
+        year: s.year,
+        start: s.start,
+        end: s.end,
+        current: s.current,
+        coverage: s.coverage,
+      }));
+
+      return {
+        success: true,
+        league: {
+          id: serieA.league?.id,
+          name: serieA.league?.name,
+          country: serieA.country?.name,
+        },
+        currentSeason: currentSeason
+          ? {
+              year: currentSeason.year,
+              start: currentSeason.start,
+              end: currentSeason.end,
+              current: currentSeason.current,
+              coverage: currentSeason.coverage,
+            }
+          : null,
+        allSeasons,
+        recommendedApiCall: currentSeason
+          ? {
+              league: serieA.league?.id,
+              season: currentSeason.year,
+              date: '2025-09-20',
+            }
+          : null,
       };
     } catch (error) {
       return {
@@ -199,6 +269,56 @@ export class LiveUpdatesController {
         success: true,
         message: 'API Status check',
         status: status,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        stack: error.stack,
+      };
+    }
+  }
+
+  @Post('backfill-results/:date')
+  async backfillResults(@Param('date') date: string) {
+    try {
+      // Try different season/league combinations to find the matches
+      const results = [];
+      const seasons = [2024, 2025];
+
+      for (const season of seasons) {
+        try {
+          const fixtures = await this.apiFootballService[
+            'apiFootballClient'
+          ].getFixtures({
+            date,
+            league: 135,
+            season,
+          });
+
+          if (fixtures.length > 0) {
+            results.push({
+              season,
+              fixtures: fixtures.map((f) => ({
+                id: f.id,
+                homeTeam: f.teams?.home?.name,
+                awayTeam: f.teams?.away?.name,
+                status: f.status?.short,
+                goals: f.goals,
+                finished: ['FT', 'AET', 'PST'].includes(f.status?.short),
+              })),
+            });
+          }
+        } catch (err) {
+          results.push({ season, error: err.message });
+        }
+      }
+
+      return {
+        success: true,
+        date,
+        message: 'Backfill results search',
+        results,
       };
     } catch (error) {
       return {
