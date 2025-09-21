@@ -8,6 +8,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CountdownTimer } from './CountdownTimer';
 import { ProgressBar } from './ProgressBar';
 import { useVirtualClock } from '../VirtualClock';
+import { calculateActiveWeek, getWeekFixtures, WeekInfo } from '../../utils/weekCalculator';
 import type { TimeToMatch } from '../../types';
 import { GAME_CONFIG } from '../../utils/constants';
 import { apiClient } from "@/lib/api-client";
@@ -41,8 +42,9 @@ export function TestGameHeader({
   // Virtual clock for dynamic test time progression
   const { virtualTime, formatDisplay } = useVirtualClock();
 
-  // State for Week 4 fixtures
-  const [week4Fixtures, setWeek4Fixtures] = useState<Array<{ date: string }>>([]);
+  // Dynamic active week state
+  const [activeWeekInfo, setActiveWeekInfo] = useState<WeekInfo>({ activeWeek: 4, status: 'prediction' });
+  const [activeWeekFixtures, setActiveWeekFixtures] = useState<Array<{ date: string; id: number }>>([]);
 
   // Virtual timeToMatch state for test mode
   const [virtualTimeToMatch, setVirtualTimeToMatch] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
@@ -52,13 +54,13 @@ export function TestGameHeader({
 
   // Calculate time to next match using virtual date
   const calculateTimeToMatch = useCallback(() => {
-    if (week4Fixtures.length === 0) {
+    if (activeWeekFixtures.length === 0) {
       return { days: 0, hours: 0, minutes: 0, seconds: 0 };
     }
 
-    // Find the next upcoming match from Week 4 fixtures based on virtual date
+    // Find the next upcoming match from active week fixtures based on virtual date
     const virtualNow = virtualTime.getTime();
-    const upcomingMatches = week4Fixtures
+    const upcomingMatches = activeWeekFixtures
       .map(f => new Date(f.date))
       .filter(date => date.getTime() > virtualNow)
       .sort((a, b) => a.getTime() - b.getTime());
@@ -93,7 +95,7 @@ export function TestGameHeader({
     const seconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
 
     return { days, hours, minutes, seconds };
-  }, [week4Fixtures, virtualTime]);
+  }, [activeWeekFixtures, virtualTime]);
 
   // Measure header height and notify parent
   useEffect(() => {
@@ -111,23 +113,26 @@ export function TestGameHeader({
     return () => window.removeEventListener('resize', measure);
   }, [onHeightChange]);
 
-  // Fetch Week 4 fixtures on mount
+  // Calculate active week and fetch fixtures based on virtual time
   useEffect(() => {
-    const fetchWeek4Fixtures = async () => {
+    const updateActiveWeek = async () => {
       try {
-        const response = await fetch('https://swipick-backend-production.up.railway.app/api/test-mode/fixtures/week/4');
-        const result = await response.json();
+        // Calculate which week should be active for predictions
+        const weekInfo = await calculateActiveWeek(virtualTime);
+        setActiveWeekInfo(weekInfo);
 
-        if (result.success && result.data.length > 0) {
-          setWeek4Fixtures(result.data);
-        }
+        // Fetch fixtures for the active week
+        const fixtures = await getWeekFixtures(weekInfo.activeWeek);
+        setActiveWeekFixtures(fixtures);
+
+        console.log(`[TestGameHeader] Active week updated: ${weekInfo.activeWeek}, status: ${weekInfo.status}`);
       } catch (error) {
-        console.warn('Could not fetch Week 4 fixtures');
+        console.warn('Could not calculate active week:', error);
       }
     };
 
-    fetchWeek4Fixtures();
-  }, []);
+    updateActiveWeek();
+  }, [virtualTime]); // Recalculate when virtual time changes
 
   // Update virtual countdown every second
   useEffect(() => {
@@ -172,13 +177,13 @@ export function TestGameHeader({
     }
   }, [userKey, isResetting, onReset]);
 
-  // Calculate week data based on Week 4 fixtures and virtual date logic
+  // Calculate week data based on dynamic active week and fixtures
   const getWeekData = () => {
-    const activeWeek = 4; // Week 4 is active for predictions on Sep 9, 2023
+    const weekNumber = activeWeekInfo.activeWeek;
 
-    // Use Week 4 fixtures for date range if available
-    if (week4Fixtures.length > 0) {
-      const dates = week4Fixtures.map(f => new Date(f.date)).sort((a, b) => a.getTime() - b.getTime());
+    // Use active week fixtures for date range if available
+    if (activeWeekFixtures.length > 0) {
+      const dates = activeWeekFixtures.map(f => new Date(f.date)).sort((a, b) => a.getTime() - b.getTime());
       const firstDate = dates[0];
       const lastDate = dates[dates.length - 1];
 
@@ -193,7 +198,7 @@ export function TestGameHeader({
         timeZone: 'Europe/Rome'
       });
 
-      return { from, to, weekNumber: activeWeek };
+      return { from, to, weekNumber };
     }
 
     // Fallback: if Week 4 fixtures not loaded yet or fixtures prop has data, use fixtures prop
@@ -213,11 +218,11 @@ export function TestGameHeader({
         timeZone: 'Europe/Rome'
       });
 
-      return { from, to, weekNumber: activeWeek };
+      return { from, to, weekNumber };
     }
 
     // Final fallback: no date range
-    return { from: '', to: '', weekNumber: activeWeek };
+    return { from: '', to: '', weekNumber };
   };
 
   const { from, to, weekNumber } = getWeekData();

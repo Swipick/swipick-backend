@@ -22,11 +22,13 @@ import {
   BottomNav,
   PredictionButtons,
   GameSummaryScreen,
+  useVirtualClock,
 } from './components';
 
 // Types and constants
 import type { PredictionChoice } from './types';
 import { ANIMATION_CONFIG } from './utils/constants';
+import { calculateActiveWeek } from './utils/weekCalculator';
 
 function GiocaPageContent() {
   const router = useRouter();
@@ -40,6 +42,24 @@ function GiocaPageContent() {
 
   // Get reliable live week data (live mode only)
   const { liveWeekData, loading: liveWeekLoading, error: liveWeekError } = useLiveWeek({ mode: currentMode });
+
+  // Virtual clock for test mode dynamic week calculation
+  const { virtualTime } = useVirtualClock();
+
+  // State for dynamic active week in test mode
+  const [dynamicActiveWeek, setDynamicActiveWeek] = useState<number | null>(null);
+
+  // Calculate dynamic active week for test mode
+  useEffect(() => {
+    if (currentMode === 'test') {
+      calculateActiveWeek(virtualTime).then(weekInfo => {
+        setDynamicActiveWeek(weekInfo.activeWeek);
+      }).catch(error => {
+        console.warn('Failed to calculate active week:', error);
+        setDynamicActiveWeek(4); // Fallback to week 4
+      });
+    }
+  }, [currentMode, virtualTime]);
 
   // Selected week logic - reliable, no fallbacks
   const selectedWeek = useMemo(() => {
@@ -61,11 +81,15 @@ function GiocaPageContent() {
       console.log('[page] No live week data available yet, returning null');
       return null;
     } else {
-      // Test mode logic unchanged
-      const w = Number(searchParams?.get('week') ?? NaN);
-      return Number.isFinite(w) && w >= 1 && w <= 38 ? w : 1;
+      // Test mode: use URL parameter if valid, otherwise use dynamic active week
+      const urlWeek = Number(searchParams?.get('week') ?? NaN);
+      if (Number.isFinite(urlWeek) && urlWeek >= 1 && urlWeek <= 38) {
+        return urlWeek;
+      }
+      // Use dynamic active week calculated from virtual time
+      return dynamicActiveWeek || 4; // Fallback to week 4 if not calculated yet
     }
-  }, [currentMode, searchParams, liveWeekData]);
+  }, [currentMode, searchParams, liveWeekData, dynamicActiveWeek]);
 
   // Firebase authentication
   const { firebaseUser } = useAuthContext();
