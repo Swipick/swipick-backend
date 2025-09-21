@@ -222300,7 +222300,7 @@ class CreateUnifiedPredictionDto {
 }
 exports.CreateUnifiedPredictionDto = CreateUnifiedPredictionDto;
 __decorate([
-    (0, class_validator_1.IsUUID)(4, { message: 'userId must be a valid UUID' }),
+    (0, class_validator_1.IsString)({ message: 'userId must be a string' }),
     __metadata("design:type", String)
 ], CreateUnifiedPredictionDto.prototype, "userId", void 0);
 __decorate([

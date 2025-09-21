@@ -1,4 +1,4 @@
-import { IsEnum, IsUUID, IsNumber, Min, Max } from 'class-validator';
+import { IsEnum, IsUUID, IsNumber, IsString, Min, Max } from 'class-validator';
 
 export class CreateSpecDto {
   @IsUUID(4, { message: 'user_id must be a valid UUID' })
@@ -55,7 +55,7 @@ export class UserSummaryResponseDto {
 }
 
 export class CreateUnifiedPredictionDto {
-  @IsUUID(4, { message: 'userId must be a valid UUID' })
+  @IsString({ message: 'userId must be a string' })
   userId: string;
 
   @IsNumber({}, { message: 'fixtureId must be a number' })
