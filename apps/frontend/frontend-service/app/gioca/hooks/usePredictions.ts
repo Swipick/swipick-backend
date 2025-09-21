@@ -112,22 +112,12 @@ export function usePredictions({
     // Submit to backend if we have a user
     if (userKey) {
       try {
-        if (currentMode === 'test') {
-          // Use specific test-mode endpoint for direct routing
-          await apiClient.createTestPrediction({
-            userId: userKey,
-            fixtureId,
-            choice,
-          });
-        } else {
-          // Use unified endpoint for live mode (through BFF)
-          await apiClient.createPrediction({
-            userId: userKey,
-            mode: currentMode,
-            fixtureId,
-            choice,
-          });
-        }
+        // Use unified endpoint for both live and test predictions
+        await apiClient.savePrediction({
+          userId: userKey,
+          fixtureId,
+          choice,
+        }, currentMode);
 
         if (DEBUG_GIOCA) {
           console.log('[gioca] prediction submitted successfully', { fixtureId, choice, mode: currentMode });
