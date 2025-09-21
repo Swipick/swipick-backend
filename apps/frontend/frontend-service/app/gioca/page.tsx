@@ -16,6 +16,7 @@ import { useLiveWeek } from './hooks/useLiveWeek';
 // Components
 import {
   GameHeader,
+  TestGameHeader,
   MatchCard,
   BottomNav,
   PredictionButtons,
@@ -37,7 +38,7 @@ function GiocaPageContent() {
   const currentMode = ((searchParams?.get('mode') as 'live' | 'test' | null) ?? null) || mode;
 
   // Get reliable live week data (live mode only)
-  const { liveWeekData, loading: liveWeekLoading, error: liveWeekError } = useLiveWeek();
+  const { liveWeekData, loading: liveWeekLoading, error: liveWeekError } = useLiveWeek({ mode: currentMode });
 
   // Selected week logic - reliable, no fallbacks
   const selectedWeek = useMemo(() => {
@@ -643,20 +644,31 @@ function GiocaPageContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <GameHeader
-        currentMode={currentMode}
-        selectedWeek={selectedWeek}
-        predictionsCount={predictionsCount}
-        timeToMatch={timeToMatch}
-        fixtures={fixtures}
-        isSticky={showSummaryScreen}
-        onHeightChange={setHeaderHeight}
-        onReset={handlePlayAgain}
-        isInSkippedMode={isInSkippedMode}
-        skippedCardIndexes={skippedCardIndexes}
-        currentFixtureIndex={currentFixtureIndex}
-      />
+      {/* Header - conditional rendering based on mode */}
+      {currentMode === 'test' ? (
+        <TestGameHeader
+          selectedWeek={selectedWeek}
+          predictionsCount={predictionsCount}
+          timeToMatch={timeToMatch}
+          fixtures={fixtures}
+          isSticky={showSummaryScreen}
+          onHeightChange={setHeaderHeight}
+        />
+      ) : (
+        <GameHeader
+          currentMode={currentMode}
+          selectedWeek={selectedWeek}
+          predictionsCount={predictionsCount}
+          timeToMatch={timeToMatch}
+          fixtures={fixtures}
+          isSticky={showSummaryScreen}
+          onHeightChange={setHeaderHeight}
+          onReset={handlePlayAgain}
+          isInSkippedMode={isInSkippedMode}
+          skippedCardIndexes={skippedCardIndexes}
+          currentFixtureIndex={currentFixtureIndex}
+        />
+      )}
 
 
       {/* Main Content */}

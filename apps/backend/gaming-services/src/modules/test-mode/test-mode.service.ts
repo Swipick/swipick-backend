@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TestFixture } from '../../entities/test-fixture.entity';
 import { TestSpec } from '../../entities/test-spec.entity';
+import { ApiFootballService } from '../api-football/api-football.service';
 import { WeeklyStats, UserSummary } from './dto/test-mode.dto';
 import {
   MatchCardDto,
@@ -37,6 +38,7 @@ export class TestModeService {
     private testFixtureRepository: Repository<TestFixture>,
     @InjectRepository(TestSpec)
     private testSpecRepository: Repository<TestSpec>,
+    private readonly apiFootballService: ApiFootballService,
   ) {}
 
   // --- Match Cards Aggregation ---
@@ -1073,6 +1075,160 @@ export class TestModeService {
     this.logger.log(
       `✅ Test data seeded successfully: ${testFixtures.length} fixtures`,
     );
+  }
+
+  /**
+   * Seed complete 2023/2024 Serie A season data from API-Football
+   * Truncates existing data and fetches all 38 weeks from API
+   */
+  async seedFullSeasonFromApi(forceReplace = true): Promise<void> {
+    this.logger.log(
+      'Starting full 2023/2024 Serie A season data seeding from API...',
+    );
+
+    if (forceReplace) {
+      this.logger.warn(
+        'Force replace enabled — truncating test_fixtures table with CASCADE',
+      );
+      // Truncate with CASCADE to handle FK constraints
+      await this.testFixtureRepository.query(
+        'TRUNCATE TABLE test_fixtures RESTART IDENTITY CASCADE',
+      );
+      await this.testSpecRepository.query(
+        'TRUNCATE TABLE test_specs RESTART IDENTITY CASCADE',
+      );
+    } else {
+      const existingFixtures = await this.testFixtureRepository.count();
+      if (existingFixtures > 0) {
+        this.logger.warn(
+          `Test data already exists (${existingFixtures} fixtures). Skipping full season seed.`,
+        );
+        return;
+      }
+    }
+
+    const SERIE_A_LEAGUE_ID = 135;
+    const SEASON_2023_2024 = 2024;
+    const allFixtures = [];
+
+    try {
+      this.logger.log(
+        'Fetching all Serie A 2023/2024 fixtures from API-Football...',
+      );
+
+      // Fetch all fixtures for the season
+      const apiFixtures = await this.apiFootballService.getFixtures({
+        league: SERIE_A_LEAGUE_ID,
+        season: SEASON_2023_2024,
+      });
+
+      this.logger.log(
+        `Fetched ${apiFixtures.length} fixtures from API-Football`,
+      );
+
+      // Process and map fixtures to our schema
+      let weekCounter = 1;
+
+      // Group fixtures by date to determine weeks
+      const sortedFixtures = apiFixtures
+        .filter((f) => f.status?.short === 'FT') // Only finished matches
+        .sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+        );
+
+      this.logger.log(`Processing ${sortedFixtures.length} finished fixtures`);
+
+      // Assign week numbers based on Serie A format (10 matches per week)
+      for (let i = 0; i < sortedFixtures.length; i += 10) {
+        const weekFixtures = sortedFixtures.slice(i, i + 10);
+        weekFixtures.forEach((fixture) => {
+          const testFixture = {
+            week: weekCounter,
+            date: new Date(fixture.date),
+            homeTeam: fixture.teams?.home?.name || 'Unknown',
+            awayTeam: fixture.teams?.away?.name || 'Unknown',
+            stadium: fixture.venue?.name || 'Unknown Stadium',
+            homeScore: fixture.goals?.home || 0,
+            awayScore: fixture.goals?.away || 0,
+            status: 'FT',
+            externalApiId: fixture.id,
+          };
+          allFixtures.push(testFixture);
+        });
+        weekCounter++;
+      }
+
+      // Insert in batches to avoid memory issues
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < allFixtures.length; i += BATCH_SIZE) {
+        const batch = allFixtures.slice(i, i + BATCH_SIZE);
+
+        const entities = batch.map((fixture) => {
+          // Calculate result based on scores
+          const result =
+            fixture.homeScore > fixture.awayScore
+              ? '1'
+              : fixture.homeScore < fixture.awayScore
+                ? '2'
+                : 'X';
+
+          // Return the fixture with updated result property
+          return {
+            ...fixture,
+            result,
+          };
+        });
+
+        await this.testFixtureRepository.save(entities);
+        this.logger.debug(
+          `Saved batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(allFixtures.length / BATCH_SIZE)}`,
+        );
+      }
+
+      this.logger.log(
+        `✅ Full season data seeded successfully: ${allFixtures.length} fixtures across ${weekCounter - 1} weeks`,
+      );
+    } catch (error) {
+      this.logger.error('Failed to seed full season data from API', error);
+      throw new BadRequestException(
+        `Failed to seed season data: ${error.message}`,
+      );
+    }
+  }
+
+  async debugApiCall(): Promise<any[]> {
+    this.logger.log(
+      '🔍 DEBUG: Testing direct API-Football call for 2023 Serie A season',
+    );
+
+    try {
+      const SERIE_A_LEAGUE_ID = 135;
+      const SEASON_2023_2024 = 2024;
+
+      this.logger.log(
+        `🔍 DEBUG: Calling getFixtures with league=${SERIE_A_LEAGUE_ID}, season=${SEASON_2023_2024}`,
+      );
+
+      const fixtures = await this.apiFootballService.getFixtures({
+        league: SERIE_A_LEAGUE_ID,
+        season: SEASON_2023_2024,
+      });
+
+      this.logger.log(
+        `🔍 DEBUG: Received ${fixtures.length} fixtures from API`,
+      );
+
+      if (fixtures.length > 0) {
+        this.logger.log(
+          `🔍 DEBUG: First fixture sample: ${JSON.stringify(fixtures[0])}`,
+        );
+      }
+
+      return fixtures;
+    } catch (error) {
+      this.logger.error('🔍 DEBUG: API call failed', error);
+      throw error;
+    }
   }
 
   async resetUserTestData(userId: string): Promise<void> {

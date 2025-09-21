@@ -2,10 +2,13 @@
  * useLiveWeek Hook
  * Polls /api/fixtures/next to get accurate current live week data from database
  * NO FALLBACKS - returns error if live week cannot be determined
+ * SKIPS execution in test mode to prevent unnecessary API calls
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
+
+type GameMode = 'live' | 'test';
 
 interface Fixture {
   id: number;
@@ -31,12 +34,24 @@ interface UseLiveWeekReturn {
   refetch: () => Promise<void>;
 }
 
-export function useLiveWeek(): UseLiveWeekReturn {
+interface UseLiveWeekParams {
+  mode?: GameMode;
+}
+
+export function useLiveWeek({ mode = 'live' }: UseLiveWeekParams = {}): UseLiveWeekReturn {
   const [liveWeekData, setLiveWeekData] = useState<LiveWeekData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchLiveWeek = useCallback(async () => {
+    // Skip execution in test mode - test mode doesn't need live week detection
+    if (mode === 'test') {
+      setLoading(false);
+      setError(null);
+      setLiveWeekData(null);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -113,7 +128,7 @@ export function useLiveWeek(): UseLiveWeekReturn {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [mode]);
 
   // Fetch on mount
   useEffect(() => {

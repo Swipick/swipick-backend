@@ -155,7 +155,7 @@ function RisultatiPageContent() {
   const [pendingWeekForUrl, setPendingWeekForUrl] = useState<number | null>(null);
 
   // Use reliable live week detection for live mode (same as GameHeader)
-  const { liveWeekData, loading: liveWeekLoading, error: liveWeekError } = useLiveWeek();
+  const { liveWeekData, loading: liveWeekLoading, error: liveWeekError } = useLiveWeek({ mode });
   const [fixtureScores, setFixtureScores] = useState<Map<string, { homeScore: number | null; awayScore: number | null; actual?: Choice }>>(new Map());
   // Final completion veil (after last reveal in Giornata 4)
   const [finalVeilOpen, setFinalVeilOpen] = useState(false);

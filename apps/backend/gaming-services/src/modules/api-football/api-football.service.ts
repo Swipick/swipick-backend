@@ -148,6 +148,24 @@ export class ApiFootballService {
     }
   }
 
+  async getFixtures(params: {
+    league?: number;
+    season?: number;
+    date?: string;
+  }): Promise<Fixture[]> {
+    this.logger.log(
+      `Calling API-Football getFixtures with params: ${JSON.stringify(params)}`,
+    );
+    try {
+      const fixtures = await this.apiFootballClient.getFixtures(params);
+      this.logger.log(`API-Football returned ${fixtures.length} fixtures`);
+      return fixtures;
+    } catch (error) {
+      this.logger.error('Failed to fetch fixtures from API-Football', error);
+      throw error;
+    }
+  }
+
   async clearCache(pattern?: string): Promise<void> {
     if (pattern) {
       const keys = await this.cacheService.keys(pattern);

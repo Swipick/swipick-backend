@@ -4,9 +4,13 @@ import { TestFixture } from '../../entities/test-fixture.entity';
 import { TestSpec } from '../../entities/test-spec.entity';
 import { TestModeService } from './test-mode.service';
 import { TestModeController } from './test-mode.controller';
+import { ApiFootballModule } from '../api-football/api-football.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([TestFixture, TestSpec])],
+  imports: [
+    TypeOrmModule.forFeature([TestFixture, TestSpec]),
+    ApiFootballModule,
+  ],
   controllers: [TestModeController],
   providers: [TestModeService],
   exports: [TestModeService],

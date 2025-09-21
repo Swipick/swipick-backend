@@ -5,6 +5,7 @@
 
 // Game Header components
 export { GameHeader } from './GameHeader/GameHeader';
+export { TestGameHeader } from './GameHeader/TestGameHeader';
 export { CountdownTimer } from './GameHeader/CountdownTimer';
 export { ProgressBar } from './GameHeader/ProgressBar';
 

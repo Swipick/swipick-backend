@@ -112,12 +112,21 @@ export function useFixtures({
           } catch {}
         }
 
-        // Wait for userKey in test mode
-        if (!userKey) {
-          if (DEBUG_GIOCA) {
-            console.log('[gioca] defer fetch until userKey is resolved');
+        // Test mode can work with or without userKey (anonymous mode supported)
+        // Only defer if userKey is actively being resolved (not permanently null)
+        if (!userKey && typeof window !== 'undefined') {
+          // Check if user is actually logged in but userKey is still loading
+          const isUserLoading = false; // TODO: Add proper user loading check if needed
+          if (isUserLoading) {
+            if (DEBUG_GIOCA) {
+              console.log('[gioca] defer fetch until userKey is resolved');
+            }
+            return;
           }
-          return;
+          // Otherwise proceed with anonymous mode
+          if (DEBUG_GIOCA) {
+            console.log('[gioca] proceeding with anonymous test mode');
+          }
         }
 
         // Fetch match cards for test mode

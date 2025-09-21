@@ -124,8 +124,8 @@ export class ApiFootballClient {
         const response: AxiosResponse<T> = await firstValueFrom(
           this.httpService.get(url, {
             headers: {
-              'x-apisports-key': apiKey,
-              'x-rapidapi-host': 'v3.football.api-sports.io',
+              'X-RapidAPI-Key': apiKey,
+              'X-RapidAPI-Host': 'v3.football.api-sports.io',
             },
             params,
             timeout: 10000,

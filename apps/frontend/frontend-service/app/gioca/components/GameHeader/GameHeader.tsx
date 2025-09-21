@@ -87,7 +87,7 @@ export function GameHeader({
   const modeLabel = currentMode === 'test' ? 'Modalità Test' : 'Live';
 
   // Get reliable live week data from database (live mode only)
-  const { liveWeekData, loading: liveWeekLoading, error: liveWeekError } = useLiveWeek();
+  const { liveWeekData, loading: liveWeekLoading, error: liveWeekError } = useLiveWeek({ mode: currentMode });
 
   // Determine week data based on mode
   const getWeekData = () => {

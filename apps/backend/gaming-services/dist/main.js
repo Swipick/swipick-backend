@@ -116510,8 +116510,8 @@ let ApiFootballClient = ApiFootballClient_1 = class ApiFootballClient {
                 this.logger.debug(`Making request to ${url}`, { params });
                 const response = await (0, rxjs_1.firstValueFrom)(this.httpService.get(url, {
                     headers: {
-                        'x-apisports-key': apiKey,
-                        'x-rapidapi-host': 'v3.football.api-sports.io',
+                        'X-RapidAPI-Key': apiKey,
+                        'X-RapidAPI-Host': 'v3.football.api-sports.io',
                     },
                     params,
                     timeout: 10000,
@@ -116773,6 +116773,18 @@ let ApiFootballService = ApiFootballService_1 = class ApiFootballService {
         catch (error) {
             this.logger.error('API connection validation failed', error);
             return false;
+        }
+    }
+    async getFixtures(params) {
+        this.logger.log(`Calling API-Football getFixtures with params: ${JSON.stringify(params)}`);
+        try {
+            const fixtures = await this.apiFootballClient.getFixtures(params);
+            this.logger.log(`API-Football returned ${fixtures.length} fixtures`);
+            return fixtures;
+        }
+        catch (error) {
+            this.logger.error('Failed to fetch fixtures from API-Football', error);
+            throw error;
         }
     }
     async clearCache(pattern) {
@@ -121153,6 +121165,15 @@ let TestModeController = TestModeController_1 = class TestModeController {
             message: `Test data seeded successfully${forceReplace ? ' (force replace)' : ''}`,
         };
     }
+    async seedFullSeasonFromApi(force) {
+        const forceReplace = force === 'true' || force === '1';
+        this.logger.log(`Seeding full 2023/2024 Serie A season from API (force=${forceReplace})`);
+        await this.testModeService.seedFullSeasonFromApi(forceReplace);
+        return {
+            success: true,
+            message: `Full 2023/2024 Serie A season seeded successfully from API${forceReplace ? ' (with truncate)' : ''}`,
+        };
+    }
     async resetUserTestData(userId) {
         this.logger.log(`Resetting test data for user ${userId}`);
         await this.testModeService.resetUserTestData(userId);
@@ -121160,6 +121181,26 @@ let TestModeController = TestModeController_1 = class TestModeController {
             success: true,
             message: `Test data reset successfully for user ${userId}`,
         };
+    }
+    async debugApiCall() {
+        this.logger.log('Testing API-Football direct call for 2023 season');
+        try {
+            const fixtures = await this.testModeService.debugApiCall();
+            return {
+                success: true,
+                fixtures_count: fixtures.length,
+                first_few: fixtures.slice(0, 3),
+                message: `Successfully fetched ${fixtures.length} fixtures`,
+            };
+        }
+        catch (error) {
+            this.logger.error('Debug API call failed', error);
+            return {
+                success: false,
+                error: error.message,
+                message: 'API call failed',
+            };
+        }
     }
     getHealth() {
         return {
@@ -121221,12 +121262,25 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], TestModeController.prototype, "seedTestData", null);
 __decorate([
+    (0, common_1.Post)('seed-full-season'),
+    __param(0, (0, common_1.Query)('force')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], TestModeController.prototype, "seedFullSeasonFromApi", null);
+__decorate([
     (0, common_1.Delete)('reset/:userId'),
     __param(0, (0, common_1.Param)('userId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], TestModeController.prototype, "resetUserTestData", null);
+__decorate([
+    (0, common_1.Get)('debug-api-call'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], TestModeController.prototype, "debugApiCall", null);
 __decorate([
     (0, common_1.Get)('health'),
     __metadata("design:type", Function),
@@ -121263,12 +121317,16 @@ const test_fixture_entity_1 = __webpack_require__(/*! ../../entities/test-fixtur
 const test_spec_entity_1 = __webpack_require__(/*! ../../entities/test-spec.entity */ "./src/entities/test-spec.entity.ts");
 const test_mode_service_1 = __webpack_require__(/*! ./test-mode.service */ "./src/modules/test-mode/test-mode.service.ts");
 const test_mode_controller_1 = __webpack_require__(/*! ./test-mode.controller */ "./src/modules/test-mode/test-mode.controller.ts");
+const api_football_module_1 = __webpack_require__(/*! ../api-football/api-football.module */ "./src/modules/api-football/api-football.module.ts");
 let TestModeModule = class TestModeModule {
 };
 exports.TestModeModule = TestModeModule;
 exports.TestModeModule = TestModeModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([test_fixture_entity_1.TestFixture, test_spec_entity_1.TestSpec])],
+        imports: [
+            typeorm_1.TypeOrmModule.forFeature([test_fixture_entity_1.TestFixture, test_spec_entity_1.TestSpec]),
+            api_football_module_1.ApiFootballModule,
+        ],
         controllers: [test_mode_controller_1.TestModeController],
         providers: [test_mode_service_1.TestModeService],
         exports: [test_mode_service_1.TestModeService],
@@ -121299,7 +121357,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 var TestModeService_1;
-var _a, _b;
+var _a, _b, _c;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.TestModeService = exports.UserSummary = exports.WeeklyStats = void 0;
 const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
@@ -121307,6 +121365,7 @@ const typeorm_1 = __webpack_require__(/*! @nestjs/typeorm */ "../../../node_modu
 const typeorm_2 = __webpack_require__(/*! typeorm */ "../../../node_modules/typeorm/index.js");
 const test_fixture_entity_1 = __webpack_require__(/*! ../../entities/test-fixture.entity */ "./src/entities/test-fixture.entity.ts");
 const test_spec_entity_1 = __webpack_require__(/*! ../../entities/test-spec.entity */ "./src/entities/test-spec.entity.ts");
+const api_football_service_1 = __webpack_require__(/*! ../api-football/api-football.service */ "./src/modules/api-football/api-football.service.ts");
 const typeorm_3 = __webpack_require__(/*! typeorm */ "../../../node_modules/typeorm/index.js");
 const fs = __webpack_require__(/*! fs */ "fs");
 const path = __webpack_require__(/*! path */ "path");
@@ -121314,9 +121373,10 @@ var test_mode_dto_1 = __webpack_require__(/*! ./dto/test-mode.dto */ "./src/modu
 Object.defineProperty(exports, "WeeklyStats", ({ enumerable: true, get: function () { return test_mode_dto_1.WeeklyStats; } }));
 Object.defineProperty(exports, "UserSummary", ({ enumerable: true, get: function () { return test_mode_dto_1.UserSummary; } }));
 let TestModeService = TestModeService_1 = class TestModeService {
-    constructor(testFixtureRepository, testSpecRepository) {
+    constructor(testFixtureRepository, testSpecRepository, apiFootballService) {
         this.testFixtureRepository = testFixtureRepository;
         this.testSpecRepository = testSpecRepository;
+        this.apiFootballService = apiFootballService;
         this.logger = new common_1.Logger(TestModeService_1.name);
         this.matchCardsCache = new Map();
         this.MATCH_CARDS_TTL_MS = 10 * 60 * 1000;
@@ -122185,6 +122245,98 @@ let TestModeService = TestModeService_1 = class TestModeService {
         }
         this.logger.log(`✅ Test data seeded successfully: ${testFixtures.length} fixtures`);
     }
+    async seedFullSeasonFromApi(forceReplace = true) {
+        this.logger.log('Starting full 2023/2024 Serie A season data seeding from API...');
+        if (forceReplace) {
+            this.logger.warn('Force replace enabled — truncating test_fixtures table with CASCADE');
+            await this.testFixtureRepository.query('TRUNCATE TABLE test_fixtures RESTART IDENTITY CASCADE');
+            await this.testSpecRepository.query('TRUNCATE TABLE test_specs RESTART IDENTITY CASCADE');
+        }
+        else {
+            const existingFixtures = await this.testFixtureRepository.count();
+            if (existingFixtures > 0) {
+                this.logger.warn(`Test data already exists (${existingFixtures} fixtures). Skipping full season seed.`);
+                return;
+            }
+        }
+        const SERIE_A_LEAGUE_ID = 135;
+        const SEASON_2023_2024 = 2024;
+        const allFixtures = [];
+        try {
+            this.logger.log('Fetching all Serie A 2023/2024 fixtures from API-Football...');
+            const apiFixtures = await this.apiFootballService.getFixtures({
+                league: SERIE_A_LEAGUE_ID,
+                season: SEASON_2023_2024,
+            });
+            this.logger.log(`Fetched ${apiFixtures.length} fixtures from API-Football`);
+            let weekCounter = 1;
+            const sortedFixtures = apiFixtures
+                .filter((f) => f.status?.short === 'FT')
+                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            this.logger.log(`Processing ${sortedFixtures.length} finished fixtures`);
+            for (let i = 0; i < sortedFixtures.length; i += 10) {
+                const weekFixtures = sortedFixtures.slice(i, i + 10);
+                weekFixtures.forEach((fixture) => {
+                    const testFixture = {
+                        week: weekCounter,
+                        date: new Date(fixture.date),
+                        homeTeam: fixture.teams?.home?.name || 'Unknown',
+                        awayTeam: fixture.teams?.away?.name || 'Unknown',
+                        stadium: fixture.venue?.name || 'Unknown Stadium',
+                        homeScore: fixture.goals?.home || 0,
+                        awayScore: fixture.goals?.away || 0,
+                        status: 'FT',
+                        externalApiId: fixture.id,
+                    };
+                    allFixtures.push(testFixture);
+                });
+                weekCounter++;
+            }
+            const BATCH_SIZE = 50;
+            for (let i = 0; i < allFixtures.length; i += BATCH_SIZE) {
+                const batch = allFixtures.slice(i, i + BATCH_SIZE);
+                const entities = batch.map((fixture) => {
+                    const result = fixture.homeScore > fixture.awayScore
+                        ? '1'
+                        : fixture.homeScore < fixture.awayScore
+                            ? '2'
+                            : 'X';
+                    return {
+                        ...fixture,
+                        result,
+                    };
+                });
+                await this.testFixtureRepository.save(entities);
+                this.logger.debug(`Saved batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(allFixtures.length / BATCH_SIZE)}`);
+            }
+            this.logger.log(`✅ Full season data seeded successfully: ${allFixtures.length} fixtures across ${weekCounter - 1} weeks`);
+        }
+        catch (error) {
+            this.logger.error('Failed to seed full season data from API', error);
+            throw new common_1.BadRequestException(`Failed to seed season data: ${error.message}`);
+        }
+    }
+    async debugApiCall() {
+        this.logger.log('🔍 DEBUG: Testing direct API-Football call for 2023 Serie A season');
+        try {
+            const SERIE_A_LEAGUE_ID = 135;
+            const SEASON_2023_2024 = 2024;
+            this.logger.log(`🔍 DEBUG: Calling getFixtures with league=${SERIE_A_LEAGUE_ID}, season=${SEASON_2023_2024}`);
+            const fixtures = await this.apiFootballService.getFixtures({
+                league: SERIE_A_LEAGUE_ID,
+                season: SEASON_2023_2024,
+            });
+            this.logger.log(`🔍 DEBUG: Received ${fixtures.length} fixtures from API`);
+            if (fixtures.length > 0) {
+                this.logger.log(`🔍 DEBUG: First fixture sample: ${JSON.stringify(fixtures[0])}`);
+            }
+            return fixtures;
+        }
+        catch (error) {
+            this.logger.error('🔍 DEBUG: API call failed', error);
+            throw error;
+        }
+    }
     async resetUserTestData(userId) {
         this.logger.log(`Resetting test data for user ${userId}...`);
         const deleteResult = await this.testSpecRepository.delete({ userId });
@@ -122208,7 +122360,7 @@ exports.TestModeService = TestModeService = TestModeService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(test_fixture_entity_1.TestFixture)),
     __param(1, (0, typeorm_1.InjectRepository)(test_spec_entity_1.TestSpec)),
-    __metadata("design:paramtypes", [typeof (_a = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _a : Object, typeof (_b = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _b : Object])
+    __metadata("design:paramtypes", [typeof (_a = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _a : Object, typeof (_b = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _b : Object, typeof (_c = typeof api_football_service_1.ApiFootballService !== "undefined" && api_football_service_1.ApiFootballService) === "function" ? _c : Object])
 ], TestModeService);
 
 

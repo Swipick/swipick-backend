@@ -145,6 +145,21 @@ export class TestModeController {
     };
   }
 
+  @Post('seed-full-season')
+  async seedFullSeasonFromApi(@Query('force') force?: string) {
+    const forceReplace = force === 'true' || force === '1';
+    this.logger.log(
+      `Seeding full 2023/2024 Serie A season from API (force=${forceReplace})`,
+    );
+
+    await this.testModeService.seedFullSeasonFromApi(forceReplace);
+
+    return {
+      success: true,
+      message: `Full 2023/2024 Serie A season seeded successfully from API${forceReplace ? ' (with truncate)' : ''}`,
+    };
+  }
+
   @Delete('reset/:userId')
   async resetUserTestData(@Param('userId') userId: string) {
     this.logger.log(`Resetting test data for user ${userId}`);
@@ -155,6 +170,28 @@ export class TestModeController {
       success: true,
       message: `Test data reset successfully for user ${userId}`,
     };
+  }
+
+  @Get('debug-api-call')
+  async debugApiCall() {
+    this.logger.log('Testing API-Football direct call for 2023 season');
+
+    try {
+      const fixtures = await this.testModeService.debugApiCall();
+      return {
+        success: true,
+        fixtures_count: fixtures.length,
+        first_few: fixtures.slice(0, 3),
+        message: `Successfully fetched ${fixtures.length} fixtures`,
+      };
+    } catch (error) {
+      this.logger.error('Debug API call failed', error);
+      return {
+        success: false,
+        error: error.message,
+        message: 'API call failed',
+      };
+    }
   }
 
   @Get('health')
