@@ -6,6 +6,7 @@ export interface Last5ItemDto {
   code: ResultCode;
   predicted: ResultCode | null; // user prediction if exists
   correct: boolean | null; // null when no prediction
+  wasHome: boolean; // true if this team was home in this match
 }
 
 export interface MatchCardKickoffDto {

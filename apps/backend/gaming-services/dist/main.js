@@ -121453,10 +121453,10 @@ let TestModeService = TestModeService_1 = class TestModeService {
                 : this.computeWinRate(priorFixtures, f.awayTeam, 'away');
             const homeForm = isWeekOne
                 ? []
-                : this.toForm(last5IdsByTeam.get(f.homeTeam) || [], userPreds, resultCodeById);
+                : this.toForm(last5IdsByTeam.get(f.homeTeam) || [], userPreds, resultCodeById, f.homeTeam, priorFixtures);
             const awayForm = isWeekOne
                 ? []
-                : this.toForm(last5IdsByTeam.get(f.awayTeam) || [], userPreds, resultCodeById);
+                : this.toForm(last5IdsByTeam.get(f.awayTeam) || [], userPreds, resultCodeById, f.awayTeam, priorFixtures);
             cards.push({
                 week: f.week,
                 fixtureId: f.id,
@@ -121621,14 +121621,16 @@ let TestModeService = TestModeService_1 = class TestModeService {
         sorted.forEach(([team], idx) => pos.set(team, idx + 1));
         return pos;
     }
-    toForm(ids, userPreds, codeById) {
+    toForm(ids, userPreds, codeById, teamName, priorFixtures) {
         if (!ids || ids.length === 0)
             return [];
         return ids.map((id) => {
             const code = codeById.get(id);
             const predicted = userPreds.get(id) ?? null;
             const correct = predicted == null ? null : predicted === code;
-            return { fixtureId: id, code, predicted, correct };
+            const fixture = priorFixtures.find((f) => f.id === id);
+            const wasHome = fixture ? fixture.homeTeam === teamName : false;
+            return { fixtureId: id, code, predicted, correct, wasHome };
         });
     }
     tryLoadStandingsCsv(week) {

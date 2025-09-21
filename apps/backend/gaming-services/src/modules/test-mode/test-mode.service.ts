@@ -151,6 +151,8 @@ export class TestModeService {
             last5IdsByTeam.get(f.homeTeam) || [],
             userPreds,
             resultCodeById,
+            f.homeTeam,
+            priorFixtures,
           );
       const awayForm = isWeekOne
         ? []
@@ -158,6 +160,8 @@ export class TestModeService {
             last5IdsByTeam.get(f.awayTeam) || [],
             userPreds,
             resultCodeById,
+            f.awayTeam,
+            priorFixtures,
           );
 
       cards.push({
@@ -347,13 +351,20 @@ export class TestModeService {
     ids: number[],
     userPreds: Map<number, ResultCode>,
     codeById: Map<number, ResultCode>,
+    teamName: string,
+    priorFixtures: TestFixture[],
   ): Last5ItemDto[] {
     if (!ids || ids.length === 0) return [];
     return ids.map((id) => {
       const code = codeById.get(id)!;
       const predicted = userPreds.get(id) ?? null;
       const correct = predicted == null ? null : predicted === code;
-      return { fixtureId: id, code, predicted, correct };
+
+      // Find the actual fixture to determine if this team was home or away
+      const fixture = priorFixtures.find((f) => f.id === id);
+      const wasHome = fixture ? fixture.homeTeam === teamName : false;
+
+      return { fixtureId: id, code, predicted, correct, wasHome };
     });
   }
 
