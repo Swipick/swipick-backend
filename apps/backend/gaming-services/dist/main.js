@@ -122260,7 +122260,7 @@ let TestModeService = TestModeService_1 = class TestModeService {
             }
         }
         const SERIE_A_LEAGUE_ID = 135;
-        const SEASON_2023_2024 = 2024;
+        const SEASON_2023_2024 = 2023;
         const allFixtures = [];
         try {
             this.logger.log('Fetching all Serie A 2023/2024 fixtures from API-Football...');
@@ -122320,7 +122320,7 @@ let TestModeService = TestModeService_1 = class TestModeService {
         this.logger.log('🔍 DEBUG: Testing direct API-Football call for 2023 Serie A season');
         try {
             const SERIE_A_LEAGUE_ID = 135;
-            const SEASON_2023_2024 = 2024;
+            const SEASON_2023_2024 = 2023;
             this.logger.log(`🔍 DEBUG: Calling getFixtures with league=${SERIE_A_LEAGUE_ID}, season=${SEASON_2023_2024}`);
             const fixtures = await this.apiFootballService.getFixtures({
                 league: SERIE_A_LEAGUE_ID,

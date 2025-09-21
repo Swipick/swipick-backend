@@ -1108,7 +1108,7 @@ export class TestModeService {
     }
 
     const SERIE_A_LEAGUE_ID = 135;
-    const SEASON_2023_2024 = 2024;
+    const SEASON_2023_2024 = 2023;
     const allFixtures = [];
 
     try {
@@ -1203,7 +1203,7 @@ export class TestModeService {
 
     try {
       const SERIE_A_LEAGUE_ID = 135;
-      const SEASON_2023_2024 = 2024;
+      const SEASON_2023_2024 = 2023;
 
       this.logger.log(
         `🔍 DEBUG: Calling getFixtures with league=${SERIE_A_LEAGUE_ID}, season=${SEASON_2023_2024}`,
