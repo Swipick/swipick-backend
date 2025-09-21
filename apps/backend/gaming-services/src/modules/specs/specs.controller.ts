@@ -37,7 +37,39 @@ export class SpecsController {
   async createPrediction(
     @Body() data: CreateUnifiedPredictionDto,
   ): Promise<SpecResponseDto> {
-    if (data.mode === 'test') {
+    console.log('='.repeat(80));
+    console.log('🚀 [SPECS_CONTROLLER] *** UNIFIED PREDICTION ENDPOINT HIT ***');
+    console.log('🚀 [SPECS_CONTROLLER] Timestamp:', new Date().toISOString());
+    console.log('🚀 [SPECS_CONTROLLER] Full request body received:');
+    console.log('🚀 [SPECS_CONTROLLER] Raw object:', data);
+    console.log('🚀 [SPECS_CONTROLLER] JSON stringified:', JSON.stringify(data, null, 2));
+    console.log('🚀 [SPECS_CONTROLLER] Object keys:', Object.keys(data));
+    console.log('🚀 [SPECS_CONTROLLER] userId:', {
+      value: data.userId,
+      type: typeof data.userId,
+      length: data.userId?.length,
+      isUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(data.userId || ''),
+      isFirebaseUID: typeof data.userId === 'string' && data.userId.length > 20
+    });
+    console.log('🚀 [SPECS_CONTROLLER] fixtureId:', {
+      value: data.fixtureId,
+      type: typeof data.fixtureId,
+      isNumber: typeof data.fixtureId === 'number'
+    });
+    console.log('🚀 [SPECS_CONTROLLER] choice:', {
+      value: data.choice,
+      type: typeof data.choice
+    });
+    console.log('🚀 [SPECS_CONTROLLER] mode:', {
+      value: data.mode,
+      type: typeof data.mode
+    });
+    console.log('='.repeat(80));
+
+    try {
+      console.log('🚀 [SPECS_CONTROLLER] Starting validation and processing...');
+
+      if (data.mode === 'test') {
       // Route to test mode service
       const testSpec = await this.testModeService.createTestPrediction(
         data.userId,
@@ -69,6 +101,18 @@ export class SpecsController {
         week: 1, // TODO: Determine current week for live mode
       };
       return this.specsService.createPrediction(createSpecDto);
+    }
+    } catch (error) {
+      console.log('❌ [SPECS_CONTROLLER] ERROR occurred:');
+      console.log('❌ [SPECS_CONTROLLER] Error type:', typeof error);
+      console.log('❌ [SPECS_CONTROLLER] Error constructor:', error?.constructor?.name);
+      console.log('❌ [SPECS_CONTROLLER] Error message:', error?.message);
+      console.log('❌ [SPECS_CONTROLLER] Error stack:', error?.stack);
+      console.log('❌ [SPECS_CONTROLLER] Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      console.log('='.repeat(80));
+
+      // Re-throw the error so it's handled by NestJS
+      throw error;
     }
   }
 

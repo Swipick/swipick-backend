@@ -267,9 +267,17 @@ class ApiClient {
     fixtureId: number;
     choice: '1' | 'X' | '2';
   }, mode: 'live' | 'test') {
+    const payload = { ...data, mode };
+    console.log('🚀 [SAVE_PREDICTION] Full payload being sent:', JSON.stringify(payload, null, 2));
+    console.log('🚀 [SAVE_PREDICTION] userId type:', typeof payload.userId);
+    console.log('🚀 [SAVE_PREDICTION] userId value:', payload.userId);
+    console.log('🚀 [SAVE_PREDICTION] fixtureId type:', typeof payload.fixtureId);
+    console.log('🚀 [SAVE_PREDICTION] fixtureId value:', payload.fixtureId);
+    console.log('🚀 [SAVE_PREDICTION] mode:', payload.mode);
+
     return this.request('/predictions', {
       method: 'POST',
-      body: JSON.stringify({ ...data, mode }),
+      body: JSON.stringify(payload),
     });
   }
 

@@ -116414,6 +116414,84 @@ exports.TestSpec = TestSpec = __decorate([
 
 /***/ }),
 
+/***/ "./src/main.ts":
+/*!*********************!*\
+  !*** ./src/main.ts ***!
+  \*********************/
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const core_1 = __webpack_require__(/*! @nestjs/core */ "../../../node_modules/@nestjs/core/index.js");
+const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
+const config_1 = __webpack_require__(/*! @nestjs/config */ "../../../node_modules/@nestjs/config/index.js");
+const app_module_1 = __webpack_require__(/*! ./app.module */ "./src/app.module.ts");
+const common_2 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
+let RequestLoggingInterceptor = class RequestLoggingInterceptor {
+    intercept(context, next) {
+        const request = context.switchToHttp().getRequest();
+        const { method, url, body, headers } = request;
+        if (method === 'POST' && url.includes('/predictions')) {
+            console.log('🌐 [GLOBAL_INTERCEPTOR] === INCOMING REQUEST ===');
+            console.log('🌐 [GLOBAL_INTERCEPTOR] Method:', method);
+            console.log('🌐 [GLOBAL_INTERCEPTOR] URL:', url);
+            console.log('🌐 [GLOBAL_INTERCEPTOR] Headers:', JSON.stringify(headers, null, 2));
+            console.log('🌐 [GLOBAL_INTERCEPTOR] Body:', JSON.stringify(body, null, 2));
+            console.log('🌐 [GLOBAL_INTERCEPTOR] === END REQUEST ===');
+        }
+        return next.handle();
+    }
+};
+RequestLoggingInterceptor = __decorate([
+    (0, common_1.Injectable)()
+], RequestLoggingInterceptor);
+async function bootstrap() {
+    const logger = new common_2.Logger('Bootstrap');
+    const app = await core_1.NestFactory.create(app_module_1.AppModule);
+    const configService = app.get(config_1.ConfigService);
+    const port = configService.get('PORT', 3000);
+    const nodeEnv = configService.get('NODE_ENV', 'development');
+    app.useGlobalInterceptors(new RequestLoggingInterceptor());
+    app.useGlobalPipes(new common_1.ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+    }));
+    app.enableCors({
+        origin: nodeEnv === 'production' ? false : true,
+        credentials: true,
+    });
+    app.setGlobalPrefix('api');
+    await app.listen(port);
+    logger.log(`🚀 Gaming Services running on port ${port} (${nodeEnv})`);
+    logger.log(`📊 Health check: http://localhost:${port}/api/health`);
+    const server = app.getHttpServer();
+    const router = server._events.request._router;
+    if (router && router.stack) {
+        logger.log('📍 [ROUTE_DEBUG] Registered routes:');
+        router.stack.forEach((layer) => {
+            if (layer.route) {
+                const methods = Object.keys(layer.route.methods);
+                logger.log(`📍 [ROUTE_DEBUG] ${methods.join(',').toUpperCase()} ${layer.route.path}`);
+            }
+        });
+    }
+}
+bootstrap().catch((error) => {
+    console.error('Failed to start Gaming Services:', error);
+    process.exit(1);
+});
+
+
+/***/ }),
+
 /***/ "./src/modules/api-football/api-football.client.ts":
 /*!*********************************************************!*\
   !*** ./src/modules/api-football/api-football.client.ts ***!
@@ -120282,31 +120360,72 @@ let SpecsController = class SpecsController {
         this.testModeService = testModeService;
     }
     async createPrediction(data) {
-        if (data.mode === 'test') {
-            const testSpec = await this.testModeService.createTestPrediction(data.userId, data.fixtureId, data.choice);
-            return {
-                id: testSpec.id.toString(),
-                user_id: testSpec.userId,
-                fixture_id: testSpec.fixtureId.toString(),
-                choice: testSpec.choice,
-                result: undefined,
-                is_correct: testSpec.isCorrect,
-                week: testSpec.week,
-                timestamp: testSpec.createdAt,
-                match_display: testSpec.fixture
-                    ? testSpec.fixture.getMatchDisplay()
-                    : `Test Match ${testSpec.fixtureId}`,
-                choice_display: testSpec.getChoiceDisplay(),
-            };
+        console.log('='.repeat(80));
+        console.log('🚀 [SPECS_CONTROLLER] *** UNIFIED PREDICTION ENDPOINT HIT ***');
+        console.log('🚀 [SPECS_CONTROLLER] Timestamp:', new Date().toISOString());
+        console.log('🚀 [SPECS_CONTROLLER] Full request body received:');
+        console.log('🚀 [SPECS_CONTROLLER] Raw object:', data);
+        console.log('🚀 [SPECS_CONTROLLER] JSON stringified:', JSON.stringify(data, null, 2));
+        console.log('🚀 [SPECS_CONTROLLER] Object keys:', Object.keys(data));
+        console.log('🚀 [SPECS_CONTROLLER] userId:', {
+            value: data.userId,
+            type: typeof data.userId,
+            length: data.userId?.length,
+            isUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(data.userId || ''),
+            isFirebaseUID: typeof data.userId === 'string' && data.userId.length > 20
+        });
+        console.log('🚀 [SPECS_CONTROLLER] fixtureId:', {
+            value: data.fixtureId,
+            type: typeof data.fixtureId,
+            isNumber: typeof data.fixtureId === 'number'
+        });
+        console.log('🚀 [SPECS_CONTROLLER] choice:', {
+            value: data.choice,
+            type: typeof data.choice
+        });
+        console.log('🚀 [SPECS_CONTROLLER] mode:', {
+            value: data.mode,
+            type: typeof data.mode
+        });
+        console.log('='.repeat(80));
+        try {
+            console.log('🚀 [SPECS_CONTROLLER] Starting validation and processing...');
+            if (data.mode === 'test') {
+                const testSpec = await this.testModeService.createTestPrediction(data.userId, data.fixtureId, data.choice);
+                return {
+                    id: testSpec.id.toString(),
+                    user_id: testSpec.userId,
+                    fixture_id: testSpec.fixtureId.toString(),
+                    choice: testSpec.choice,
+                    result: undefined,
+                    is_correct: testSpec.isCorrect,
+                    week: testSpec.week,
+                    timestamp: testSpec.createdAt,
+                    match_display: testSpec.fixture
+                        ? testSpec.fixture.getMatchDisplay()
+                        : `Test Match ${testSpec.fixtureId}`,
+                    choice_display: testSpec.getChoiceDisplay(),
+                };
+            }
+            else {
+                const createSpecDto = {
+                    user_id: data.userId,
+                    fixture_id: data.fixtureId.toString(),
+                    choice: data.choice,
+                    week: 1,
+                };
+                return this.specsService.createPrediction(createSpecDto);
+            }
         }
-        else {
-            const createSpecDto = {
-                user_id: data.userId,
-                fixture_id: data.fixtureId.toString(),
-                choice: data.choice,
-                week: 1,
-            };
-            return this.specsService.createPrediction(createSpecDto);
+        catch (error) {
+            console.log('❌ [SPECS_CONTROLLER] ERROR occurred:');
+            console.log('❌ [SPECS_CONTROLLER] Error type:', typeof error);
+            console.log('❌ [SPECS_CONTROLLER] Error constructor:', error?.constructor?.name);
+            console.log('❌ [SPECS_CONTROLLER] Error message:', error?.message);
+            console.log('❌ [SPECS_CONTROLLER] Error stack:', error?.stack);
+            console.log('❌ [SPECS_CONTROLLER] Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+            console.log('='.repeat(80));
+            throw error;
         }
     }
     async getWeeklyStats(userId, week, mode) {
@@ -231095,47 +231214,11 @@ module.exports = /*#__PURE__*/JSON.parse('{"name":"dotenv","version":"16.6.1","d
 /******/ 	})();
 /******/ 	
 /************************************************************************/
-var __webpack_exports__ = {};
-// This entry needs to be wrapped in an IIFE because it needs to be in strict mode.
-(() => {
-"use strict";
-var exports = __webpack_exports__;
-/*!*********************!*\
-  !*** ./src/main.ts ***!
-  \*********************/
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const core_1 = __webpack_require__(/*! @nestjs/core */ "../../../node_modules/@nestjs/core/index.js");
-const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
-const config_1 = __webpack_require__(/*! @nestjs/config */ "../../../node_modules/@nestjs/config/index.js");
-const app_module_1 = __webpack_require__(/*! ./app.module */ "./src/app.module.ts");
-const common_2 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
-async function bootstrap() {
-    const logger = new common_2.Logger('Bootstrap');
-    const app = await core_1.NestFactory.create(app_module_1.AppModule);
-    const configService = app.get(config_1.ConfigService);
-    const port = configService.get('PORT', 3000);
-    const nodeEnv = configService.get('NODE_ENV', 'development');
-    app.useGlobalPipes(new common_1.ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-    }));
-    app.enableCors({
-        origin: nodeEnv === 'production' ? false : true,
-        credentials: true,
-    });
-    app.setGlobalPrefix('api');
-    await app.listen(port);
-    logger.log(`🚀 Gaming Services running on port ${port} (${nodeEnv})`);
-    logger.log(`📊 Health check: http://localhost:${port}/api/health`);
-}
-bootstrap().catch((error) => {
-    console.error('Failed to start Gaming Services:', error);
-    process.exit(1);
-});
-
-})();
-
+/******/ 	
+/******/ 	// startup
+/******/ 	// Load entry module and return exports
+/******/ 	// This entry module is referenced by other modules so it can't be inlined
+/******/ 	var __webpack_exports__ = __webpack_require__("./src/main.ts");
+/******/ 	
 /******/ })()
 ;
