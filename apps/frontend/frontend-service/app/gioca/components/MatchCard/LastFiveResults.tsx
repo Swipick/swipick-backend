@@ -10,14 +10,34 @@ import type { Last5Item } from '../../types/matchCards';
 interface LastFiveResultsProps {
   results: Array<'1' | 'X' | '2'>;
   form?: Last5Item[];
+  isHomeTeam?: boolean; // NEW: Indicates if this is for the home team
   className?: string;
 }
 
-export function LastFiveResults({ results, form, className = '' }: LastFiveResultsProps) {
+export function LastFiveResults({ results, form, isHomeTeam = false, className = '' }: LastFiveResultsProps) {
+  // Debug logging for empty results
+  if (process.env.NODE_ENV === 'development') {
+    if ((!form || form.length === 0) && (!results || results.length === 0)) {
+      console.log('[LastFiveResults] DEBUG - No data available:', {
+        isHomeTeam,
+        formLength: form?.length || 0,
+        resultsLength: results?.length || 0,
+        formData: form,
+        resultsData: results
+      });
+    }
+  }
+
   // Normalize to Last5Item[], pad to 5, then render right-to-left (most recent on the right)
   const base: (Last5Item | null)[] = (form && form.length)
-    ? form
-    : results.map((code) => ({ fixtureId: 0, code, predicted: null, correct: null, wasHome: false }));
+    ? form.filter(item => item.wasHome === isHomeTeam) // Filter by venue when using form data
+    : results.map((code) => ({
+        fixtureId: 0,
+        code,
+        predicted: null,
+        correct: null,
+        wasHome: isHomeTeam // Use the team context to set wasHome correctly
+      }));
   const filled: Array<Last5Item | null> = base.slice(0, 5);
   while (filled.length < 5) filled.push(null);
 

@@ -69,8 +69,9 @@ export function MatchCard({
           winRateLabel="Vittorie in casa"
           last5={matchCard?.home.last5 || []}
           form={matchCard?.home.form}
+          isHomeTeam={true}
         />
-        
+
         <TeamInfo
           team={fixture.teams.away}
           standingsPosition={matchCard?.away.standingsPosition}
@@ -78,6 +79,7 @@ export function MatchCard({
           winRateLabel="Vittorie in trasferta"
           last5={matchCard?.away.last5 || []}
           form={matchCard?.away.form}
+          isHomeTeam={false}
         />
       </div>
 

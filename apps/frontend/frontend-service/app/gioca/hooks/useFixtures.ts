@@ -145,12 +145,31 @@ export function useFixtures({
             );
             cardsArrLocal = arr;
             if (DEBUG_GIOCA) {
-              console.log('[gioca] match-cards loaded', { 
-                week: selectedWeek, 
-                count: arr.length, 
-                first: arr[0]?.fixtureId, 
-                userIdForOverlay 
+              console.log('[gioca] match-cards loaded', {
+                week: selectedWeek,
+                count: arr.length,
+                first: arr[0]?.fixtureId,
+                userIdForOverlay
               });
+              // Log first match card structure to analyze data format
+              if (arr.length > 0) {
+                console.log('[gioca] TEST MODE - First match card structure:', {
+                  home: {
+                    name: arr[0]?.home?.name,
+                    last5: arr[0]?.home?.last5,
+                    form: arr[0]?.home?.form,
+                    hasFormArray: Array.isArray(arr[0]?.home?.form),
+                    formLength: arr[0]?.home?.form?.length
+                  },
+                  away: {
+                    name: arr[0]?.away?.name,
+                    last5: arr[0]?.away?.last5,
+                    form: arr[0]?.away?.form,
+                    hasFormArray: Array.isArray(arr[0]?.away?.form),
+                    formLength: arr[0]?.away?.form?.length
+                  }
+                });
+              }
             }
           } else {
             cardsArrLocal = [];
@@ -301,6 +320,24 @@ export function useFixtures({
               const cardsResponse = await apiClient.getLiveMatchCardsByWeek(targetWeek, userKey || undefined);
               if (Array.isArray(cardsResponse)) {
                 cardsArrLocal = cardsResponse;
+                if (DEBUG_GIOCA && cardsResponse.length > 0) {
+                  console.log('[gioca] LIVE MODE - First match card structure:', {
+                    home: {
+                      name: cardsResponse[0]?.home?.name,
+                      last5: cardsResponse[0]?.home?.last5,
+                      form: cardsResponse[0]?.home?.form,
+                      hasFormArray: Array.isArray(cardsResponse[0]?.home?.form),
+                      formLength: cardsResponse[0]?.home?.form?.length
+                    },
+                    away: {
+                      name: cardsResponse[0]?.away?.name,
+                      last5: cardsResponse[0]?.away?.last5,
+                      form: cardsResponse[0]?.away?.form,
+                      hasFormArray: Array.isArray(cardsResponse[0]?.away?.form),
+                      formLength: cardsResponse[0]?.away?.form?.length
+                    }
+                  });
+                }
               }
             } catch (cardError) {
               if (DEBUG_GIOCA) {

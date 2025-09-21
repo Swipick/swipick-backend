@@ -17,6 +17,7 @@ interface TeamInfoProps {
   winRateLabel?: string;
   last5?: Array<'1' | 'X' | '2'>;
   form?: Last5Item[];
+  isHomeTeam?: boolean; // NEW: Indicates if this is the home team
   className?: string;
 }
 
@@ -27,6 +28,7 @@ export function TeamInfo({
   winRateLabel = 'Win Rate',
   last5 = [],
   form,
+  isHomeTeam = false,
   className = '',
 }: TeamInfoProps) {
   // Use centralized logo resolution (mapping function as primary source)
@@ -64,7 +66,7 @@ export function TeamInfo({
       <p className="text-sm font-bold text-black">{winRate !== null && winRate !== undefined ? `${winRate}%` : '0%'}</p>
       
       <p className="text-[11px] text-black mt-1">Ultimi 5 risultati</p>
-      <LastFiveResults results={last5} form={form} />
+      <LastFiveResults results={last5} form={form} isHomeTeam={isHomeTeam} />
     </div>
   );
 }

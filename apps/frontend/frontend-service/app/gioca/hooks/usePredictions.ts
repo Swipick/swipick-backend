@@ -12,6 +12,18 @@ import type {
   Fixture,
   GameMode
 } from '../types';
+
+// Interface for prediction items returned from the API
+interface ApiPrediction {
+  fixtureId: number;
+  homeTeam: string;
+  awayTeam: string;
+  userChoice: string;
+  actualResult: string;
+  isCorrect: boolean;
+  homeScore: number;
+  awayScore: number;
+}
 import { DEBUG_GIOCA, STORAGE_KEYS, GAME_CONFIG } from '../utils/constants';
 
 interface UsePredictionsParams {
@@ -176,9 +188,13 @@ export function usePredictions({
           // Convert database predictions to local predictions format
           const existingPredictions: PredictionRecord = {};
 
-          weeklyStats.predictions.forEach((pred: any) => {
+          weeklyStats.predictions.forEach((pred: ApiPrediction) => {
             if (pred.fixtureId && pred.userChoice && pred.userChoice !== 'SKIP') {
-              existingPredictions[pred.fixtureId] = pred.userChoice;
+              // Cast userChoice to PredictionChoice after validating it's a valid choice
+              const choice = pred.userChoice as '1' | 'X' | '2';
+              if (['1', 'X', '2'].includes(choice)) {
+                existingPredictions[pred.fixtureId] = choice;
+              }
             }
           });
 

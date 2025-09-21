@@ -64,6 +64,9 @@ export class TestModeService {
 
     const cards: MatchCardDto[] = [];
 
+    // Auto-complete past fixtures based on virtual time before computing stats
+    await this.autoCompleteVirtualFixtures();
+
     // Preload prior fixtures up to week-1 to compute stats in-memory
     const priorFixtures = isWeekOne
       ? []
@@ -1259,5 +1262,75 @@ export class TestModeService {
     } else {
       return 'X'; // Draw
     }
+  }
+
+  /**
+   * Auto-complete fixtures that have passed in virtual time with their predefined scores
+   * This enables historical last5 calculations for test mode
+   */
+  private async autoCompleteVirtualFixtures(): Promise<void> {
+    // Get current virtual time (September 9, 2023 13:35 + elapsed time)
+    const virtualStartDate = new Date('2023-09-09T13:35:00.000Z');
+    const realElapsed = Date.now() - virtualStartDate.getTime();
+
+    // For demo purposes, simulate that time passes quickly in virtual mode
+    const virtualNow = new Date(virtualStartDate.getTime() + realElapsed);
+
+    this.logger.log(`[AutoComplete] Virtual time: ${virtualNow.toISOString()}`);
+
+    // Find fixtures that should be completed (date has passed) but don't have scores yet
+    const fixturesToComplete = await this.testFixtureRepository
+      .createQueryBuilder('fixture')
+      .where('fixture.date < :virtualNow', { virtualNow })
+      .andWhere('fixture.homeScore IS NULL OR fixture.awayScore IS NULL')
+      .getMany();
+
+    if (fixturesToComplete.length === 0) {
+      return; // Nothing to complete
+    }
+
+    this.logger.log(
+      `[AutoComplete] Found ${fixturesToComplete.length} fixtures to complete`,
+    );
+
+    // Complete each fixture with its predefined scores from the seed data
+    for (const fixture of fixturesToComplete) {
+      // Set scores from the original seed data structure
+      const completed = this.getCompletedFixtureScores(fixture);
+      if (completed) {
+        await this.testFixtureRepository.update(
+          { id: fixture.id },
+          { homeScore: completed.homeScore, awayScore: completed.awayScore },
+        );
+        this.logger.log(
+          `[AutoComplete] Completed fixture ${fixture.id}: ${fixture.homeTeam} ${completed.homeScore}-${completed.awayScore} ${fixture.awayTeam}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Get the predefined scores for a fixture based on the original seed data
+   */
+  private getCompletedFixtureScores(
+    fixture: TestFixture,
+  ): { homeScore: number; awayScore: number } | null {
+    // This maps to the predefined results from the seed data
+    const results: Record<string, { homeScore: number; awayScore: number }> = {
+      // Week 1 results
+      'Genoa-Fiorentina': { homeScore: 1, awayScore: 4 },
+      'Inter-Monza': { homeScore: 2, awayScore: 0 },
+      'Empoli-Verona': { homeScore: 0, awayScore: 1 },
+      'Frosinone-Napoli': { homeScore: 1, awayScore: 3 },
+      'Lecce-Lazio': { homeScore: 2, awayScore: 1 },
+      'Udinese-Juventus': { homeScore: 0, awayScore: 3 },
+      'AS Roma-Salernitana': { homeScore: 2, awayScore: 1 },
+      'Sassuolo-Cagliari': { homeScore: 2, awayScore: 1 },
+      'Bologna-AC Milan': { homeScore: 0, awayScore: 2 },
+      'Torino-Atalanta': { homeScore: 1, awayScore: 2 },
+    };
+
+    const key = `${fixture.homeTeam}-${fixture.awayTeam}`;
+    return results[key] || null;
   }
 }
