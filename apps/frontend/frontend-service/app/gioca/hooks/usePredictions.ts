@@ -100,12 +100,22 @@ export function usePredictions({
     // Submit to backend if we have a user
     if (userKey) {
       try {
-        await apiClient.createPrediction({
-          userId: userKey,
-          mode: currentMode,
-          fixtureId,
-          choice,
-        });
+        if (currentMode === 'test') {
+          // Use specific test-mode endpoint for direct routing
+          await apiClient.createTestPrediction({
+            userId: userKey,
+            fixtureId,
+            choice,
+          });
+        } else {
+          // Use unified endpoint for live mode (through BFF)
+          await apiClient.createPrediction({
+            userId: userKey,
+            mode: currentMode,
+            fixtureId,
+            choice,
+          });
+        }
 
         if (DEBUG_GIOCA) {
           console.log('[gioca] prediction submitted successfully', { fixtureId, choice, mode: currentMode });
@@ -135,14 +145,65 @@ export function usePredictions({
     if (saved?.predictions) {
       setPredictions(saved.predictions);
       if (DEBUG_GIOCA) {
-        console.log('[gioca] loaded persisted predictions', { 
+        console.log('[gioca] loaded persisted predictions', {
           count: Object.keys(saved.predictions).length,
-          week: selectedWeek 
+          week: selectedWeek
         });
       }
     }
     readyToPersistRef.current = true;
   }, [safeReadState, selectedWeek]);
+
+  // Fetch existing predictions from database for authenticated users
+  useEffect(() => {
+    const fetchExistingPredictions = async () => {
+      // Only fetch for test mode with authenticated user and valid week
+      if (currentMode !== 'test' || !userKey || !selectedWeek) {
+        return;
+      }
+
+      try {
+        if (DEBUG_GIOCA) {
+          console.log('[gioca] fetching existing predictions from database', {
+            userKey,
+            week: selectedWeek
+          });
+        }
+
+        const weeklyStats = await apiClient.getTestWeeklyStats(userKey, selectedWeek);
+
+        if (weeklyStats && Array.isArray(weeklyStats.predictions)) {
+          // Convert database predictions to local predictions format
+          const existingPredictions: PredictionRecord = {};
+
+          weeklyStats.predictions.forEach((pred: any) => {
+            if (pred.fixtureId && pred.userChoice && pred.userChoice !== 'SKIP') {
+              existingPredictions[pred.fixtureId] = pred.userChoice;
+            }
+          });
+
+          // Only update if we have existing predictions
+          if (Object.keys(existingPredictions).length > 0) {
+            setPredictions(existingPredictions);
+
+            if (DEBUG_GIOCA) {
+              console.log('[gioca] loaded existing predictions from database', {
+                count: Object.keys(existingPredictions).length,
+                predictions: existingPredictions
+              });
+            }
+          }
+        }
+      } catch (error) {
+        if (DEBUG_GIOCA) {
+          console.log('[gioca] no existing predictions found or error fetching', error);
+        }
+        // Don't throw error - user might not have predictions yet
+      }
+    };
+
+    fetchExistingPredictions();
+  }, [currentMode, userKey, selectedWeek]);
 
   // Reset predictions function
   const resetPredictions = useCallback(() => {

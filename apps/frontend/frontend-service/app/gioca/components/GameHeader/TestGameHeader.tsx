@@ -4,11 +4,13 @@
  * Simplified version focused on test mode functionality
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CountdownTimer } from './CountdownTimer';
 import { ProgressBar } from './ProgressBar';
+import { useVirtualClock } from '../VirtualClock';
 import type { TimeToMatch } from '../../types';
 import { GAME_CONFIG } from '../../utils/constants';
+import { apiClient } from "@/lib/api-client";
 
 interface TestGameHeaderProps {
   selectedWeek: number | null;
@@ -18,6 +20,8 @@ interface TestGameHeaderProps {
   fixtures?: Array<{ date: string }>;
   isSticky?: boolean;
   onHeightChange?: (height: number) => void;
+  userKey?: string | null;
+  onReset?: () => void;
 }
 
 export function TestGameHeader({
@@ -28,12 +32,68 @@ export function TestGameHeader({
   fixtures = [],
   isSticky = false,
   onHeightChange,
+  userKey,
+  onReset,
 }: TestGameHeaderProps) {
   const headerRef = useRef<HTMLDivElement | null>(null);
   const [headerHeight, setHeaderHeight] = useState<number>(160);
 
-  // Fixed test date: September 24th, 2023
-  const FIXED_TEST_DATE = new Date('2023-09-24T12:00:00.000Z');
+  // Virtual clock for dynamic test time progression
+  const { virtualTime, formatDisplay } = useVirtualClock();
+
+  // State for Week 4 fixtures
+  const [week4Fixtures, setWeek4Fixtures] = useState<Array<{ date: string }>>([]);
+
+  // Virtual timeToMatch state for test mode
+  const [virtualTimeToMatch, setVirtualTimeToMatch] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+
+  // Reset state
+  const [isResetting, setIsResetting] = useState(false);
+
+  // Calculate time to next match using virtual date
+  const calculateTimeToMatch = useCallback(() => {
+    if (week4Fixtures.length === 0) {
+      return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    }
+
+    // Find the next upcoming match from Week 4 fixtures based on virtual date
+    const virtualNow = virtualTime.getTime();
+    const upcomingMatches = week4Fixtures
+      .map(f => new Date(f.date))
+      .filter(date => date.getTime() > virtualNow)
+      .sort((a, b) => a.getTime() - b.getTime());
+
+    if (upcomingMatches.length === 0) {
+      return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    }
+
+    const nextMatch = upcomingMatches[0];
+
+    // For test mode countdown: simulate time progressing from virtual date
+    // Calculate the original diff at virtual date (e.g., 7 days from Sep 9 to Sep 16)
+    const originalDiff = nextMatch.getTime() - virtualNow;
+
+    // To create a countdown effect, we simulate that time has passed since the virtual date
+    // We'll use the page load time as the starting point to avoid negative values
+    const now = Date.now();
+    const timeElapsedSincePageLoad = now - virtualNow; // This will be a large positive number
+
+    // But we want a realistic countdown, so let's just use the original diff
+    // and subtract a small amount of time to simulate progression
+    const simulatedElapsed = (now % 60000); // Use current seconds as simulation
+    const remainingTime = Math.max(0, originalDiff - simulatedElapsed);
+
+    if (remainingTime <= 0) {
+      return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    }
+
+    const days = Math.floor(remainingTime / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((remainingTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((remainingTime % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
+
+    return { days, hours, minutes, seconds };
+  }, [week4Fixtures, virtualTime]);
 
   // Measure header height and notify parent
   useEffect(() => {
@@ -51,28 +111,113 @@ export function TestGameHeader({
     return () => window.removeEventListener('resize', measure);
   }, [onHeightChange]);
 
-  // Calculate week data based on fixtures and fixed test date
+  // Fetch Week 4 fixtures on mount
+  useEffect(() => {
+    const fetchWeek4Fixtures = async () => {
+      try {
+        const response = await fetch('https://swipick-backend-production.up.railway.app/api/test-mode/fixtures/week/4');
+        const result = await response.json();
+
+        if (result.success && result.data.length > 0) {
+          setWeek4Fixtures(result.data);
+        }
+      } catch (error) {
+        console.warn('Could not fetch Week 4 fixtures');
+      }
+    };
+
+    fetchWeek4Fixtures();
+  }, []);
+
+  // Update virtual countdown every second
+  useEffect(() => {
+    const updateVirtualCountdown = () => {
+      setVirtualTimeToMatch(calculateTimeToMatch());
+    };
+
+    // Initial calculation
+    updateVirtualCountdown();
+
+    // Update every second
+    const timer = setInterval(updateVirtualCountdown, 1000);
+
+    return () => clearInterval(timer);
+  }, [calculateTimeToMatch]);
+
+  // Handle reset function
+  const handleReset = useCallback(async () => {
+    if (!userKey || isResetting) return;
+
+    const confirmed = window.confirm(
+      'Sei sicuro di voler resettare tutte le tue previsioni? Questa azione non può essere annullata.'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setIsResetting(true);
+
+      // Call API to reset user's test data
+      await apiClient.resetTestData(userKey);
+
+      // Call parent reset callback to clear local state
+      onReset?.();
+
+      console.log('✅ Test data reset successfully');
+    } catch (error) {
+      console.error('❌ Failed to reset test data:', error);
+      alert('Errore durante il reset. Riprova più tardi.');
+    } finally {
+      setIsResetting(false);
+    }
+  }, [userKey, isResetting, onReset]);
+
+  // Calculate week data based on Week 4 fixtures and virtual date logic
   const getWeekData = () => {
-    if (!fixtures.length) {
-      return { from: '', to: '', weekNumber: selectedWeek || 1 };
+    const activeWeek = 4; // Week 4 is active for predictions on Sep 9, 2023
+
+    // Use Week 4 fixtures for date range if available
+    if (week4Fixtures.length > 0) {
+      const dates = week4Fixtures.map(f => new Date(f.date)).sort((a, b) => a.getTime() - b.getTime());
+      const firstDate = dates[0];
+      const lastDate = dates[dates.length - 1];
+
+      const from = firstDate.toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        timeZone: 'Europe/Rome'
+      });
+      const to = lastDate.toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        timeZone: 'Europe/Rome'
+      });
+
+      return { from, to, weekNumber: activeWeek };
     }
 
-    const dates = fixtures.map(f => new Date(f.date)).sort((a, b) => a.getTime() - b.getTime());
-    const firstDate = dates[0];
-    const lastDate = dates[dates.length - 1];
+    // Fallback: if Week 4 fixtures not loaded yet or fixtures prop has data, use fixtures prop
+    if (fixtures.length > 0) {
+      const dates = fixtures.map(f => new Date(f.date)).sort((a, b) => a.getTime() - b.getTime());
+      const firstDate = dates[0];
+      const lastDate = dates[dates.length - 1];
 
-    const from = firstDate.toLocaleDateString('it-IT', {
-      day: '2-digit',
-      month: '2-digit',
-      timeZone: 'Europe/Rome'
-    });
-    const to = lastDate.toLocaleDateString('it-IT', {
-      day: '2-digit',
-      month: '2-digit',
-      timeZone: 'Europe/Rome'
-    });
+      const from = firstDate.toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        timeZone: 'Europe/Rome'
+      });
+      const to = lastDate.toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        timeZone: 'Europe/Rome'
+      });
 
-    return { from, to, weekNumber: selectedWeek || 1 };
+      return { from, to, weekNumber: activeWeek };
+    }
+
+    // Final fallback: no date range
+    return { from: '', to: '', weekNumber: activeWeek };
   };
 
   const { from, to, weekNumber } = getWeekData();
@@ -90,9 +235,36 @@ export function TestGameHeader({
         boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
       }}>
       <div className="text-center">
-        {/* Test Mode indicator */}
-        <div className="inline-block px-2 py-1 mb-2 text-xs bg-white/20 rounded-full">
-          Modalità Test
+        {/* Test Mode indicator with Reset button */}
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <div className="inline-block px-2 py-1 text-xs bg-white/20 rounded-full">
+            Modalità Test
+          </div>
+          {userKey && (
+            <button
+              onClick={handleReset}
+              disabled={isResetting}
+              className="inline-flex items-center px-2 py-1 text-xs bg-red-500/80 hover:bg-red-600/80 disabled:bg-red-500/40 rounded-full transition-colors"
+              title="Reset tutte le previsioni"
+            >
+              {isResetting ? (
+                <>
+                  <svg className="animate-spin -ml-0.5 mr-1 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Reset...
+                </>
+              ) : (
+                <>
+                  <svg className="-ml-0.5 mr-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Reset
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         {/* Week title */}
@@ -110,7 +282,7 @@ export function TestGameHeader({
         </h1>
 
         {/* Countdown timer */}
-        <CountdownTimer timeToMatch={timeToMatch} className="mb-4" />
+        <CountdownTimer timeToMatch={virtualTimeToMatch} className="mb-4" />
 
         {/* Progress bar */}
         <ProgressBar
@@ -118,15 +290,10 @@ export function TestGameHeader({
           total={GAME_CONFIG.TOTAL_PREDICTIONS}
         />
 
-        {/* Test mode info - shows current fixed date */}
+        {/* Test mode info - shows current virtual date and time */}
         <div className="mt-3 pt-3 border-t border-white/20">
           <div className="text-xs text-white/80">
-            📅 Data simulata: {FIXED_TEST_DATE.toLocaleDateString('it-IT', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric',
-              timeZone: 'Europe/Rome'
-            })}
+            📅 Data simulata: {formatDisplay()}
           </div>
         </div>
       </div>

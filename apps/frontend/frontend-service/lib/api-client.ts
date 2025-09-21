@@ -312,8 +312,8 @@ class ApiClient {
   }
 
   async getTestWeeklyStats(userId: string | number, week: number) {
-    // Use BFF mode-switching endpoint to reach gaming test-mode stats
-    return this.request(`/predictions/user/${userId}/week/${week}?mode=test`);
+    // Use test-mode specific endpoint for direct gaming-services integration
+    return this.request(`/test-mode/predictions/user/${userId}/week/${week}`);
   }
 
   async getLiveWeeklyStats(userId: string | number, week: number) {

@@ -9,6 +9,9 @@ export { TestGameHeader } from './GameHeader/TestGameHeader';
 export { CountdownTimer } from './GameHeader/CountdownTimer';
 export { ProgressBar } from './GameHeader/ProgressBar';
 
+// Virtual Clock components
+export { VirtualClock, useVirtualClock } from './VirtualClock/VirtualClock';
+
 // Match Card components
 export { MatchCard } from './MatchCard/MatchCard';
 export { TeamInfo } from './MatchCard/TeamInfo';

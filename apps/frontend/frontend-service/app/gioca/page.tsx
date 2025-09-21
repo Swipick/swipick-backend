@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useMotionValue, useTransform, PanInfo, animate, MotionValue } from 'framer-motion';
 import { Toast } from '@/src/components/Toast';
 import { useGameMode } from "@/src/contexts/GameModeContext";
+import { useAuthContext } from "@/src/contexts/AuthContext";
 import { apiClient } from "@/lib/api-client";
 
 // Hooks
@@ -65,9 +66,14 @@ function GiocaPageContent() {
       return Number.isFinite(w) && w >= 1 && w <= 38 ? w : 1;
     }
   }, [currentMode, searchParams, liveWeekData]);
-  
+
+  // Firebase authentication
+  const { firebaseUser } = useAuthContext();
+
+  // Use Firebase user's UID as userKey
+  const userKey = firebaseUser?.uid || null;
+
   // UI state
-  const [userKey, setUserKey] = useState<string | null>(null);
   const [weekComplete, setWeekComplete] = useState(false);
   const [rolledWeek1Once, setRolledWeek1Once] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -653,6 +659,8 @@ function GiocaPageContent() {
           fixtures={fixtures}
           isSticky={showSummaryScreen}
           onHeightChange={setHeaderHeight}
+          userKey={userKey}
+          onReset={resetPredictions}
         />
       ) : (
         <GameHeader
