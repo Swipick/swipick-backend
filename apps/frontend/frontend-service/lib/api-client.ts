@@ -312,12 +312,12 @@ class ApiClient {
   }
 
   async getTestWeeklyStats(userId: string | number, week: number) {
-    // Use test-mode specific endpoint for direct gaming-services integration
-    return this.request(`/test-mode/predictions/user/${userId}/week/${week}`);
+    // Use unified predictions endpoint with mode parameter
+    return this.request(`/predictions/user/${userId}/week/${week}?mode=test`);
   }
 
   async getLiveWeeklyStats(userId: string | number, week: number) {
-    // Use BFF mode-switching endpoint to reach gaming live-mode stats
+    // Use unified predictions endpoint with mode parameter
     return this.request(`/predictions/user/${userId}/week/${week}?mode=live`);
   }
 

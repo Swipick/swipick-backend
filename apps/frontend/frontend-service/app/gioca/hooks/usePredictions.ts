@@ -159,8 +159,8 @@ export function usePredictions({
   // Fetch existing predictions from database for authenticated users
   useEffect(() => {
     const fetchExistingPredictions = async () => {
-      // Only fetch for test mode with authenticated user and valid week
-      if (currentMode !== 'test' || !userKey || !selectedWeek) {
+      // Only fetch for authenticated user and valid week (works for both live and test modes)
+      if (!userKey || !selectedWeek) {
         return;
       }
 
@@ -168,11 +168,15 @@ export function usePredictions({
         if (DEBUG_GIOCA) {
           console.log('[gioca] fetching existing predictions from database', {
             userKey,
-            week: selectedWeek
+            week: selectedWeek,
+            mode: currentMode
           });
         }
 
-        const weeklyStats = await apiClient.getTestWeeklyStats(userKey, selectedWeek);
+        // Use mode-specific endpoint based on current mode
+        const weeklyStats = currentMode === 'test'
+          ? await apiClient.getTestWeeklyStats(userKey, selectedWeek)
+          : await apiClient.getLiveWeeklyStats(userKey, selectedWeek);
 
         if (weeklyStats && Array.isArray(weeklyStats.predictions)) {
           // Convert database predictions to local predictions format

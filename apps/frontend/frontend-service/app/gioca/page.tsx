@@ -28,7 +28,6 @@ import {
 // Types and constants
 import type { PredictionChoice } from './types';
 import { ANIMATION_CONFIG } from './utils/constants';
-import { calculateActiveWeek } from './utils/weekCalculator';
 
 function GiocaPageContent() {
   const router = useRouter();
@@ -43,23 +42,11 @@ function GiocaPageContent() {
   // Get reliable live week data (live mode only)
   const { liveWeekData, loading: liveWeekLoading, error: liveWeekError } = useLiveWeek({ mode: currentMode });
 
-  // Virtual clock for test mode dynamic week calculation
+  // Virtual clock for test mode (used by TestGameHeader)
   const { virtualTime } = useVirtualClock();
 
-  // State for dynamic active week in test mode
-  const [dynamicActiveWeek, setDynamicActiveWeek] = useState<number | null>(null);
-
-  // Calculate dynamic active week for test mode
-  useEffect(() => {
-    if (currentMode === 'test') {
-      calculateActiveWeek(virtualTime).then(weekInfo => {
-        setDynamicActiveWeek(weekInfo.activeWeek);
-      }).catch(error => {
-        console.warn('Failed to calculate active week:', error);
-        setDynamicActiveWeek(4); // Fallback to week 4
-      });
-    }
-  }, [currentMode, virtualTime]);
+  // For test mode, we'll use a fixed week 4 since TestGameHeader handles dynamic calculation
+  const testModeWeek = 4;
 
   // Selected week logic - reliable, no fallbacks
   const selectedWeek = useMemo(() => {
@@ -81,15 +68,15 @@ function GiocaPageContent() {
       console.log('[page] No live week data available yet, returning null');
       return null;
     } else {
-      // Test mode: use URL parameter if valid, otherwise use dynamic active week
+      // Test mode: use URL parameter if valid, otherwise use fixed week 4
       const urlWeek = Number(searchParams?.get('week') ?? NaN);
       if (Number.isFinite(urlWeek) && urlWeek >= 1 && urlWeek <= 38) {
         return urlWeek;
       }
-      // Use dynamic active week calculated from virtual time
-      return dynamicActiveWeek || 4; // Fallback to week 4 if not calculated yet
+      // Use fixed week 4 (TestGameHeader handles dynamic calculation)
+      return testModeWeek;
     }
-  }, [currentMode, searchParams, liveWeekData, dynamicActiveWeek]);
+  }, [currentMode, searchParams, liveWeekData, testModeWeek]);
 
   // Firebase authentication
   const { firebaseUser } = useAuthContext();

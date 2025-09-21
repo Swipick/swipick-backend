@@ -58,14 +58,14 @@ export function useVirtualClock(): VirtualClockReturn {
     return new Date(VIRTUAL_START_DATE.getTime() + totalOffset);
   }, [state]);
 
-  // Update virtual time every second
+  // Update virtual time every 10 seconds to reduce excessive recalculations
   useEffect(() => {
     const updateTime = () => {
       setVirtualTime(calculateVirtualTime());
     };
 
     updateTime(); // Initial update
-    const interval = setInterval(updateTime, 1000);
+    const interval = setInterval(updateTime, 10000); // Changed from 1000ms to 10000ms
 
     return () => clearInterval(interval);
   }, [calculateVirtualTime]);
