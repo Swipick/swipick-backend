@@ -8,7 +8,6 @@ import {
   Query,
   UsePipes,
   ValidationPipe,
-  ParseUUIDPipe,
   ParseIntPipe,
 } from '@nestjs/common';
 import { SpecsService } from './specs.service';
@@ -138,7 +137,7 @@ export class SpecsController {
    */
   @Get('user/:userId/week/:week')
   async getWeeklyStats(
-    @Param('userId', ParseUUIDPipe) userId: string,
+    @Param('userId') userId: string,
     @Param('week', ParseIntPipe) week: number,
     @Query('mode') mode?: 'live' | 'test',
   ): Promise<WeeklyStatsResponseDto> {
@@ -176,7 +175,7 @@ export class SpecsController {
    */
   @Get('user/:userId/summary')
   async getUserSummary(
-    @Param('userId', ParseUUIDPipe) userId: string,
+    @Param('userId') userId: string,
   ): Promise<UserSummaryResponseDto> {
     return this.specsService.getUserSummary(userId);
   }
@@ -187,7 +186,7 @@ export class SpecsController {
    */
   @Delete('user/:userId')
   async deleteUserPredictions(
-    @Param('userId', ParseUUIDPipe) userId: string,
+    @Param('userId') userId: string,
   ): Promise<{ success: boolean; deleted: number; message: string }> {
     const deleted = await this.specsService.deleteUserPredictions(userId);
     return {
