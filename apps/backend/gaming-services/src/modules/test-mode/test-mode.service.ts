@@ -1130,10 +1130,13 @@ export class TestModeService {
       let weekCounter = 1;
 
       // Group fixtures by date to determine weeks
-      const sortedFixtures = apiFixtures
+      // Note: API response has nested structure different from Fixture interface
+      const sortedFixtures = (apiFixtures as any[])
         .filter((f) => f.fixture?.status?.short === 'FT') // Only finished matches
         .sort(
-          (a, b) => new Date(a.fixture.date).getTime() - new Date(b.fixture.date).getTime(),
+          (a, b) =>
+            new Date(a.fixture.date).getTime() -
+            new Date(b.fixture.date).getTime(),
         );
 
       this.logger.log(`Processing ${sortedFixtures.length} finished fixtures`);
@@ -1141,7 +1144,7 @@ export class TestModeService {
       // Assign week numbers based on Serie A format (10 matches per week)
       for (let i = 0; i < sortedFixtures.length; i += 10) {
         const weekFixtures = sortedFixtures.slice(i, i + 10);
-        weekFixtures.forEach((fixture) => {
+        weekFixtures.forEach((fixture: any) => {
           const testFixture = {
             week: weekCounter,
             date: new Date(fixture.fixture.date),
