@@ -96,14 +96,22 @@ export class AppController {
 
   @Get('api/fixtures/week/:weekNumber')
   async getFixturesByWeek(@Param('weekNumber') weekNumber: string) {
-    this.logger.log(`Forwarding fixtures week ${weekNumber} request to Gaming Services`);
-    return this.appService.forwardToGamingServices(`/api/fixtures/week/${weekNumber}`);
+    this.logger.log(
+      `Forwarding fixtures week ${weekNumber} request to Gaming Services`,
+    );
+    return this.appService.forwardToGamingServices(
+      `/api/fixtures/week/${weekNumber}`,
+    );
   }
 
   @Get('api/fixtures/week/:weekNumber/daterange')
   async getWeekDateRange(@Param('weekNumber') weekNumber: string) {
-    this.logger.log(`Forwarding week ${weekNumber} date range request to Gaming Services`);
-    return this.appService.forwardToGamingServices(`/api/fixtures/week/${weekNumber}/daterange`);
+    this.logger.log(
+      `Forwarding week ${weekNumber} date range request to Gaming Services`,
+    );
+    return this.appService.forwardToGamingServices(
+      `/api/fixtures/week/${weekNumber}/daterange`,
+    );
   }
 
   @Get('api/fixtures/:id')
@@ -121,7 +129,6 @@ export class AppController {
       body,
     );
   }
-
 
   @Get('api/teams')
   async getTeams() {
@@ -170,19 +177,13 @@ export class AppController {
 
     const { userId, mode, fixtureId, choice } = dto;
 
-    if (mode === 'test') {
-      return this.appService.forwardToGamingServices(
-        '/api/test-mode/predictions',
-        'POST',
-        { userId, fixtureId, choice },
-      );
-    } else {
-      return this.appService.forwardToGamingServices(
-        '/api/predictions',
-        'POST',
-        { userId, fixtureId, choice },
-      );
-    }
+    // Use unified endpoint for both live and test modes
+    return this.appService.forwardToGamingServices('/api/predictions', 'POST', {
+      userId,
+      fixtureId,
+      choice,
+      mode,
+    });
   }
 
   @Get('api/predictions/user/:userId/week/:week')
@@ -196,15 +197,10 @@ export class AppController {
       `Getting ${mode} weekly predictions: User ${userId}, Week ${week}`,
     );
 
-    if (mode === 'test') {
-      return this.appService.forwardToGamingServices(
-        `/api/test-mode/predictions/user/${userId}/week/${week}`,
-      );
-    } else {
-      return this.appService.forwardToGamingServices(
-        `/api/predictions/user/${userId}/week/${week}`,
-      );
-    }
+    // Use unified endpoint for both live and test modes
+    return this.appService.forwardToGamingServices(
+      `/api/predictions/user/${userId}/week/${week}?mode=${mode}`,
+    );
   }
 
   @Get('api/predictions/user/:userId/summary')
@@ -215,15 +211,10 @@ export class AppController {
     const mode = query.mode || 'live';
     this.logger.log(`Getting ${mode} user summary: User ${userId}`);
 
-    if (mode === 'test') {
-      return this.appService.forwardToGamingServices(
-        `/api/test-mode/predictions/user/${userId}/summary`,
-      );
-    } else {
-      return this.appService.forwardToGamingServices(
-        `/api/predictions/user/${userId}/summary`,
-      );
-    }
+    // Use unified endpoint for both live and test modes
+    return this.appService.forwardToGamingServices(
+      `/api/predictions/user/${userId}/summary?mode=${mode}`,
+    );
   }
 
   @Delete('api/test-mode/reset/:userId')
