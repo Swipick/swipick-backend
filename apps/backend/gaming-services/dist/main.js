@@ -220861,8 +220861,33 @@ let SpecsController = class SpecsController {
         this.specsService = specsService;
         this.testModeService = testModeService;
     }
-    async createPrediction(createSpecDto) {
-        return this.specsService.createPrediction(createSpecDto);
+    async createPrediction(data) {
+        if (data.mode === 'test') {
+            const testSpec = await this.testModeService.createTestPrediction(data.userId, data.fixtureId, data.choice);
+            return {
+                id: testSpec.id.toString(),
+                user_id: testSpec.userId,
+                fixture_id: testSpec.fixtureId.toString(),
+                choice: testSpec.choice,
+                result: undefined,
+                is_correct: testSpec.isCorrect,
+                week: testSpec.week,
+                timestamp: testSpec.createdAt,
+                match_display: testSpec.fixture
+                    ? testSpec.fixture.getMatchDisplay()
+                    : `Test Match ${testSpec.fixtureId}`,
+                choice_display: testSpec.getChoiceDisplay(),
+            };
+        }
+        else {
+            const createSpecDto = {
+                user_id: data.userId,
+                fixture_id: data.fixtureId.toString(),
+                choice: data.choice,
+                week: 1,
+            };
+            return this.specsService.createPrediction(createSpecDto);
+        }
     }
     async getWeeklyStats(userId, week, mode) {
         if (mode === 'test') {
@@ -220905,7 +220930,7 @@ __decorate([
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [typeof (_c = typeof specs_dto_1.CreateSpecDto !== "undefined" && specs_dto_1.CreateSpecDto) === "function" ? _c : Object]),
+    __metadata("design:paramtypes", [typeof (_c = typeof specs_dto_1.CreateUnifiedPredictionDto !== "undefined" && specs_dto_1.CreateUnifiedPredictionDto) === "function" ? _c : Object]),
     __metadata("design:returntype", typeof (_d = typeof Promise !== "undefined" && Promise) === "function" ? _d : Object)
 ], SpecsController.prototype, "createPrediction", null);
 __decorate([
@@ -222228,7 +222253,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.UserSummaryResponseDto = exports.WeeklyStatsResponseDto = exports.SpecResponseDto = exports.WeeklyStatsDto = exports.CreateSpecDto = void 0;
+exports.CreateUnifiedPredictionDto = exports.UserSummaryResponseDto = exports.WeeklyStatsResponseDto = exports.SpecResponseDto = exports.WeeklyStatsDto = exports.CreateSpecDto = void 0;
 const class_validator_1 = __webpack_require__(164);
 class CreateSpecDto {
 }
@@ -222271,6 +222296,9 @@ exports.WeeklyStatsResponseDto = WeeklyStatsResponseDto;
 class UserSummaryResponseDto {
 }
 exports.UserSummaryResponseDto = UserSummaryResponseDto;
+class CreateUnifiedPredictionDto {
+}
+exports.CreateUnifiedPredictionDto = CreateUnifiedPredictionDto;
 
 
 /***/ }),

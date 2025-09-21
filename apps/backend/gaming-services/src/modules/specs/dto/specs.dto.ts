@@ -53,3 +53,10 @@ export class UserSummaryResponseDto {
   overall_success_rate: number;
   weekly_stats: WeeklyStatsResponseDto[];
 }
+
+export class CreateUnifiedPredictionDto {
+  userId: string;
+  fixtureId: number;
+  choice: '1' | 'X' | '2';
+  mode: 'live' | 'test';
+}
