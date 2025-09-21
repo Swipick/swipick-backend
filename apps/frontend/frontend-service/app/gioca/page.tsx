@@ -22,6 +22,7 @@ import {
   BottomNav,
   PredictionButtons,
   GameSummaryScreen,
+  TestGameSummaryScreen,
   useVirtualClock,
 } from './components';
 
@@ -128,14 +129,14 @@ function GiocaPageContent() {
 
   // Handle game completion and show summary screen
   useEffect(() => {
-    if (isComplete && currentMode === 'live' && fixtures.length > 0 && !showSummaryScreen) {
+    if (isComplete && fixtures.length > 0 && !showSummaryScreen) {
       // Small delay to allow last animation to complete
       const timer = setTimeout(() => {
         setShowSummaryScreen(true);
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [isComplete, currentMode, fixtures.length, showSummaryScreen]);
+  }, [isComplete, fixtures.length, showSummaryScreen]);
 
   // Countdown timer
   const {
@@ -796,10 +797,20 @@ function GiocaPageContent() {
       )}
 
       {/* Game Summary Screen */}
-      {showSummaryScreen && (
+      {showSummaryScreen && currentMode === 'live' && (
         <GameSummaryScreen
           predictions={predictions}
           fixtures={fixtures}
+          headerHeight={headerHeight}
+        />
+      )}
+
+      {/* Test Game Summary Screen */}
+      {showSummaryScreen && currentMode === 'test' && userKey && selectedWeek && (
+        <TestGameSummaryScreen
+          fixtures={fixtures}
+          userId={userKey}
+          week={selectedWeek}
           headerHeight={headerHeight}
         />
       )}

@@ -30,3 +30,4 @@ export { BottomNav } from './Navigation/BottomNav';
 
 // Game Summary components
 export { GameSummaryScreen } from './GameSummaryScreen/GameSummaryScreen';
+export { TestGameSummaryScreen } from './TestGameSummaryScreen/TestGameSummaryScreen';
