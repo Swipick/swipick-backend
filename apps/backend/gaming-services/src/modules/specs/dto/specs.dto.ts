@@ -55,8 +55,19 @@ export class UserSummaryResponseDto {
 }
 
 export class CreateUnifiedPredictionDto {
+  @IsUUID(4, { message: 'userId must be a valid UUID' })
   userId: string;
+
+  @IsNumber({}, { message: 'fixtureId must be a number' })
   fixtureId: number;
+
+  @IsEnum(['1', 'X', '2'], {
+    message: 'choice must be one of: 1 (Home Win), X (Draw), 2 (Away Win)',
+  })
   choice: '1' | 'X' | '2';
+
+  @IsEnum(['live', 'test'], {
+    message: 'mode must be either live or test',
+  })
   mode: 'live' | 'test';
 }

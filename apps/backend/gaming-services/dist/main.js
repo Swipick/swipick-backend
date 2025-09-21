@@ -222299,6 +222299,26 @@ exports.UserSummaryResponseDto = UserSummaryResponseDto;
 class CreateUnifiedPredictionDto {
 }
 exports.CreateUnifiedPredictionDto = CreateUnifiedPredictionDto;
+__decorate([
+    (0, class_validator_1.IsUUID)(4, { message: 'userId must be a valid UUID' }),
+    __metadata("design:type", String)
+], CreateUnifiedPredictionDto.prototype, "userId", void 0);
+__decorate([
+    (0, class_validator_1.IsNumber)({}, { message: 'fixtureId must be a number' }),
+    __metadata("design:type", Number)
+], CreateUnifiedPredictionDto.prototype, "fixtureId", void 0);
+__decorate([
+    (0, class_validator_1.IsEnum)(['1', 'X', '2'], {
+        message: 'choice must be one of: 1 (Home Win), X (Draw), 2 (Away Win)',
+    }),
+    __metadata("design:type", String)
+], CreateUnifiedPredictionDto.prototype, "choice", void 0);
+__decorate([
+    (0, class_validator_1.IsEnum)(['live', 'test'], {
+        message: 'mode must be either live or test',
+    }),
+    __metadata("design:type", String)
+], CreateUnifiedPredictionDto.prototype, "mode", void 0);
 
 
 /***/ }),
