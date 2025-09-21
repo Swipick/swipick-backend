@@ -1131,9 +1131,9 @@ export class TestModeService {
 
       // Group fixtures by date to determine weeks
       const sortedFixtures = apiFixtures
-        .filter((f) => f.status?.short === 'FT') // Only finished matches
+        .filter((f) => f.fixture?.status?.short === 'FT') // Only finished matches
         .sort(
-          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+          (a, b) => new Date(a.fixture.date).getTime() - new Date(b.fixture.date).getTime(),
         );
 
       this.logger.log(`Processing ${sortedFixtures.length} finished fixtures`);
@@ -1144,14 +1144,14 @@ export class TestModeService {
         weekFixtures.forEach((fixture) => {
           const testFixture = {
             week: weekCounter,
-            date: new Date(fixture.date),
+            date: new Date(fixture.fixture.date),
             homeTeam: fixture.teams?.home?.name || 'Unknown',
             awayTeam: fixture.teams?.away?.name || 'Unknown',
-            stadium: fixture.venue?.name || 'Unknown Stadium',
+            stadium: fixture.fixture.venue?.name || 'Unknown Stadium',
             homeScore: fixture.goals?.home || 0,
             awayScore: fixture.goals?.away || 0,
             status: 'FT',
-            externalApiId: fixture.id,
+            externalApiId: fixture.fixture.id,
           };
           allFixtures.push(testFixture);
         });

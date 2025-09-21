@@ -122271,22 +122271,22 @@ let TestModeService = TestModeService_1 = class TestModeService {
             this.logger.log(`Fetched ${apiFixtures.length} fixtures from API-Football`);
             let weekCounter = 1;
             const sortedFixtures = apiFixtures
-                .filter((f) => f.status?.short === 'FT')
-                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                .filter((f) => f.fixture?.status?.short === 'FT')
+                .sort((a, b) => new Date(a.fixture.date).getTime() - new Date(b.fixture.date).getTime());
             this.logger.log(`Processing ${sortedFixtures.length} finished fixtures`);
             for (let i = 0; i < sortedFixtures.length; i += 10) {
                 const weekFixtures = sortedFixtures.slice(i, i + 10);
                 weekFixtures.forEach((fixture) => {
                     const testFixture = {
                         week: weekCounter,
-                        date: new Date(fixture.date),
+                        date: new Date(fixture.fixture.date),
                         homeTeam: fixture.teams?.home?.name || 'Unknown',
                         awayTeam: fixture.teams?.away?.name || 'Unknown',
-                        stadium: fixture.venue?.name || 'Unknown Stadium',
+                        stadium: fixture.fixture.venue?.name || 'Unknown Stadium',
                         homeScore: fixture.goals?.home || 0,
                         awayScore: fixture.goals?.away || 0,
                         status: 'FT',
-                        externalApiId: fixture.id,
+                        externalApiId: fixture.fixture.id,
                     };
                     allFixtures.push(testFixture);
                 });
