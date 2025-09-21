@@ -494,9 +494,19 @@ export class TestModeService {
     });
 
     if (specs.length === 0) {
-      throw new NotFoundException(
-        `No test predictions found for user ${userId} in week ${week}`,
+      // Return empty stats instead of throwing an error
+      this.logger.log(
+        `No test predictions found for user ${userId} in week ${week} - returning empty stats`,
       );
+      return {
+        week,
+        totalPredictions: 0,
+        correctPredictions: 0,
+        weeklyPercentage: 0,
+        totalTurns: 0,
+        skippedCount: 0,
+        predictions: [],
+      };
     }
 
     const nonSkipSpecs = specs.filter((s) => s.choice !== 'SKIP');

@@ -121723,7 +121723,16 @@ let TestModeService = TestModeService_1 = class TestModeService {
             relations: ['fixture'],
         });
         if (specs.length === 0) {
-            throw new common_1.NotFoundException(`No test predictions found for user ${userId} in week ${week}`);
+            this.logger.log(`No test predictions found for user ${userId} in week ${week} - returning empty stats`);
+            return {
+                week,
+                totalPredictions: 0,
+                correctPredictions: 0,
+                weeklyPercentage: 0,
+                totalTurns: 0,
+                skippedCount: 0,
+                predictions: [],
+            };
         }
         const nonSkipSpecs = specs.filter((s) => s.choice !== 'SKIP');
         const totalPredictions = nonSkipSpecs.length;
