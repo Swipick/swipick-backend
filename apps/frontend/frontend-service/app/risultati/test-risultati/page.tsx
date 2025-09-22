@@ -25,6 +25,14 @@ interface Fixture {
   awayTeam?: string;
   home_team?: string;
   away_team?: string;
+  // Score fields from fixtures table (snake_case)
+  home_score?: number | null;
+  away_score?: number | null;
+  // Score fields from test_fixtures table (camelCase from TestFixture entity)
+  homeScore?: number | null;
+  awayScore?: number | null;
+  result?: '1' | 'X' | '2' | null;
+  status?: 'SCHEDULED' | 'LIVE' | 'FINISHED' | 'POSTPONED' | 'CANCELLED';
 }
 
 interface WeeklyStatsResponse {
@@ -140,60 +148,69 @@ const ChoiceBadge: React.FC<{
   );
 };
 
-// Simple circular meter component
-const CircularMeter: React.FC<{
-  percent: number;
-  onShare: () => void;
-  shareEnabled: boolean;
-}> = ({ percent, onShare, shareEnabled }) => {
-  const radius = 45;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (percent / 100) * circumference;
+// Semi-circular success meter (SVG half-donut) matching original design exactly
+const CircularMeter: React.FC<{ percent: number; onShare?: () => void; shareEnabled?: boolean }> = ({ percent, onShare, shareEnabled = true }) => {
+  const arcWidth = 200;        // slightly narrower to match requested visual
+  const stroke = 16;           // thickness
+  const r = (arcWidth - stroke) / 2; // radius that keeps caps inside viewBox
+  const cx = arcWidth / 2;
+  const cy = r + stroke / 2 + 2;     // baseline y with slight padding
+  const svgW = arcWidth;
+  const svgH = cy + stroke / 2;      // enough room for rounded caps
+
+  // Trim 10° off each side (start at 170°, end at 10°)
+  const trim = 10 * (Math.PI / 180);
+  const startAng = Math.PI - trim;   // 180° - 10°
+  const endAng = 0 + trim;           // 0° + 10°
+  const sx = cx + r * Math.cos(startAng);
+  const sy = cy - r * Math.sin(startAng);
+  const ex = cx + r * Math.cos(endAng);
+  const ey = cy - r * Math.sin(endAng);
+  const d = `M ${sx} ${sy} A ${r} ${r} 0 0 1 ${ex} ${ey}`; // trimmed top arc
+  const clamped = Math.max(0, Math.min(100, Math.round(percent)));
 
   return (
-    <div className="flex items-center justify-center">
-      <div className="relative w-24 h-24">
-        <svg
-          className="w-24 h-24 transform -rotate-90"
-          viewBox="0 0 100 100"
-        >
-          {/* Background circle */}
-          <circle
-            cx="50"
-            cy="50"
-            r={radius}
-            stroke="currentColor"
-            strokeWidth="8"
-            fill="transparent"
-            className="text-gray-200"
-          />
-          {/* Progress circle */}
-          <circle
-            cx="50"
-            cy="50"
-            r={radius}
-            stroke="currentColor"
-            strokeWidth="8"
-            fill="transparent"
-            strokeDasharray={circumference}
-            strokeDashoffset={strokeDashoffset}
-            className="text-indigo-600 transition-all duration-500 ease-in-out"
+    <div className="flex flex-col items-center justify-center py-3">
+      <div className="relative" style={{ width: svgW, height: svgH }}>
+        <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}>
+          <defs>
+            <linearGradient id="meterGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#c4b5fd" />
+              <stop offset="100%" stopColor="#7c3aed" />
+            </linearGradient>
+          </defs>
+          {/* Remaining track */}
+          <path d={d} stroke="#ece9f7" strokeWidth={stroke} fill="none" strokeLinecap="round" />
+          {/* Progress arc: normalized to 100 via pathLength; rounded ends */}
+          <path
+            d={d}
+            stroke="url(#meterGradient)"
+            strokeWidth={stroke}
+            fill="none"
             strokeLinecap="round"
+            pathLength={100}
+            strokeDasharray={`${clamped} ${100 - clamped}`}
+            style={{ transition: 'stroke-dasharray 300ms ease' }}
           />
         </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-lg font-bold text-gray-900">{Math.round(percent)}%</span>
+        {/* Centered percentage label inside the semi circle */}
+        <div
+          className="absolute text-black font-bold"
+          style={{ left: '50%', top: '58%', transform: 'translate(-50%, -50%)', fontSize: 28 }}
+        >
+          {clamped}%
         </div>
       </div>
-      {shareEnabled && (
-        <button
-          onClick={onShare}
-          className="ml-4 p-2 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-          title="Condividi risultati"
-        >
-          <IoShareOutline className="w-4 h-4" />
-        </button>
-      )}
+      <button
+        onClick={onShare}
+        disabled={!shareEnabled}
+        aria-label="Condividi risultato"
+        title={shareEnabled ? 'Condividi risultato' : 'Condivisione disponibile su mobile/PWA'}
+        className={`mt-2 inline-flex items-center justify-center gap-2 px-2 py-4 rounded-xl text-sm font-medium w-[200px] shadow transition ${shareEnabled ? 'bg-indigo-800 text-white hover:bg-indigo-700' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
+      >
+        <IoShareOutline size={18} />
+        Condividi risultato
+      </button>
     </div>
   );
 };
@@ -253,6 +270,27 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
   // Animation state (exact same types as original)
   const [navDir, setNavDir] = useState<1 | -1 | 0>(0);
   const [pendingWeekForUrl, setPendingWeekForUrl] = useState<number | null>(null);
+
+  // Revealed state for tracking which predictions have been revealed (like original)
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+
+  // Auto-reveal all fixtures for test mode (historical data always shown)
+  useEffect(() => {
+    if (fixtures.length > 0) {
+      console.log('[TestRisultati] 🧪 Auto-revealing all fixtures for test mode');
+      const toReveal: Record<string, boolean> = {};
+      fixtures.forEach(fixture => {
+        toReveal[String(fixture.id)] = true;
+      });
+      setRevealed(toReveal);
+    }
+  }, [fixtures]);
+
+  // Reveal function for testing (in real app, this would be triggered by user clicks)
+  const revealPrediction = useCallback((fixtureId: string) => {
+    setRevealed(prev => ({ ...prev, [fixtureId]: true }));
+    console.log(`[TestRisultati] 🔍 Revealed prediction for fixture ${fixtureId}`);
+  }, []);
 
 
   // Initialize week from query string on mount only - DISABLED FOR TESTING
@@ -328,16 +366,16 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
       return;
     }
 
-    console.log(`[TestRisultati] 📡 Fetching data for user ${userKey}, week ${week}`);
+    console.log(`[TestRisultati] 📡 Fetching TEST MODE data for user ${userKey}, week ${week} (using test_fixtures table)`);
 
     // Mark as loading
     updateWeekCache(week, { loading: true, error: null });
 
     try {
-      // Fetch weekly stats and fixtures in parallel
+      // Fetch weekly stats and test fixtures in parallel (using test_fixtures table)
       const [stats, fixturesResponse] = await Promise.all([
         apiClient.getTestWeeklyStats(userKey, week),
-        apiClient.getFixturesByWeek(week)
+        apiClient.getTestFixturesByWeek(week)
       ]);
 
       const fixturesData = Array.isArray(fixturesResponse) ? fixturesResponse : fixturesResponse?.data ?? [];
@@ -433,11 +471,29 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     const backendPred = weeklyStats?.predictions.find(
       p => parseInt(p.fixture_id) === fixtureId
     );
-    return {
-      choice: backendPred?.choice,
-      isCorrect: backendPred?.is_correct,
-      actualResult: backendPred?.result
+
+    const result = {
+      choice: backendPred?.choice || null,
+      isCorrect: backendPred?.is_correct || false,
+      actualResult: backendPred?.result || null
     };
+
+    // Debug logging for week 6+ to see what's happening
+    if (selectedWeek >= 6 && !backendPred) {
+      console.log(`[TestRisultati] 🚫 No prediction found for fixture ${fixtureId} in week ${selectedWeek}`, {
+        totalPredictions: weeklyStats?.predictions?.length || 0,
+        availableFixtureIds: weeklyStats?.predictions?.map(p => p.fixture_id) || [],
+        searchingFor: fixtureId
+      });
+    } else if (selectedWeek >= 6 && backendPred) {
+      console.log(`[TestRisultati] ✅ Found prediction for fixture ${fixtureId}:`, {
+        choice: backendPred.choice,
+        isCorrect: backendPred.is_correct,
+        result: backendPred.result
+      });
+    }
+
+    return result;
   };
 
   // Optimized week navigation - no immediate re-fetching since data is cached
@@ -479,36 +535,64 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     }
   };
 
-  // Share function
-  const handleShare = async () => {
-    try {
-      const shareData = {
-        title: 'Swipick - Risultati Test Mode',
-        text: `Scopri i miei risultati della Giornata ${selectedWeek} su Swipick!`,
-        url: window.location.origin,
-      };
+  // Compute meter based on revealed predictions only (like original)
+  const meter = useMemo(() => {
+    if (fixtures.length === 0) return { revealed: 0, correct: 0, percent: 0 };
 
-      if (navigator.share && navigator.canShare?.(shareData)) {
-        await navigator.share(shareData);
-      } else {
-        await navigator.clipboard.writeText(window.location.origin);
+    let revealedCount = 0;
+    let correctCount = 0;
+
+    for (const fixture of fixtures) {
+      const fixtureId = String(fixture.id);
+      if (!revealed[fixtureId]) continue; // Only count revealed predictions
+
+      revealedCount += 1;
+
+      // Get prediction data for this fixture
+      const predictionData = getPredictionData(fixture.id);
+      if (predictionData.isCorrect === true) {
+        correctCount += 1;
       }
+      // isCorrect === false or undefined counts as 0 (incorrect)
+    }
+
+    const percent = revealedCount > 0 ? Math.round((correctCount / revealedCount) * 100) : 0;
+
+    // Enhanced logging for week 6+ to debug the issue
+    if (selectedWeek >= 6) {
+      console.log('[TestRisultati] 📊 DETAILED Meter calculation for week', selectedWeek, ':', {
+        revealedCount,
+        correctCount,
+        percent,
+        totalFixtures: fixtures.length,
+        weeklyStatsExists: !!weeklyStats,
+        totalPredictions: weeklyStats?.predictions?.length || 0
+      });
+    } else {
+      console.log('[TestRisultati] 📊 Meter calculation:', { revealedCount, correctCount, percent });
+    }
+
+    return { revealed: revealedCount, correct: correctCount, percent };
+  }, [fixtures, revealed, weeklyStats]); // Include weeklyStats since getPredictionData depends on it
+
+  // Share handler matching original format
+  const handleShare = useCallback(async () => {
+    const title = `Giornata ${selectedWeek} — Swipick`;
+    const text = `Ho rivelato ${meter.revealed}/10: ${meter.correct} corrette (${meter.percent}%).`;
+    const url = typeof window !== 'undefined' ? window.location.href : undefined;
+
+    try {
+      const n = typeof navigator !== 'undefined' ? navigator : undefined;
+      if (n && typeof n.share === 'function') {
+        await n.share({ title, text, url });
+        return;
+      }
+      throw new Error('Web Share API not supported');
     } catch (error) {
       console.log('Error sharing:', error);
+      // Could add a toast here for desktop users
     }
-  };
-
-  // Calculate performance metrics - stabilized with JSON.stringify for deep comparison
-  const performanceMetrics = useMemo(() => {
-    if (!weeklyStats) {
-      return { correct: 0, total: 0, accuracy: 0 };
-    }
-    return {
-      correct: weeklyStats.correct_predictions,
-      total: weeklyStats.total_predictions,
-      accuracy: weeklyStats.success_rate
-    };
-  }, [weeklyStats]);
+  }, [selectedWeek, meter]);
 
   // Date range calculation - OPTIMIZED to reduce re-renders
   const dateRange = useMemo(() => {
@@ -676,10 +760,10 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
           </div>
         </div>
 
-        {/* Circular Meter */}
+        {/* Success Meter (matching original design) */}
         <div className="px-4 pb-2 pointer-events-auto">
           <CircularMeter
-            percent={performanceMetrics.accuracy}
+            percent={meter.percent}
             onShare={handleShare}
             shareEnabled={shareSupported}
           />
@@ -706,84 +790,122 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
           exit={{ x: navDir === 0 ? 0 : -navDir * 80, opacity: 0 }}
           transition={{ duration: 0.22, ease: 'easeOut' }}
         >
-          {/* Results List */}
+          {/* Results List - 4-column layout matching original */}
           <div className="flex-1 px-4 py-4">
-            <div className="space-y-3 max-w-md mx-auto">
+            <div className="space-y-3">
               {fixtures.map((fixture) => {
+                const fixtureId = String(fixture.id);
                 const predictionData = getPredictionData(fixture.id);
-                const kickoff = new Date(fixture.date).toLocaleDateString('it-IT', {
-                  weekday: 'short',
-                  day: '2-digit',
-                  month: '2-digit',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                });
 
-                // Handle different data structures
+                // Handle different data structures for team names
                 const homeName = fixture.teams?.home?.name || fixture.homeTeam || fixture.home_team || 'Home Team';
                 const awayName = fixture.teams?.away?.name || fixture.awayTeam || fixture.away_team || 'Away Team';
                 const homeLogo = fixture.teams?.home?.logo;
                 const awayLogo = fixture.teams?.away?.logo;
 
+                // Get scores from fixture data (TestFixture entity uses camelCase)
+                const homeScore = fixture.homeScore;
+                const awayScore = fixture.awayScore;
+                const actualResult = fixture.result; // '1', 'X', '2', or null
+
+                // Debug score data for week 6+ to see what's in the fixtures
+                if (selectedWeek >= 6) {
+                  console.log(`[TestRisultati] 🎯 Fixture ${fixture.id} scores:`, {
+                    homeScore: homeScore,
+                    awayScore: awayScore,
+                    result: actualResult,
+                    status: fixture.status,
+                    teams: `${homeName} vs ${awayName}`
+                  });
+                }
+
+                // Test mode logic: All preloaded cards show scores and "FINE PARTITA" (completed matches)
+                const isRevealed = true; // Always revealed in test mode with historical data
+                const statusLabel = 'FINE PARTITA';
+                const statusColor = 'bg-gray-200 text-gray-700';
+
                 return (
-                  <div
-                    key={fixture.id}
-                    className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 flex items-center"
-                  >
-                    {/* Teams section */}
-                    <div className="flex-1">
-                      {/* Home team */}
-                      <div className="flex items-center gap-2 mb-1">
-                        <TeamLogo
-                          src={homeLogo}
-                          alt={homeName}
-                          teamName={homeName}
-                        />
-                        <span className="text-sm font-medium text-black">
-                          {homeName}
-                        </span>
+                  <div key={fixture.id} className="bg-white rounded-2xl p-4 shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-black/5">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-4 items-center">
+
+                      {/* Col 1: Teams (vertical stack, no date) */}
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center gap-3 h-12">
+                          <div className="w-12 h-12 rounded bg-gray-50 flex items-center justify-center overflow-hidden">
+                            <TeamLogo
+                              src={homeLogo}
+                              alt={homeName}
+                              teamName={homeName}
+                            />
+                          </div>
+                          <div className="text-black font-bold truncate">{homeName}</div>
+                        </div>
+                        <div className="flex items-center gap-3 h-12">
+                          <div className="w-12 h-12 rounded bg-gray-50 flex items-center justify-center overflow-hidden">
+                            <TeamLogo
+                              src={awayLogo}
+                              alt={awayName}
+                              teamName={awayName}
+                            />
+                          </div>
+                          <div className="text-black font-bold truncate">{awayName}</div>
+                        </div>
                       </div>
 
-                      {/* Away team */}
-                      <div className="flex items-center gap-2">
-                        <TeamLogo
-                          src={awayLogo}
-                          alt={awayName}
-                          teamName={awayName}
-                        />
-                        <span className="text-sm font-medium text-black">
-                          {awayName}
-                        </span>
+                      {/* Col 2: Final scores (vertical stack) */}
+                      <div className="grid grid-rows-2 pr-1.5">
+                        <div className="h-14 flex items-center justify-center">
+                          <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">
+                            {isRevealed ? (homeScore != null ? homeScore : 'ND') : '–'}
+                          </div>
+                        </div>
+                        <div className="h-14 flex items-center justify-center">
+                          <div className="text-2xl leading-none font-semibold text-black min-w-[16px] text-center">
+                            {isRevealed ? (awayScore != null ? awayScore : 'ND') : '–'}
+                          </div>
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Kickoff time */}
-                    <div className="mx-3">
-                      <div className="px-2 py-1 rounded-md border text-xs text-gray-700 border-gray-200 whitespace-nowrap">
-                        {kickoff}
+                      {/* Col 3: Status button (centered) */}
+                      <div className="flex items-center justify-center ml-1.5">
+                        <div
+                          className={`min-w-[72px] px-2 py-2 rounded-md text-[11px] leading-tight text-center font-medium ${statusColor} opacity-100 cursor-default`}
+                        >
+                          {(() => {
+                            const parts = statusLabel.split(' ');
+                            if (parts.length >= 2) {
+                              return (
+                                <>
+                                  <span className="block">{parts[0]}</span>
+                                  <span className="block">{parts.slice(1).join(' ')}</span>
+                                </>
+                              );
+                            }
+                            return statusLabel;
+                          })()}
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Choice badges with results */}
-                    <div className="flex flex-col gap-1 items-center">
-                      <ChoiceBadge
-                        label="1"
-                        isSelected={predictionData.choice === '1'}
-                        isCorrect={predictionData.choice === '1' ? predictionData.isCorrect : undefined}
-                        actualResult={predictionData.actualResult}
-                      />
-                      <ChoiceBadge
-                        label="X"
-                        isSelected={predictionData.choice === 'X'}
-                        isCorrect={predictionData.choice === 'X' ? predictionData.isCorrect : undefined}
-                        actualResult={predictionData.actualResult}
-                      />
-                      <ChoiceBadge
-                        label="2"
-                        isSelected={predictionData.choice === '2'}
-                        isCorrect={predictionData.choice === '2' ? predictionData.isCorrect : undefined}
-                        actualResult={predictionData.actualResult}
-                      />
+                      {/* Col 4: 1X2 vertical stack with correct color coding */}
+                      <div className="flex flex-col items-center gap-2 ml-1.5">
+                        {(['1','X','2'] as const).map((choice) => {
+                          const userPicked = predictionData.choice === choice;
+                          const isCorrect = isRevealed && userPicked && actualResult === choice;
+                          const isWrong = isRevealed && userPicked && actualResult !== choice;
+
+                          const classes = isCorrect
+                            ? 'bg-[#ccffb3] text-[#2a8000]' // Green: correct prediction
+                            : isWrong
+                              ? 'bg-[#ffb3b3] text-[#cc0000]' // Red: wrong prediction
+                              : 'bg-gray-100 text-gray-700'; // Gray: not picked or not revealed
+
+                          return (
+                            <div key={choice} className={`w-8 h-8 rounded-md flex items-center justify-center text-sm font-semibold ${classes}`}>
+                              {choice}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 );
