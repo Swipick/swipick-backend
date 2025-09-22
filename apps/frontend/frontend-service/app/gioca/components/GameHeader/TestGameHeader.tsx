@@ -174,8 +174,8 @@ export function TestGameHeader({
 
       console.log('✅ Test data reset successfully');
 
-      // Force page refresh to ensure clean state
-      window.location.reload();
+      // Navigate to gioca page to start new predictions
+      window.location.href = '/gioca';
     } catch (error) {
       console.error('❌ Failed to reset test data:', error);
       alert('Errore durante il reset. Riprova più tardi.');
@@ -346,10 +346,40 @@ export function TestGameHeader({
           </div>
         )}
 
-        {/* Test mode info - shows current virtual date and time */}
+        {/* Test mode info - virtual date calendar with controls */}
         <div className="mt-3 pt-3 border-t border-white/20">
-          <div className="text-xs text-white/80">
+          <div className="text-xs text-white/80 mb-2">
             📅 Data simulata: {formatDisplay()}
+          </div>
+
+          {/* Virtual clock controls */}
+          <div className="flex justify-center gap-2">
+            <button
+              onClick={() => {
+                // Fast forward to next week (7 days)
+                const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+                const storageKey = 'swipick:virtual-clock:reference';
+                try {
+                  const stored = localStorage.getItem(storageKey);
+                  if (stored) {
+                    const state = JSON.parse(stored);
+                    state.fastForwardOffset = (state.fastForwardOffset || 0) + oneWeekMs;
+                    localStorage.setItem(storageKey, JSON.stringify(state));
+                    window.location.reload(); // Refresh to apply new virtual time
+                  }
+                } catch (error) {
+                  console.warn('Failed to update virtual clock:', error);
+                }
+              }}
+              className="inline-flex items-center px-2 py-1 text-xs bg-blue-500/80 hover:bg-blue-600/80 rounded-full transition-colors"
+              title="Avanza di una settimana"
+            >
+              <svg className="-ml-0.5 mr-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3-3 3m-6 0l3-3-3-3" />
+              </svg>
+              +1 Settimana
+            </button>
+
           </div>
         </div>
       </div>

@@ -9,6 +9,9 @@ import { IoShareOutline } from 'react-icons/io5';
 import { FaMedal } from 'react-icons/fa';
 import { BsFillFilePersonFill } from 'react-icons/bs';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Toast } from '@/src/components/Toast';
+import confetti from 'canvas-confetti';
+import { useVirtualClock } from '../../gioca/components/VirtualClock/VirtualClock';
 
 interface Fixture {
   id: number;
@@ -230,6 +233,9 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
 
   const userKey = firebaseUser?.uid || null;
 
+  // Virtual clock for test mode
+  const { formatDisplay, fastForwardToNextWeek } = useVirtualClock();
+
   // Data cache for preloaded weeks
   const [weekDataCache, setWeekDataCache] = useState<Map<number, {
     weeklyStats: WeeklyStatsResponse | null;
@@ -273,25 +279,214 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
 
   // Revealed state for tracking which predictions have been revealed (like original)
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const [toast, setToast] = useState<string | null>(null);
 
-  // Auto-reveal all fixtures for test mode (historical data always shown)
-  useEffect(() => {
-    if (fixtures.length > 0) {
-      console.log('[TestRisultati] 🧪 Auto-revealing all fixtures for test mode');
-      const toReveal: Record<string, boolean> = {};
-      fixtures.forEach(fixture => {
-        toReveal[String(fixture.id)] = true;
-      });
-      setRevealed(toReveal);
+  // Track recently revealed fixture for confetti (like original)
+  const [recentlyRevealed, setRecentlyRevealed] = useState<{ id: string; origin?: { x: number; y: number } } | null>(null);
+
+  // Virtual current week (like TERMINAL_WEEK in regular risultati)
+  const VIRTUAL_CURRENT_WEEK = 4;
+
+  // Fire indigo/white confetti burst (like original risultati)
+  const fireConfetti = useCallback((origin?: { x: number; y: number }) => {
+    try {
+      const colors = ['#6366f1', '#ffffff']; // indigo-500 and white (matching original)
+      const count = 50;
+      const spread = 60;
+      const startVelocity = 45;
+      const decay = 0.9;
+      const gravity = 1;
+      const ticks = 200;
+
+      const opts: confetti.Options = {
+        particleCount: count,
+        spread,
+        startVelocity,
+        decay,
+        gravity,
+        ticks,
+        colors,
+        disableForReducedMotion: true,
+      };
+
+      if (origin) {
+        // Fire from button origin (normalized to canvas coordinates)
+        opts.origin = {
+          x: origin.x / window.innerWidth,
+          y: origin.y / window.innerHeight,
+        };
+      } else {
+        // Default center burst
+        opts.origin = { x: 0.5, y: 0.5 };
+      }
+
+      confetti(opts);
+    } catch (e) {
+      console.warn('[TestRisultati] Confetti error:', e);
     }
-  }, [fixtures]);
-
-  // Reveal function for testing (in real app, this would be triggered by user clicks)
-  const revealPrediction = useCallback((fixtureId: string) => {
-    setRevealed(prev => ({ ...prev, [fixtureId]: true }));
-    console.log(`[TestRisultati] 🔍 Revealed prediction for fixture ${fixtureId}`);
   }, []);
 
+  // LocalStorage key for reveal state (like regular risultati)
+  const revealKey = useMemo(() => {
+    return userKey ? `swipick:risultati:reveal:test:week:${selectedWeek}:user:${userKey}` : null;
+  }, [userKey, selectedWeek]);
+
+  // Load reveal state from localStorage
+  useEffect(() => {
+    if (!revealKey) return;
+
+    // For past weeks (before current virtual week), auto-reveal everything
+    if (selectedWeek < VIRTUAL_CURRENT_WEEK) {
+      if (fixtures.length > 0) {
+        const toReveal: Record<string, boolean> = {};
+        fixtures.forEach(fixture => {
+          toReveal[String(fixture.id)] = true;
+        });
+        setRevealed(toReveal);
+        console.log(`[TestRisultati] 🔓 Auto-revealing past week ${selectedWeek} (before virtual current week ${VIRTUAL_CURRENT_WEEK})`);
+      }
+      return;
+    }
+
+    // For current and future weeks, load from localStorage
+    try {
+      const raw = localStorage.getItem(revealKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as string[];
+        const map: Record<string, boolean> = {};
+        parsed.forEach((id) => {
+          map[id] = true;
+        });
+        setRevealed(map);
+        console.log(`[TestRisultati] 🔄 Loaded reveal state for week ${selectedWeek}:`, parsed);
+      } else {
+        setRevealed({});
+      }
+    } catch {
+      setRevealed({});
+    }
+  }, [revealKey, selectedWeek, fixtures, userKey]);
+
+  // Persist reveal state to localStorage
+  useEffect(() => {
+    if (!revealKey || selectedWeek < VIRTUAL_CURRENT_WEEK) return;
+    try {
+      const ids = Object.entries(revealed)
+        .filter(([, v]) => v)
+        .map(([k]) => k);
+      localStorage.setItem(revealKey, JSON.stringify(ids));
+    } catch {}
+  }, [revealed, revealKey, selectedWeek]);
+
+  // Reveal function with virtual timing logic
+  const onReveal = useCallback(async (fixtureId: string, anchorEl?: HTMLElement) => {
+    // For current and future virtual weeks, check if the virtual match has "finished"
+    if (selectedWeek >= VIRTUAL_CURRENT_WEEK) {
+      // In test mode, we simulate that not all matches in current week have finished yet
+      // For simplicity, let's say only the first few matches in each week are "finished"
+      const fixture = fixtures.find(f => String(f.id) === fixtureId);
+      if (fixture) {
+        const fixtureIndex = fixtures.findIndex(f => String(f.id) === fixtureId);
+        // Simulate that only first 3 matches of current/future weeks have "finished"
+        const virtuallyFinished = fixtureIndex < 3;
+
+        if (!virtuallyFinished) {
+          setToast('Il fischio finale non è ancora stato suonato');
+          setTimeout(() => setToast(null), 3000); // Auto-dismiss after 3 seconds
+          console.log(`[TestRisultati] 🚫 Reveal blocked - virtual match not finished yet:`, {
+            fixtureId,
+            week: selectedWeek,
+            fixtureIndex,
+            reason: 'virtual final whistle not blown'
+          });
+          return;
+        }
+      }
+    }
+
+    // Allow reveal
+    setRevealed(prev => ({ ...prev, [fixtureId]: true }));
+
+    // Compute viewport-based origin from the clicked button (if provided) and store context
+    let origin: { x: number; y: number } | undefined;
+    if (anchorEl) {
+      try {
+        const rect = anchorEl.getBoundingClientRect();
+        origin = {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        };
+      } catch {
+        origin = undefined;
+      }
+    }
+
+    // Set recently revealed context for confetti triggering
+    setRecentlyRevealed({ id: fixtureId, origin });
+
+    console.log(`[TestRisultati] 🔍 Revealed fixture ${fixtureId} in week ${selectedWeek}`);
+  }, [selectedWeek, fixtures, userKey]);
+
+  // Helper function to get prediction data for a fixture
+  const getPredictionData = useCallback((fixtureId: number) => {
+    const backendPred = weeklyStats?.predictions.find(
+      p => parseInt(p.fixture_id) === fixtureId
+    );
+
+    const result = {
+      choice: backendPred?.choice || null,
+      isCorrect: backendPred?.is_correct || false,
+      actualResult: backendPred?.result || null
+    };
+
+    // Debug logging for week 6+ to see what's happening
+    if (selectedWeek >= 6 && !backendPred) {
+      console.log(`[TestRisultati] 🚫 No prediction found for fixture ${fixtureId} in week ${selectedWeek}`, {
+        totalPredictions: weeklyStats?.predictions?.length || 0,
+        availableFixtureIds: weeklyStats?.predictions?.map(p => p.fixture_id) || [],
+        searchingFor: fixtureId
+      });
+    } else if (selectedWeek >= 6 && backendPred) {
+      console.log(`[TestRisultati] ✅ Found prediction for fixture ${fixtureId}:`, {
+        choice: backendPred.choice,
+        isCorrect: backendPred.is_correct,
+        result: backendPred.result
+      });
+    }
+
+    return result;
+  }, [weeklyStats, selectedWeek]);
+
+  // When a reveal occurs, check correctness and fire confetti if correct (like original)
+  useEffect(() => {
+    const ctx = recentlyRevealed;
+    if (!ctx) return;
+    const fid = ctx.id;
+
+    // Ensure it's marked revealed in state first
+    if (!revealed[fid]) return;
+
+    // Try to compute correctness from available data
+    const predictionData = getPredictionData(Number(fid));
+    if (!predictionData) {
+      console.log(`[TestRisultati] No prediction data for fixture ${fid}`);
+      setRecentlyRevealed(null);
+      return;
+    }
+
+    const userChoice = predictionData.choice;
+    const actualResult = predictionData.actualResult;
+
+    if (userChoice && actualResult && userChoice === actualResult) {
+      console.log(`[TestRisultati] 🎊 Correct prediction for fixture ${fid}! Firing confetti`);
+      fireConfetti(ctx.origin);
+    } else {
+      console.log(`[TestRisultati] Prediction for fixture ${fid}:`, { userChoice, actualResult, correct: false });
+    }
+
+    // Clear context to avoid duplicate firings
+    setRecentlyRevealed(null);
+  }, [recentlyRevealed, revealed, fireConfetti, getPredictionData]);
 
   // Initialize week from query string on mount only - DISABLED FOR TESTING
   // useEffect(() => {
@@ -466,35 +661,6 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     return () => clearTimeout(timer);
   }, [selectedWeek, userKey, globalLoading, isWeekCached, preloadWeeks]);
 
-  // Helper function to get prediction data for a fixture
-  const getPredictionData = (fixtureId: number) => {
-    const backendPred = weeklyStats?.predictions.find(
-      p => parseInt(p.fixture_id) === fixtureId
-    );
-
-    const result = {
-      choice: backendPred?.choice || null,
-      isCorrect: backendPred?.is_correct || false,
-      actualResult: backendPred?.result || null
-    };
-
-    // Debug logging for week 6+ to see what's happening
-    if (selectedWeek >= 6 && !backendPred) {
-      console.log(`[TestRisultati] 🚫 No prediction found for fixture ${fixtureId} in week ${selectedWeek}`, {
-        totalPredictions: weeklyStats?.predictions?.length || 0,
-        availableFixtureIds: weeklyStats?.predictions?.map(p => p.fixture_id) || [],
-        searchingFor: fixtureId
-      });
-    } else if (selectedWeek >= 6 && backendPred) {
-      console.log(`[TestRisultati] ✅ Found prediction for fixture ${fixtureId}:`, {
-        choice: backendPred.choice,
-        isCorrect: backendPred.is_correct,
-        result: backendPred.result
-      });
-    }
-
-    return result;
-  };
 
   // Optimized week navigation - no immediate re-fetching since data is cached
   const updateWeek = useCallback((w: number) => {
@@ -524,9 +690,29 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
 
     try {
       setIsResetting(true);
+
+      // Clear all localStorage reveal states for this user across all weeks
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.includes(`swipick:risultati:reveal:test:`) && key.includes(`:user:${userKey}`)) {
+          keysToRemove.push(key);
+        }
+      }
+
+      // Remove all reveal state keys
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+        console.log(`[TestRisultati] 🧹 Cleared reveal state: ${key}`);
+      });
+
+      // Reset API data
       await apiClient.resetTestData(userKey);
-      // Force page refresh to ensure clean state
-      window.location.reload();
+
+      console.log('✅ Test data and reveal states reset successfully');
+
+      // Navigate to gioca page to start new predictions
+      window.location.href = '/gioca';
     } catch (error) {
       console.error('❌ Failed to reset test data:', error);
       alert('Errore durante il reset. Riprova più tardi.');
@@ -675,35 +861,39 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
           className="w-full mx-0 mt-0 mb-2 rounded-b-2xl rounded-t-none text-white pointer-events-auto"
           style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
         >
-          {/* Test Mode lozenge with Reset button */}
-          <div className="pt-3 px-4 flex justify-center">
-            <div
-              className="inline-flex items-center gap-2 rounded-full px-3 py-1 max-w-full min-w-0 overflow-hidden mx-auto"
-              style={{ backgroundColor: '#A9BA9D', color: '#043927' }}
-            >
-              <span className="text-[11px] font-semibold truncate">MODALITÀ TEST - Dati storici Serie A 2023-24</span>
-              <button
-                onClick={(e) => {
-                  console.log('[TestRisultati] 🔄 RESET BUTTON CLICKED', {
-                    timestamp: new Date().toISOString(),
-                    event: e.type,
-                    target: e.target,
-                    isResetting
-                  });
-                  handleReset();
-                  console.log('[TestRisultati] 🔄 handleReset call completed');
-                }}
-                disabled={isResetting}
-                className="text-xs font-semibold rounded-full px-2 py-0.5"
-                style={{ backgroundColor: '#780606', color: '#ffffff' }}
-                title="Reimposta Test Mode"
-              >
-                {isResetting ? 'Reset...' : 'Reset'}
-              </button>
+          {/* Test Mode indicator with Reset button */}
+          <div className="flex items-center justify-center gap-2 mb-2 pt-3">
+            <div className="inline-block px-2 py-1 text-xs bg-white/20 rounded-full">
+              Modalità Test
             </div>
+            {userKey && (
+              <button
+                onClick={handleReset}
+                disabled={isResetting}
+                className="inline-flex items-center px-2 py-1 text-xs bg-red-500/80 hover:bg-red-600/80 disabled:bg-red-500/40 rounded-full transition-colors"
+                title="Reset tutte le previsioni"
+              >
+                {isResetting ? (
+                  <>
+                    <svg className="animate-spin -ml-0.5 mr-1 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Reset...
+                  </>
+                ) : (
+                  <>
+                    <svg className="-ml-0.5 mr-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Reset
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
-          <div className="relative px-4 pt-10 pb-6">
+          <div className="relative px-4 pt-3 pb-6">
             {/* Previous week (left) */}
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-sm opacity-30">
               {selectedWeek > 1 ? (
@@ -755,6 +945,32 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
                 className="font-medium hover:opacity-80 transition-opacity cursor-pointer"
               >
                 <div>Giornata {selectedWeek + 1}</div>
+              </button>
+            </div>
+          </div>
+
+          {/* Virtual date calendar controls */}
+          <div className="px-4 pb-3 border-t border-white/20 mt-3">
+            <div className="text-xs text-white/80 mb-2 text-center">
+              📅 Data simulata: {formatDisplay()}
+            </div>
+
+            {/* Virtual clock controls */}
+            <div className="flex justify-center gap-2">
+              <button
+                onClick={() => {
+                  // Fast forward to next week using the hook function
+                  fastForwardToNextWeek();
+                  // Refresh page to apply new virtual time
+                  window.location.reload();
+                }}
+                className="inline-flex items-center px-2 py-1 text-xs bg-blue-500/80 hover:bg-blue-600/80 rounded-full transition-colors"
+                title="Avanza di una settimana"
+              >
+                <svg className="-ml-0.5 mr-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3-3 3m-6 0l3-3-3-3" />
+                </svg>
+                +1 Settimana
               </button>
             </div>
           </div>
@@ -819,10 +1035,11 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
                   });
                 }
 
-                // Test mode logic: All preloaded cards show scores and "FINE PARTITA" (completed matches)
-                const isRevealed = true; // Always revealed in test mode with historical data
-                const statusLabel = 'FINE PARTITA';
-                const statusColor = 'bg-gray-200 text-gray-700';
+                // Reveal logic: Check if this fixture has been revealed
+                const fixtureIdStr = String(fixture.id);
+                const isRevealed = !!revealed[fixtureIdStr];
+                const statusLabel = isRevealed ? 'FINE PARTITA' : 'MOSTRA RISULTATO';
+                const statusColor = isRevealed ? 'bg-gray-200 text-gray-700' : 'bg-indigo-500 bg-opacity-90 text-white';
 
                 return (
                   <div key={fixture.id} className="bg-white rounded-2xl p-4 shadow-[0_8px_24px_rgba(0,0,0,0.06)] border border-black/5">
@@ -868,8 +1085,10 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
 
                       {/* Col 3: Status button (centered) */}
                       <div className="flex items-center justify-center ml-1.5">
-                        <div
-                          className={`min-w-[72px] px-2 py-2 rounded-md text-[11px] leading-tight text-center font-medium ${statusColor} opacity-100 cursor-default`}
+                        <button
+                          onClick={isRevealed ? undefined : (e) => onReveal(fixtureIdStr, e.currentTarget)}
+                          disabled={isRevealed}
+                          className={`min-w-[72px] px-2 py-2 rounded-md text-[11px] leading-tight text-center font-medium ${statusColor} ${isRevealed ? 'opacity-100 cursor-default' : 'hover:bg-opacity-100 cursor-pointer'}`}
                         >
                           {(() => {
                             const parts = statusLabel.split(' ');
@@ -883,7 +1102,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
                             }
                             return statusLabel;
                           })()}
-                        </div>
+                        </button>
                       </div>
 
                       {/* Col 4: 1X2 vertical stack with correct color coding */}
@@ -893,11 +1112,14 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
                           const isCorrect = isRevealed && userPicked && actualResult === choice;
                           const isWrong = isRevealed && userPicked && actualResult !== choice;
 
-                          const classes = isCorrect
-                            ? 'bg-[#ccffb3] text-[#2a8000]' // Green: correct prediction
-                            : isWrong
-                              ? 'bg-[#ffb3b3] text-[#cc0000]' // Red: wrong prediction
-                              : 'bg-gray-100 text-gray-700'; // Gray: not picked or not revealed
+                          // When not revealed, show neutral colors like the "mostra risultato" button
+                          const classes = !isRevealed
+                            ? 'bg-gray-100 text-gray-700' // Neutral: match not revealed yet
+                            : isCorrect
+                              ? 'bg-[#ccffb3] text-[#2a8000]' // Green: correct prediction
+                              : isWrong
+                                ? 'bg-[#ffb3b3] text-[#cc0000]' // Red: wrong prediction
+                                : 'bg-gray-100 text-gray-700'; // Gray: not picked but revealed
 
                           return (
                             <div key={choice} className={`w-8 h-8 rounded-md flex items-center justify-center text-sm font-semibold ${classes}`}>
@@ -914,6 +1136,15 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
           </div>
         </motion.div>
       </AnimatePresence>
+
+      {/* Toast for reveal messages */}
+      {toast && (
+        <Toast
+          message={toast}
+          onClose={() => setToast(null)}
+          variant="lozenge"
+        />
+      )}
 
       {/* Bottom Navigation (3-tab navbar matching original) */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t pb-[max(env(safe-area-inset-bottom),0px)]">
