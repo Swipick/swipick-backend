@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { MdOutlineIosShare } from 'react-icons/md';
 import { CountdownTimer } from './CountdownTimer';
 import { ProgressBar } from './ProgressBar';
 import { useVirtualClock } from '../VirtualClock';
@@ -51,6 +52,9 @@ export function TestGameHeader({
 
   // Reset state
   const [isResetting, setIsResetting] = useState(false);
+
+  // Share state
+  const [shareLoading, setShareLoading] = useState(false);
 
   // Calculate time to next match using virtual date
   const calculateTimeToMatch = useCallback(() => {
@@ -177,6 +181,31 @@ export function TestGameHeader({
     }
   }, [userKey, isResetting, onReset]);
 
+  // Handle share function
+  const handleShare = async () => {
+    setShareLoading(true);
+    try {
+      const shareData = {
+        title: 'Swipick - Football Predictions',
+        text: 'Check out my test mode football predictions on Swipick!',
+        url: window.location.origin,
+      };
+
+      if (navigator.share && navigator.canShare?.(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        // Fallback: copy to clipboard
+        await navigator.clipboard.writeText(window.location.origin);
+        // Could show a toast notification here if available
+      }
+    } catch (error) {
+      console.log('Error sharing:', error);
+      // Silently fail - user might have cancelled the share
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
   // Calculate week data based on dynamic active week and fixtures
   const getWeekData = () => {
     const weekNumber = activeWeekInfo.activeWeek;
@@ -294,6 +323,25 @@ export function TestGameHeader({
           current={predictionsCount}
           total={GAME_CONFIG.TOTAL_PREDICTIONS}
         />
+
+        {/* Share Button (only when sticky/summary screen active) */}
+        {isSticky && (
+          <div className="mt-3 flex justify-center">
+            <button
+              onClick={handleShare}
+              disabled={shareLoading}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-100 disabled:bg-gray-200 rounded-lg transition-colors text-sm font-medium text-purple-700"
+              title="Condividi previsione"
+            >
+              {shareLoading ? (
+                <div className="w-4 h-4 border-2 border-purple-300 border-t-purple-700 rounded-full animate-spin" />
+              ) : (
+                <MdOutlineIosShare className="w-4 h-4 text-purple-700" />
+              )}
+              Condividi previsione
+            </button>
+          </div>
+        )}
 
         {/* Test mode info - shows current virtual date and time */}
         <div className="mt-3 pt-3 border-t border-white/20">

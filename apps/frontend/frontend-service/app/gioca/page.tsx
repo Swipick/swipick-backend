@@ -775,8 +775,8 @@ function GiocaPageContent() {
         onNavigateToProfile={handleGoToProfile}
       />
 
-      {/* Veil when week is completed (Test Mode). Hidden for Week 1 once rollover occurred, to avoid blocking UI when user navigates back. */}
-      {canShowVeil && (
+      {/* Veil when week is completed (Test Mode). Hidden for Week 1 once rollover occurred, to avoid blocking UI when user navigates back. Also hidden when summary screen is showing. */}
+      {canShowVeil && !showSummaryScreen && (
         <div className="fixed inset-0 z-50 pointer-events-none">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
           <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-1/2 -translate-x-1/2 w-[88%] max-w-md pointer-events-auto">
