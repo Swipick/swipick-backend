@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/src/contexts/AuthContext';
+import { useGameMode } from '@/src/contexts/GameModeContext';
 import { apiClient } from '@/lib/api-client';
 import { FaMedal } from 'react-icons/fa';
 import { RiFootballLine } from 'react-icons/ri';
@@ -28,6 +29,7 @@ const DEBUG_PROFILO = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_
 export default function ProfiloPage() {
   const router = useRouter();
   const { firebaseUser } = useAuthContext();
+  const { mode } = useGameMode();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +116,22 @@ export default function ProfiloPage() {
         }));
       }
 
+      // TEST shape (camelCase): overallPercentage, weeklyBreakdown
+      if ('overallPercentage' in obj || 'weeklyBreakdown' in obj) {
+        totalPredictions = Number((obj['totalPredictions'] as number | undefined) ?? totalPredictions);
+        correctPredictions = Number((obj['totalCorrect'] as number | undefined) ?? correctPredictions);
+        overallAccuracy = Number((obj['overallPercentage'] as number | undefined) ?? overallAccuracy);
+        const wb = Array.isArray(obj['weeklyBreakdown']) ? (obj['weeklyBreakdown'] as Array<Record<string, unknown>>) : [];
+        if (wb.length) {
+          weeklyStats = wb.map((w) => ({
+            week: Number((w['week'] as number | undefined) ?? 1),
+            totalPredictions: Number((w['totalCount'] as number | undefined) ?? 0),
+            correctPredictions: Number((w['correctCount'] as number | undefined) ?? 0),
+            accuracy: Number((w['percentage'] as number | undefined) ?? 0),
+            points: 0,
+          }));
+        }
+      }
 
       // Generic camelCase passthrough (in case BFF already transformed)
       totalPredictions = Number((obj['totalPredictions'] as number | undefined) ?? totalPredictions);
@@ -161,28 +179,47 @@ export default function ProfiloPage() {
       setEmail(u.email || firebaseUser.email || '');
       setAvatarUrl(u.googleProfileUrl || firebaseUser.photoURL || null);
 
-      // Fetch live summary only
-      const liveResp = await apiClient.getUserSummary(u.id, 'live');
+      // Fetch both live and test summaries; prefer based on mode and actual plays
+      const [liveResp, testResp] = await Promise.all([
+        apiClient.getUserSummary(u.id, 'live').catch(() => null),
+        apiClient.getUserSummary(u.id, 'test').catch(() => null),
+      ]);
       if (DEBUG_PROFILO) {
         try {
           console.log('[profilo] raw live summary', liveResp);
+          console.log('[profilo] raw test summary', testResp);
         } catch {}
       }
       const liveSum = normalizeSummary(liveResp as unknown);
+      const testSum = normalizeSummary(testResp as unknown);
+      const livePlayed = (liveSum.weeklyStats || []).filter(w => Number(w.totalPredictions) > 0).length;
+      const testPlayed = (testSum.weeklyStats || []).filter(w => Number(w.totalPredictions) > 0).length;
+      // Selection logic:
+      // - If mode === 'test' and test has plays, pick test; else if live has plays, pick live; else pick the one with more played weeks
+      let chosen = liveSum;
+      if ((mode === 'test' && testPlayed > 0) || (mode !== 'test' && livePlayed === 0 && testPlayed > 0)) {
+        chosen = testSum;
+      } else if (mode !== 'test' && livePlayed > 0) {
+        chosen = liveSum;
+      } else if (testPlayed > livePlayed) {
+        chosen = testSum;
+      }
       if (DEBUG_PROFILO) {
         try {
           const finish = (arr: WeeklyStats[]) => ({ weeks: arr.length, played: arr.filter(w => w.totalPredictions > 0).length, totalPreds: arr.reduce((a, b) => a + (b.totalPredictions || 0), 0), correct: arr.reduce((a, b) => a + (b.correctPredictions || 0), 0) });
           console.log('[profilo] normalized live', finish(liveSum.weeklyStats));
+          console.log('[profilo] normalized test', finish(testSum.weeklyStats));
+          console.log('[profilo] chosen summary', finish(chosen.weeklyStats));
         } catch {}
       }
-      setSummary(liveSum);
+      setSummary(chosen);
     } catch (e) {
       console.error('[profilo] loadData failed', e);
       setError('Errore nel caricamento del profilo');
     } finally {
       setLoading(false);
     }
-  }, [firebaseUser]);
+  }, [firebaseUser, mode]);
 
   useEffect(() => {
     if (!firebaseUser) {
@@ -346,7 +383,7 @@ export default function ProfiloPage() {
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0px)' }}>
         <div className="flex">
           <button
-            onClick={() => router.push('/risultati')}
+            onClick={() => router.push(`/risultati?mode=${mode}`)}
             className="flex-1 text-center py-4"
           >
             <div className="text-gray-500 mb-1">
@@ -354,7 +391,7 @@ export default function ProfiloPage() {
             </div>
             <span className="text-xs text-black">Risultati</span>
           </button>
-          <button onClick={() => router.push('/gioca')} className="flex-1 text-center py-4">
+          <button onClick={() => router.push(`/gioca?mode=${mode}`)} className="flex-1 text-center py-4">
             <div className="text-gray-500 mb-1">
               <RiFootballLine className="w-6 h-6 mx-auto" />
             </div>

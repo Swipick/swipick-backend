@@ -1181,7 +1181,9 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
                 event: e.type,
                 target: e.target
               });
-              router.push('/profilo/testProfilo');
+              const params = new URLSearchParams({ mode: 'test' });
+              params.set('week', String(selectedWeek));
+              router.push(`/profilo?${params.toString()}`);
               console.log('[TestRisultati] 👤 router.push call completed');
             }}
             className="flex-1 text-center py-4"
