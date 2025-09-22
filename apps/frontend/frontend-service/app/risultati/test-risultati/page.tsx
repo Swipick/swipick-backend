@@ -597,15 +597,18 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     setRecentlyRevealed(null);
   }, [recentlyRevealed, revealed, fireConfetti, getPredictionData]);
 
-  // Initialize week from query string on mount only - DISABLED FOR TESTING
-  // useEffect(() => {
-  //   if (!searchParams) return;
-  //   const qWeek = searchParams.get('week');
-  //   const w = qWeek ? Number(qWeek) : NaN;
-  //   if (Number.isFinite(w) && w >= 1 && w <= 38) {
-  //     setSelectedWeek(w);
-  //   }
-  // }, [searchParams]);
+  // Initialize week from query string on mount - enables dynamic week loading from game
+  useEffect(() => {
+    if (!searchParams) return;
+    const qWeek = searchParams.get('week');
+    const w = qWeek ? Number(qWeek) : NaN;
+    if (Number.isFinite(w) && w >= 1 && w <= 38) {
+      console.log(`[TestRisultati] 🎯 Loading week ${w} from URL parameter`);
+      setSelectedWeek(w);
+    } else {
+      console.log(`[TestRisultati] 📍 No valid week parameter, staying on default week ${selectedWeek}`);
+    }
+  }, [searchParams]);
 
   // Component lifecycle tracking
   useEffect(() => {
@@ -826,8 +829,10 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
 
       console.log('✅ Test data, predictions, and reveal states reset successfully');
 
-      // Navigate to gioca page to start new predictions
-      window.location.href = '/gioca';
+      // Small delay to ensure localStorage clearing completes before navigation
+      setTimeout(() => {
+        window.location.href = '/gioca?mode=test';
+      }, 150);
     } catch (error) {
       console.error('❌ Failed to reset test data:', error);
       alert('Errore durante il reset. Riprova più tardi.');
@@ -974,7 +979,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
         {/* Top Header Panel */}
         <div
           className="w-full mx-0 mt-0 mb-2 rounded-b-2xl rounded-t-none text-white pointer-events-auto"
-          style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
+          style={{ background: 'linear-gradient(to bottom, #52418d, #7a57f6)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
         >
           {/* Test Mode indicator with Reset button */}
           <div className="flex items-center justify-center gap-2 mb-2 pt-3">
@@ -1312,11 +1317,11 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
       {/* Bottom Navigation (3-tab navbar matching original) */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t pb-[max(env(safe-area-inset-bottom),0px)]">
         <div className="flex">
-          <div className="flex-1 text-center py-4 border-b-2 border-purple-600">
-            <div className="text-purple-600 mb-1">
+          <div className="flex-1 text-center py-4 border-b-2 border-[#6f49ff]">
+            <div className="text-[#6f49ff] mb-1">
               <FaMedal className="w-6 h-6 mx-auto" />
             </div>
-            <span className="text-xs text-purple-600 font-medium">Risultati</span>
+            <span className="text-xs text-[#6f49ff] font-medium">Risultati</span>
           </div>
           <button
             onClick={(e) => {

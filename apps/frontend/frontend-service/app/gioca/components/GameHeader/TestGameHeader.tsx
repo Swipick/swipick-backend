@@ -24,6 +24,7 @@ interface TestGameHeaderProps {
   onHeightChange?: (height: number) => void;
   userKey?: string | null;
   onReset?: () => void;
+  onActiveWeekChange?: (activeWeek: number) => void;
 }
 
 export function TestGameHeader({
@@ -36,6 +37,7 @@ export function TestGameHeader({
   onHeightChange,
   userKey,
   onReset,
+  onActiveWeekChange,
 }: TestGameHeaderProps) {
   const headerRef = useRef<HTMLDivElement | null>(null);
   const [headerHeight, setHeaderHeight] = useState<number>(160);
@@ -125,6 +127,9 @@ export function TestGameHeader({
         const weekInfo = await calculateActiveWeek(virtualTime);
         setActiveWeekInfo(weekInfo);
 
+        // Notify parent component of active week change
+        onActiveWeekChange?.(weekInfo.activeWeek);
+
         // Fetch fixtures for the active week
         const fixtures = await getWeekFixtures(weekInfo.activeWeek);
         setActiveWeekFixtures(fixtures);
@@ -189,8 +194,10 @@ export function TestGameHeader({
 
       console.log('✅ Test data and localStorage reset successfully');
 
-      // Navigate to gioca page to start new predictions
-      window.location.href = '/gioca';
+      // Small delay to ensure localStorage clearing completes before navigation
+      setTimeout(() => {
+        window.location.href = '/gioca?mode=test';
+      }, 150);
     } catch (error) {
       console.error('❌ Failed to reset test data:', error);
       alert('Errore durante il reset. Riprova più tardi.');

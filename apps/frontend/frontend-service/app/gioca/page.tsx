@@ -49,25 +49,14 @@ function GiocaPageContent() {
   // Virtual clock for test mode (used by TestGameHeader)
   const { virtualTime } = useVirtualClock();
 
-  // For test mode, calculate active week dynamically based on virtual time
+  // For test mode, receive active week from TestGameHeader (source of truth)
   const [testModeActiveWeek, setTestModeActiveWeek] = useState<number>(4);
 
-  // Calculate active week for test mode based on virtual time
-  useEffect(() => {
-    if (currentMode !== 'test') return;
-
-    const updateTestModeActiveWeek = async () => {
-      try {
-        const weekInfo = await calculateActiveWeek(virtualTime);
-        setTestModeActiveWeek(weekInfo.activeWeek);
-        console.log(`[Gioca] Test mode active week updated: ${weekInfo.activeWeek}`);
-      } catch (error) {
-        console.warn('Could not calculate test mode active week:', error);
-      }
-    };
-
-    updateTestModeActiveWeek();
-  }, [currentMode, virtualTime]);
+  // Callback to receive active week from TestGameHeader
+  const handleActiveWeekChange = useCallback((activeWeek: number) => {
+    setTestModeActiveWeek(activeWeek);
+    console.log(`[Gioca] Active week received from TestGameHeader: ${activeWeek}`);
+  }, []);
 
   // Selected week logic - reliable, no fallbacks
   const selectedWeek = useMemo(() => {
@@ -89,14 +78,9 @@ function GiocaPageContent() {
       console.log('[page] No live week data available yet, returning null');
       return null;
     } else {
-      // Test mode: use URL parameter if valid, otherwise use dynamic active week
-      const urlWeek = Number(searchParams?.get('week') ?? NaN);
-      if (Number.isFinite(urlWeek) && urlWeek >= 1 && urlWeek <= 38) {
-        console.log(`[Gioca] Using URL week for test mode: ${urlWeek}`);
-        return urlWeek;
-      }
-      // Use dynamically calculated active week based on virtual time
-      console.log(`[Gioca] Using dynamic active week for test mode: ${testModeActiveWeek}`);
+      // Test mode: prioritize TestGameHeader calculation over URL parameters
+      // TestGameHeader is the source of truth for virtual time progression
+      console.log(`[Gioca] Using TestGameHeader active week for test mode: ${testModeActiveWeek}`);
       return testModeActiveWeek;
     }
   }, [currentMode, searchParams, liveWeekData, testModeActiveWeek]);
@@ -700,6 +684,7 @@ function GiocaPageContent() {
           onHeightChange={setHeaderHeight}
           userKey={userKey}
           onReset={resetPredictions}
+          onActiveWeekChange={handleActiveWeekChange}
         />
       ) : (
         <GameHeader
