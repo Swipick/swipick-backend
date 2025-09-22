@@ -99,8 +99,12 @@ function GiocaPageContent() {
   
   // Navigation handlers
   const handleGoToResults = useCallback(() => {
-    router.push('/risultati?mode=' + currentMode);
-  }, [router, currentMode]);
+    if (currentMode === 'test') {
+      router.push(`/risultati/test-risultati?week=${selectedWeek}`);
+    } else {
+      router.push('/risultati?mode=' + currentMode);
+    }
+  }, [router, currentMode, selectedWeek]);
   
   const handleGoToProfile = useCallback(() => {
     router.push('/profilo');
@@ -222,6 +226,7 @@ function GiocaPageContent() {
     resetPredictions();
     setCurrentFixtureIndex(0);
     setShowSummaryScreen(false);
+    setWeekComplete(false); // Reset week completion veil
     cardX.set(0);
     cardY.set(0);
     cardOpacity.set(1);

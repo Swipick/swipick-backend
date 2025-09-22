@@ -173,6 +173,9 @@ export function TestGameHeader({
       onReset?.();
 
       console.log('✅ Test data reset successfully');
+
+      // Force page refresh to ensure clean state
+      window.location.reload();
     } catch (error) {
       console.error('❌ Failed to reset test data:', error);
       alert('Errore durante il reset. Riprova più tardi.');

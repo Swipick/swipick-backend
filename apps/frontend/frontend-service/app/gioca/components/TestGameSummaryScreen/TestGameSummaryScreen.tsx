@@ -93,43 +93,22 @@ const TeamLogo: React.FC<{
   );
 };
 
-// Enhanced choice badge component with result indicators
+// Simple choice badge component (like live mode)
 const ChoiceBadge: React.FC<{
   label: '1' | 'X' | '2';
   isSelected: boolean;
-  isCorrect?: boolean;
-  actualResult?: '1' | 'X' | '2';
-}> = ({ label, isSelected, isCorrect, actualResult }) => {
-  // Determine badge styling based on selection and correctness
-  let badgeClass = `min-w-[36px] h-7 px-2 rounded-md grid place-items-center text-xs font-semibold border relative `;
-
-  if (isSelected) {
-    if (isCorrect === true) {
-      badgeClass += 'bg-green-600 text-white border-green-600 shadow-sm';
-    } else if (isCorrect === false) {
-      badgeClass += 'bg-red-600 text-white border-red-600 shadow-sm';
-    } else {
-      badgeClass += 'bg-indigo-600 text-white border-indigo-600 shadow-sm';
+}> = ({ label, isSelected }) => (
+  <div
+    className={
+      `min-w-[36px] h-7 px-2 rounded-md grid place-items-center text-xs font-semibold border ` +
+      (isSelected
+        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+        : 'bg-white text-gray-700 border-gray-300')
     }
-  } else if (actualResult === label) {
-    // Show the actual result if it wasn't the user's choice
-    badgeClass += 'bg-gray-200 text-gray-700 border-gray-300 ring-2 ring-green-400';
-  } else {
-    badgeClass += 'bg-white text-gray-700 border-gray-300';
-  }
-
-  return (
-    <div className={badgeClass}>
-      {label}
-      {isSelected && isCorrect === true && (
-        <span className="absolute -top-1 -right-1 text-green-600">✓</span>
-      )}
-      {isSelected && isCorrect === false && (
-        <span className="absolute -top-1 -right-1 text-red-600">✗</span>
-      )}
-    </div>
-  );
-};
+  >
+    {label}
+  </div>
+);
 
 export function TestGameSummaryScreen({
   fixtures,
@@ -175,16 +154,9 @@ export function TestGameSummaryScreen({
     }
   }, [userId, week]);
 
-  // Helper function to get prediction data for a fixture
-  const getPredictionData = (fixtureId: number) => {
-    const backendPred = weeklyStats?.predictions.find(
-      p => parseInt(p.fixture_id) === fixtureId
-    );
-    return {
-      choice: predictions[fixtureId],
-      isCorrect: backendPred?.is_correct,
-      actualResult: backendPred?.result
-    };
+  // Helper function to get prediction choice for a fixture
+  const getPredictionChoice = (fixtureId: number) => {
+    return predictions[fixtureId];
   };
 
   if (loading) {
@@ -232,44 +204,12 @@ export function TestGameSummaryScreen({
         style={{ height: headerHeight + 24 }}
       />
 
-      {/* Performance Summary */}
-      {weeklyStats && (
-        <div className="px-4 mb-4">
-          <div className="max-w-md mx-auto bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Week {week} Summary
-              </h3>
-              <div className="flex justify-center items-center gap-6">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-indigo-600">
-                    {weeklyStats.correct_predictions}
-                  </div>
-                  <div className="text-xs text-gray-600">Correct</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900">
-                    {weeklyStats.total_predictions}
-                  </div>
-                  <div className="text-xs text-gray-600">Total</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">
-                    {Math.round(weeklyStats.success_rate)}%
-                  </div>
-                  <div className="text-xs text-gray-600">Accuracy</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Main content - scrollable predictions list */}
       <div className="flex-1 overflow-y-auto px-4 pb-20">
         <div className="space-y-4 max-w-md mx-auto">
           {fixtures.map((fixture) => {
-            const predictionData = getPredictionData(fixture.id);
+            const prediction = getPredictionChoice(fixture.id);
             const kickoff = new Date(fixture.date).toLocaleDateString('it-IT', {
               weekday: 'short',
               day: '2-digit',
@@ -322,26 +262,11 @@ export function TestGameSummaryScreen({
                   </div>
                 </div>
 
-                {/* Enhanced choice badges (1/X/2) with results */}
+                {/* Simple choice badges (1/X/2) like live mode */}
                 <div className="flex flex-col gap-2 items-center">
-                  <ChoiceBadge
-                    label="1"
-                    isSelected={predictionData.choice === '1'}
-                    isCorrect={predictionData.choice === '1' ? predictionData.isCorrect : undefined}
-                    actualResult={predictionData.actualResult}
-                  />
-                  <ChoiceBadge
-                    label="X"
-                    isSelected={predictionData.choice === 'X'}
-                    isCorrect={predictionData.choice === 'X' ? predictionData.isCorrect : undefined}
-                    actualResult={predictionData.actualResult}
-                  />
-                  <ChoiceBadge
-                    label="2"
-                    isSelected={predictionData.choice === '2'}
-                    isCorrect={predictionData.choice === '2' ? predictionData.isCorrect : undefined}
-                    actualResult={predictionData.actualResult}
-                  />
+                  <ChoiceBadge label="1" isSelected={prediction === '1'} />
+                  <ChoiceBadge label="X" isSelected={prediction === 'X'} />
+                  <ChoiceBadge label="2" isSelected={prediction === '2'} />
                 </div>
               </div>
             );
