@@ -213,13 +213,42 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
 
   const userKey = firebaseUser?.uid || null;
 
-  // State
-  const [weeklyStats, setWeeklyStats] = useState<WeeklyStatsResponse | null>(null);
-  const [fixtures, setFixtures] = useState<Fixture[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Data cache for preloaded weeks
+  const [weekDataCache, setWeekDataCache] = useState<Map<number, {
+    weeklyStats: WeeklyStatsResponse | null;
+    fixtures: Fixture[];
+    loading: boolean;
+    error: string | null;
+    timestamp: number;
+  }>>(new Map());
+
+  // Global loading state (only for initial load)
+  const [globalLoading, setGlobalLoading] = useState(true);
+  const [globalError, setGlobalError] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
   const [shareSupported, setShareSupported] = useState(false);
+
+  // Get current week data from cache - memoized to prevent re-renders
+  const currentWeekData = useMemo(() => weekDataCache.get(selectedWeek), [weekDataCache, selectedWeek]);
+  const weeklyStats = useMemo(() => currentWeekData?.weeklyStats || null, [currentWeekData]);
+  const fixtures = useMemo(() => currentWeekData?.fixtures || [], [currentWeekData]);
+
+  // Derived states for current week - only show loading for uncached weeks
+  const loading = globalLoading || (!currentWeekData && !globalLoading);
+  const error = globalError || currentWeekData?.error || null;
+
+  // Debug cache performance
+  useEffect(() => {
+    if (currentWeekData) {
+      console.log(`[TestRisultati] 🎯 CACHE HIT for week ${selectedWeek}:`, {
+        hasStats: !!currentWeekData.weeklyStats,
+        fixturesCount: currentWeekData.fixtures.length,
+        timestamp: new Date(currentWeekData.timestamp).toISOString()
+      });
+    } else {
+      console.log(`[TestRisultati] ❌ CACHE MISS for week ${selectedWeek}`);
+    }
+  }, [selectedWeek, currentWeekData]);
 
   // Animation state (exact same types as original)
   const [navDir, setNavDir] = useState<1 | -1 | 0>(0);
@@ -252,45 +281,152 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     };
   }, []);
 
+  // Cache management functions
+  const updateWeekCache = useCallback((week: number, data: {
+    weeklyStats?: WeeklyStatsResponse | null;
+    fixtures?: Fixture[];
+    loading?: boolean;
+    error?: string | null;
+  }) => {
+    setWeekDataCache(prev => {
+      const newCache = new Map(prev);
+      const existing = newCache.get(week) || {
+        weeklyStats: null,
+        fixtures: [],
+        loading: false,
+        error: null,
+        timestamp: Date.now()
+      };
+
+      newCache.set(week, {
+        ...existing,
+        ...data,
+        timestamp: Date.now()
+      });
+
+      console.log(`[TestRisultati] 💾 Cache updated for week ${week}:`, data);
+      return newCache;
+    });
+  }, []);
+
+  const isWeekCached = useCallback((week: number) => {
+    const cached = weekDataCache.get(week);
+    const isValid = cached && !cached.loading && !cached.error;
+    console.log(`[TestRisultati] 🔍 Cache check week ${week}:`, { isValid, cached: !!cached });
+    return isValid;
+  }, [weekDataCache]);
+
   // Check for share support
   useEffect(() => {
     setShareSupported(typeof navigator !== 'undefined' && !!navigator.share);
   }, []);
 
-  // Fetch weekly stats and fixtures - OPTIMIZED to prevent excessive API calls
+  // Single week data fetcher (for cache)
+  const fetchWeekData = useCallback(async (week: number): Promise<void> => {
+    if (!userKey || isWeekCached(week)) {
+      console.log(`[TestRisultati] ⚡ Skipping fetch for week ${week} (cached or no user)`);
+      return;
+    }
+
+    console.log(`[TestRisultati] 📡 Fetching data for user ${userKey}, week ${week}`);
+
+    // Mark as loading
+    updateWeekCache(week, { loading: true, error: null });
+
+    try {
+      // Fetch weekly stats and fixtures in parallel
+      const [stats, fixturesResponse] = await Promise.all([
+        apiClient.getTestWeeklyStats(userKey, week),
+        apiClient.getFixturesByWeek(week)
+      ]);
+
+      const fixturesData = Array.isArray(fixturesResponse) ? fixturesResponse : fixturesResponse?.data ?? [];
+
+      // Update cache with successful data
+      updateWeekCache(week, {
+        weeklyStats: stats,
+        fixtures: fixturesData,
+        loading: false,
+        error: null
+      });
+
+      console.log(`[TestRisultati] ✅ Week ${week} loaded: ${stats.predictions.length} predictions, ${fixturesData.length} fixtures`);
+    } catch (err) {
+      console.error(`[TestRisultati] ❌ Error fetching week ${week}:`, err);
+      updateWeekCache(week, {
+        loading: false,
+        error: err instanceof Error ? err.message : 'Failed to load data'
+      });
+    }
+  }, [userKey, isWeekCached, updateWeekCache]);
+
+  // Preload multiple weeks (10-week lookahead for maximum smoothness)
+  const preloadWeeks = useCallback(async (centerWeek: number) => {
+    const weeksToPreload = [
+      centerWeek - 2,  // 2 weeks back
+      centerWeek - 1,  // 1 week back
+      centerWeek,      // Current week
+      centerWeek + 1,  // 1 week forward
+      centerWeek + 2,  // 2 weeks forward
+      centerWeek + 3,  // 3 weeks forward
+      centerWeek + 4,  // 4 weeks forward
+      centerWeek + 5,  // 5 weeks forward
+      centerWeek + 6,  // 6 weeks forward
+      centerWeek + 7   // 7 weeks forward
+    ].filter(w => w >= 1 && w <= 38); // Valid week range
+
+    console.log(`[TestRisultati] 🔄 Preloading 10 weeks around ${centerWeek}:`, weeksToPreload);
+
+    // Fetch all weeks in parallel for maximum speed
+    await Promise.all(weeksToPreload.map(week => fetchWeekData(week)));
+
+    console.log(`[TestRisultati] ✅ 10-week preloading completed for weeks:`, weeksToPreload);
+  }, [fetchWeekData]);
+
+  // Initial data loading and preloading
   useEffect(() => {
-    const fetchData = async () => {
-      if (!userKey) return;
+    if (!userKey) return;
+
+    const loadInitialData = async () => {
+      console.log(`[TestRisultati] 🚀 Initial load starting - will preload 10 weeks around week ${selectedWeek}`);
+      setGlobalLoading(true);
+      setGlobalError(null);
 
       try {
-        setLoading(true);
-        setError(null);
+        // Preload 10 weeks around selected week for ultra-smooth navigation
+        await preloadWeeks(selectedWeek);
 
-        console.log(`[TestRisultati] 📡 Fetching data for user ${userKey}, week ${selectedWeek}`);
-
-        // Fetch weekly stats
-        const stats = await apiClient.getTestWeeklyStats(userKey, selectedWeek);
-        setWeeklyStats(stats);
-
-        // Fetch fixtures for the week
-        const fixturesResponse = await apiClient.getFixturesByWeek(selectedWeek);
-        const fixturesData = Array.isArray(fixturesResponse) ? fixturesResponse : fixturesResponse?.data ?? [];
-        setFixtures(fixturesData);
-
-        console.log(`[TestRisultati] ✅ Data loaded: ${stats.predictions.length} predictions, ${fixturesData.length} fixtures`);
+        console.log(`[TestRisultati] 🔍 10-week preload completed for week ${selectedWeek}`);
+        // Note: currentData will be checked via the derived state, not here
       } catch (err) {
-        console.error('[TestRisultati] ❌ Error fetching data:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load data');
+        console.error('[TestRisultati] ❌ Initial 10-week preload failed:', err);
+        setGlobalError(err instanceof Error ? err.message : 'Failed to load data');
       } finally {
-        setLoading(false);
+        setGlobalLoading(false);
       }
     };
 
-    // Add a small delay to prevent rapid successive calls
-    const timeoutId = setTimeout(fetchData, 50);
-    return () => clearTimeout(timeoutId);
-  }, [userKey, selectedWeek]);
+    loadInitialData();
+  }, [userKey]); // Only trigger on userKey change, not selectedWeek
 
+  // Background preloading when week changes - debounced to prevent excessive calls
+  useEffect(() => {
+    if (!userKey || globalLoading) return;
+
+    const timer = setTimeout(() => {
+      console.log(`[TestRisultati] 📍 Week changed to ${selectedWeek}, checking preload needs`);
+
+      // Check if current week is cached, if not trigger preload
+      if (!isWeekCached(selectedWeek)) {
+        console.log(`[TestRisultati] 🔄 Week ${selectedWeek} not cached, triggering background preload`);
+        preloadWeeks(selectedWeek);
+      } else {
+        console.log(`[TestRisultati] ✅ Week ${selectedWeek} already cached, skipping preload`);
+      }
+    }, 100); // Small delay to debounce rapid week changes
+
+    return () => clearTimeout(timer);
+  }, [selectedWeek, userKey, globalLoading, isWeekCached, preloadWeeks]);
 
   // Helper function to get prediction data for a fixture
   const getPredictionData = (fixtureId: number) => {
@@ -304,16 +440,21 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     };
   };
 
-  // Helper to change week and keep URL in sync (exact same as original)
+  // Optimized week navigation - no immediate re-fetching since data is cached
   const updateWeek = useCallback((w: number) => {
     console.log('[TestRisultati] 🔄 updateWeek called', { from: selectedWeek, to: w, timestamp: new Date().toISOString() });
     const next = Math.max(1, Math.min(38, w));
-    console.log('[TestRisultati] 📊 Setting navDir and selectedWeek', { navDir: next > selectedWeek ? 1 : -1, next });
+
+    // Check if target week is already cached
+    const isCached = isWeekCached(next);
+    console.log('[TestRisultati] 📊 Navigation target', { next, isCached, currentCached: isWeekCached(selectedWeek) });
+
     setNavDir(next > selectedWeek ? 1 : -1);
     setSelectedWeek(next);
-    setPendingWeekForUrl(next); // delay URL update until animation completes
-    console.log('[TestRisultati] ✅ State updates queued');
-  }, [selectedWeek]);
+    setPendingWeekForUrl(next);
+
+    console.log('[TestRisultati] ✅ State updates queued - no API calls needed due to caching');
+  }, [selectedWeek, isWeekCached]);
 
   // Reset function
   const handleReset = async () => {
@@ -357,7 +498,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     }
   };
 
-  // Calculate performance metrics
+  // Calculate performance metrics - stabilized with JSON.stringify for deep comparison
   const performanceMetrics = useMemo(() => {
     if (!weeklyStats) {
       return { correct: 0, total: 0, accuracy: 0 };
