@@ -19,10 +19,10 @@ export default function Button({
   disabled = false,
   type = 'button',
 }: ButtonProps) {
-  const baseClasses = 'h-10 px-6 rounded-xl font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center';
+  const baseClasses = 'h-[52px] px-6 rounded-xl font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center';
   
   const variantClasses = {
-    primary: 'bg-[#554099] hover:bg-[#3d2d73] text-white shadow-lg hover:shadow-xl',
+    primary: 'bg-[#6f49ff] hover:bg-[#5a3dd9] text-white shadow-lg hover:shadow-xl',
     secondary: 'bg-gray-200 hover:bg-white text-[#554099] shadow-md hover:shadow-lg',
   };
 

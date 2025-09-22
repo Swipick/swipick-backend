@@ -12,6 +12,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Toast } from '@/src/components/Toast';
 import confetti from 'canvas-confetti';
 import { useVirtualClock } from '../../gioca/components/VirtualClock/VirtualClock';
+import { calculateActiveWeek, WeekInfo } from '../../gioca/utils/weekCalculator';
 
 interface Fixture {
   id: number;
@@ -233,8 +234,37 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
 
   const userKey = firebaseUser?.uid || null;
 
+  // Helper function to clear prediction localStorage when virtual time changes
+  const clearPredictionLocalStorage = useCallback(() => {
+    if (!userKey) return;
+
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.includes('swipick:gioca:') && key.includes(`:user:${userKey}`)) {
+          keysToRemove.push(key);
+        }
+      }
+
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+        console.log(`[TestRisultati] 🧹 Cleared prediction localStorage (virtual time change): ${key}`);
+      });
+
+      if (keysToRemove.length > 0) {
+        console.log(`[TestRisultati] ✅ Cleared ${keysToRemove.length} prediction localStorage keys for virtual time progression`);
+      }
+    } catch (error) {
+      console.warn('Failed to clear prediction localStorage:', error);
+    }
+  }, [userKey]);
+
   // Virtual clock for test mode
-  const { formatDisplay, fastForwardToNextWeek } = useVirtualClock();
+  const { virtualTime, formatDisplay } = useVirtualClock();
+
+  // Dynamic active week state based on virtual time
+  const [activeWeekInfo, setActiveWeekInfo] = useState<WeekInfo>({ activeWeek: 4, status: 'prediction' });
 
   // Data cache for preloaded weeks
   const [weekDataCache, setWeekDataCache] = useState<Map<number, {
@@ -284,8 +314,32 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
   // Track recently revealed fixture for confetti (like original)
   const [recentlyRevealed, setRecentlyRevealed] = useState<{ id: string; origin?: { x: number; y: number } } | null>(null);
 
-  // Virtual current week (like TERMINAL_WEEK in regular risultati)
-  const VIRTUAL_CURRENT_WEEK = 4;
+  // Calculate active week and fetch fixtures based on virtual time
+  useEffect(() => {
+    const updateActiveWeek = async () => {
+      try {
+        // Calculate which week should be active for predictions
+        const weekInfo = await calculateActiveWeek(virtualTime);
+        setActiveWeekInfo(weekInfo);
+        console.log(`[TestRisultati] Active week updated: ${weekInfo.activeWeek}, status: ${weekInfo.status}`);
+      } catch (error) {
+        console.warn('Could not calculate active week:', error);
+      }
+    };
+
+    updateActiveWeek();
+  }, [virtualTime]); // Recalculate when virtual time changes
+
+  // Use dynamic virtual current week based on virtual time
+  const VIRTUAL_CURRENT_WEEK = activeWeekInfo.activeWeek;
+
+  console.log(`[TestRisultati] 🔍 Virtual Week Analysis:`, {
+    selectedWeek,
+    VIRTUAL_CURRENT_WEEK,
+    virtualTime: virtualTime.toISOString(),
+    activeWeekStatus: activeWeekInfo.status,
+    isPastWeek: selectedWeek < VIRTUAL_CURRENT_WEEK
+  });
 
   // Fire indigo/white confetti burst (like original risultati)
   const fireConfetti = useCallback((origin?: { x: number; y: number }) => {
@@ -331,24 +385,55 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     return userKey ? `swipick:risultati:reveal:test:week:${selectedWeek}:user:${userKey}` : null;
   }, [userKey, selectedWeek]);
 
-  // Load reveal state from localStorage
+  // Simplified reveal logic for test mode based on virtual time progression
   useEffect(() => {
     if (!revealKey) return;
 
-    // For past weeks (before current virtual week), auto-reveal everything
-    if (selectedWeek < VIRTUAL_CURRENT_WEEK) {
+    // Calculate how many weeks the user has advanced using the fast-forward button
+    const getAdvancedWeeks = () => {
+      try {
+        const stored = localStorage.getItem('swipick:virtual-clock:reference');
+        if (stored) {
+          const state = JSON.parse(stored);
+          const fastForwardOffset = state.fastForwardOffset || 0;
+          const weeksAdvanced = Math.floor(fastForwardOffset / (7 * 24 * 60 * 60 * 1000));
+          return weeksAdvanced;
+        }
+      } catch (error) {
+        console.warn('Failed to read virtual clock state:', error);
+      }
+      return 0;
+    };
+
+    const weeksAdvanced = getAdvancedWeeks();
+    const baseWeek = 4; // Starting week in test mode
+    const progressedToWeek = baseWeek + weeksAdvanced;
+
+    console.log(`[TestRisultati] 📊 Test mode reveal logic:`, {
+      selectedWeek,
+      baseWeek,
+      weeksAdvanced,
+      progressedToWeek,
+      shouldAutoReveal: selectedWeek < progressedToWeek,
+      VIRTUAL_CURRENT_WEEK
+    });
+
+    // For weeks before the progressed week, auto-reveal everything
+    if (selectedWeek < progressedToWeek) {
       if (fixtures.length > 0) {
         const toReveal: Record<string, boolean> = {};
         fixtures.forEach(fixture => {
           toReveal[String(fixture.id)] = true;
         });
         setRevealed(toReveal);
-        console.log(`[TestRisultati] 🔓 Auto-revealing past week ${selectedWeek} (before virtual current week ${VIRTUAL_CURRENT_WEEK})`);
+        console.log(`[TestRisultati] 🔓 Auto-revealing past week ${selectedWeek} (progressed to week ${progressedToWeek}), fixtures:`, fixtures.length);
+      } else {
+        console.log(`[TestRisultati] ⏳ Past week ${selectedWeek} waiting for fixtures to load...`);
       }
       return;
     }
 
-    // For current and future weeks, load from localStorage
+    // For current and future weeks, load saved reveal state from localStorage
     try {
       const raw = localStorage.getItem(revealKey);
       if (raw) {
@@ -361,15 +446,39 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
         console.log(`[TestRisultati] 🔄 Loaded reveal state for week ${selectedWeek}:`, parsed);
       } else {
         setRevealed({});
+        console.log(`[TestRisultati] 🆕 No saved reveal state for week ${selectedWeek}, starting fresh`);
       }
     } catch {
       setRevealed({});
+      console.log(`[TestRisultati] ❌ Failed to load reveal state for week ${selectedWeek}, starting fresh`);
     }
-  }, [revealKey, selectedWeek, fixtures, userKey]);
+  }, [revealKey, selectedWeek, fixtures, VIRTUAL_CURRENT_WEEK]);
 
-  // Persist reveal state to localStorage
+  // Persist reveal state to localStorage (only for current and future weeks)
   useEffect(() => {
-    if (!revealKey || selectedWeek < VIRTUAL_CURRENT_WEEK) return;
+    if (!revealKey) return;
+
+    // Calculate progressed week using same logic as reveal effect
+    const getProgressedWeek = () => {
+      try {
+        const stored = localStorage.getItem('swipick:virtual-clock:reference');
+        if (stored) {
+          const state = JSON.parse(stored);
+          const fastForwardOffset = state.fastForwardOffset || 0;
+          const weeksAdvanced = Math.floor(fastForwardOffset / (7 * 24 * 60 * 60 * 1000));
+          return 4 + weeksAdvanced; // baseWeek + weeksAdvanced
+        }
+      } catch (error) {
+        console.warn('Failed to read virtual clock state:', error);
+      }
+      return 4; // Default to base week
+    };
+
+    const progressedToWeek = getProgressedWeek();
+
+    // Only persist reveal state for weeks that are not auto-revealed (current and future weeks)
+    if (selectedWeek < progressedToWeek) return;
+
     try {
       const ids = Object.entries(revealed)
         .filter(([, v]) => v)
@@ -691,25 +800,31 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     try {
       setIsResetting(true);
 
-      // Clear all localStorage reveal states for this user across all weeks
+      // Clear all localStorage data for this user across all test mode data
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.includes(`swipick:risultati:reveal:test:`) && key.includes(`:user:${userKey}`)) {
+        if (key && key.includes(`:user:${userKey}`) &&
+           (key.includes(`swipick:risultati:reveal:test:`) ||
+            key.includes(`swipick:gioca:`))) {
           keysToRemove.push(key);
         }
       }
 
-      // Remove all reveal state keys
+      // Remove all localStorage keys (reveal states + predictions)
       keysToRemove.forEach(key => {
         localStorage.removeItem(key);
-        console.log(`[TestRisultati] 🧹 Cleared reveal state: ${key}`);
+        if (key.includes('reveal')) {
+          console.log(`[TestRisultati] 🧹 Cleared reveal state: ${key}`);
+        } else {
+          console.log(`[TestRisultati] 🧹 Cleared prediction data: ${key}`);
+        }
       });
 
       // Reset API data
       await apiClient.resetTestData(userKey);
 
-      console.log('✅ Test data and reveal states reset successfully');
+      console.log('✅ Test data, predictions, and reveal states reset successfully');
 
       // Navigate to gioca page to start new predictions
       window.location.href = '/gioca';
@@ -955,17 +1070,65 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
               📅 Data simulata: {formatDisplay()}
             </div>
 
-            {/* Virtual clock controls */}
+            {/* Virtual time navigation controls */}
             <div className="flex justify-center gap-2">
               <button
                 onClick={() => {
-                  // Fast forward to next week using the hook function
-                  fastForwardToNextWeek();
-                  // Refresh page to apply new virtual time
-                  window.location.reload();
+                  // Clear prediction localStorage before virtual time change
+                  clearPredictionLocalStorage();
+
+                  // Rewind virtual calendar by 7 days
+                  const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+                  const storageKey = 'swipick:virtual-clock:reference';
+                  try {
+                    const stored = localStorage.getItem(storageKey);
+                    if (stored) {
+                      const state = JSON.parse(stored);
+                      // Subtract 7 days from the virtual time offset
+                      state.fastForwardOffset = (state.fastForwardOffset || 0) - oneWeekMs;
+                      localStorage.setItem(storageKey, JSON.stringify(state));
+                      console.log(`[TestRisultati] ⏪ Virtual time rewound by 1 week, localStorage cleared`);
+                      window.location.reload(); // Refresh to apply new virtual time
+                    }
+                  } catch (error) {
+                    console.warn('Failed to update virtual clock:', error);
+                  }
+                }}
+                className="inline-flex items-center px-2 py-1 text-xs bg-orange-500/80 hover:bg-orange-600/80 rounded-full transition-colors"
+                title="Riavvolgi il calendario di una settimana"
+              >
+                <svg className="-ml-0.5 mr-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 15l-3-3 3-3m4 6l-3-3 3-3" />
+                </svg>
+                -1 Settimana
+              </button>
+              <button
+                onClick={() => {
+                  // Clear prediction localStorage before virtual time change
+                  clearPredictionLocalStorage();
+
+                  // Fast forward virtual calendar by 7 days and navigate to Gioca page
+                  const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+                  const storageKey = 'swipick:virtual-clock:reference';
+                  try {
+                    const stored = localStorage.getItem(storageKey);
+                    if (stored) {
+                      const state = JSON.parse(stored);
+                      state.fastForwardOffset = (state.fastForwardOffset || 0) + oneWeekMs;
+                      localStorage.setItem(storageKey, JSON.stringify(state));
+                      console.log(`[TestRisultati] ⏩ Virtual time advanced by 1 week, localStorage cleared`);
+
+                      // Small delay to ensure localStorage is updated, then let Gioca page auto-detect the active week
+                      setTimeout(() => {
+                        window.location.href = '/gioca?mode=test';
+                      }, 100);
+                    }
+                  } catch (error) {
+                    console.warn('Failed to update virtual clock:', error);
+                  }
                 }}
                 className="inline-flex items-center px-2 py-1 text-xs bg-blue-500/80 hover:bg-blue-600/80 rounded-full transition-colors"
-                title="Avanza di una settimana"
+                title="Avanza il calendario di una settimana"
               >
                 <svg className="-ml-0.5 mr-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3-3 3m-6 0l3-3-3-3" />

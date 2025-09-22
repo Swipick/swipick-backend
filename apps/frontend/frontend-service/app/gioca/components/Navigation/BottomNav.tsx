@@ -39,11 +39,11 @@ export function BottomNav({
         </button>
         
         {/* Gioca (current/active) */}
-        <div className="flex-1 text-center py-4 border-b-2 border-purple-600">
-          <div className="text-purple-600 mb-1">
+        <div className="flex-1 text-center py-4 border-b-2 border-[#6f49ff]">
+          <div className="text-[#6f49ff] mb-1">
             <RiFootballLine className="w-6 h-6 mx-auto" />
           </div>
-          <span className="text-xs text-purple-600 font-medium">Gioca</span>
+          <span className="text-xs text-[#6f49ff] font-medium">Gioca</span>
         </div>
         
         {/* Profilo */}

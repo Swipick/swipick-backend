@@ -36,11 +36,11 @@ export async function calculateActiveWeek(virtualTime: Date): Promise<WeekInfo> 
 
     console.log(`[weekCalculator] Cache miss, calculating active week...`);
 
-    // Optimized approach: Start from week 4 (known active week) and check nearby weeks
-    const candidateWeeks = [4, 3, 5, 2, 6, 1, 7]; // Check week 4 first, then nearby weeks
+    // Check weeks in chronological order to find the first week that hasn't started yet
+    // This ensures proper handling of early virtual dates like August 12th
+    const candidateWeeks = Array.from({ length: 38 }, (_, i) => i + 1); // [1, 2, 3, ..., 38]
 
     for (const week of candidateWeeks) {
-      if (week > 38) continue;
 
       const fixtures = await getWeekFixturesWithCache(week);
 
@@ -65,7 +65,7 @@ export async function calculateActiveWeek(virtualTime: Date): Promise<WeekInfo> 
 
         // Cache the result
         weekInfoCache.set(cacheKey, { result, timestamp: Date.now() });
-        console.log(`[weekCalculator] Active week determined: ${week}`);
+        console.log(`[weekCalculator] ✅ Active week determined: ${week} (virtual time ${new Date(virtualNow).toISOString()} is before first match ${firstMatchDate.toISOString()})`);
         return result;
       }
 
@@ -87,22 +87,22 @@ export async function calculateActiveWeek(virtualTime: Date): Promise<WeekInfo> 
       }
     }
 
-    // If no week found in candidates, fallback to week 4
+    // If no week found in candidates, fallback to week 1 (start of season)
     const fallbackResult = {
-      activeWeek: 4,
+      activeWeek: 1,
       status: 'prediction' as const
     };
 
     // Cache the fallback result
     weekInfoCache.set(cacheKey, { result: fallbackResult, timestamp: Date.now() });
-    console.log(`[weekCalculator] Fallback to week 4`);
+    console.log(`[weekCalculator] Fallback to week 1 (start of season)`);
     return fallbackResult;
 
   } catch (error) {
     console.warn('Error calculating active week:', error);
-    // Fallback to week 4 (our known test case)
+    // Fallback to week 1 (start of season)
     return {
-      activeWeek: 4,
+      activeWeek: 1,
       status: 'prediction'
     };
   }

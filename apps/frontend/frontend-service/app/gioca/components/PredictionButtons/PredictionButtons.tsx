@@ -21,7 +21,7 @@ export function PredictionButtons({
 }: PredictionButtonsProps) {
   // Button styles for diamond layout
   const buttonStyle: React.CSSProperties = {
-    background: 'radial-gradient(circle at center, #554099, #3d2d73)',
+    background: 'radial-gradient(circle at center, #7956f3, #7d57f8)',
     boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
   };
 

@@ -154,7 +154,7 @@ export function GameHeader({
         ${className}
       `}
       style={{
-        background: 'radial-gradient(circle at center, #554099, #3d2d73)',
+        background: 'linear-gradient(to bottom, #52418d, #7a57f6)',
         boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
       }}>
       <div className="text-center">

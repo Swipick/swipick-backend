@@ -166,13 +166,28 @@ export function TestGameHeader({
     try {
       setIsResetting(true);
 
+      // Clear all localStorage prediction data for this user
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.includes('swipick:gioca:') && key.includes(`:user:${userKey}`)) {
+          keysToRemove.push(key);
+        }
+      }
+
+      // Remove all prediction localStorage keys
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+        console.log(`[TestGameHeader] 🧹 Cleared prediction localStorage: ${key}`);
+      });
+
       // Call API to reset user's test data
       await apiClient.resetTestData(userKey);
 
       // Call parent reset callback to clear local state
       onReset?.();
 
-      console.log('✅ Test data reset successfully');
+      console.log('✅ Test data and localStorage reset successfully');
 
       // Navigate to gioca page to start new predictions
       window.location.href = '/gioca';
@@ -268,7 +283,7 @@ export function TestGameHeader({
         ${className}
       `}
       style={{
-        background: 'radial-gradient(circle at center, #554099, #3d2d73)',
+        background: 'linear-gradient(to bottom, #52418d, #7a57f6)',
         boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
       }}>
       <div className="text-center">

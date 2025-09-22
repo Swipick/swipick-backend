@@ -31,10 +31,10 @@ export default function WelcomePage() {
           </p>
           <div className="flex items-center justify-center space-x-6 py-3">
             <div className="-rotate-12">
-              <TeamLogo src="/juventusLogo.png" alt="Juventus" size="lg" />
+              <TeamLogo teamName="Juventus" alt="Juventus" size="lg" />
             </div>
             <div className="rotate-12">
-              <TeamLogo src="/napoliLogo.png" alt="Napoli" size="lg" />
+              <TeamLogo teamName="Napoli" alt="Napoli" size="lg" />
             </div>
           </div>
 
@@ -43,7 +43,7 @@ export default function WelcomePage() {
             <button
               className="relative text-white font-bold py-2.5 px-6 rounded-2xl shadow-lg transition-all duration-200 hover:scale-105 text-sm"
               style={{
-                background: `radial-gradient(circle at center, #554099, #3d2d73)`,
+                background: `radial-gradient(circle at center, #7956f3, #7d57f8)`,
                 boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)'
               }}
             >
@@ -52,7 +52,7 @@ export default function WelcomePage() {
             <button
               className="relative text-white font-bold py-2.5 px-6 rounded-2xl -translate-y-8 shadow-lg transition-all duration-200 hover:scale-105 text-sm"
               style={{
-                background: `radial-gradient(circle at center, #554099, #3d2d73)`,
+                background: `radial-gradient(circle at center, #7956f3, #7d57f8)`,
                 boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)'
               }}
             >
@@ -61,7 +61,7 @@ export default function WelcomePage() {
             <button
               className="relative text-white font-bold py-2.5 px-6 rounded-2xl shadow-lg transition-all duration-200 hover:scale-105 text-sm"
               style={{
-                background: `radial-gradient(circle at center, #554099, #3d2d73)`,
+                background: `radial-gradient(circle at center, #7956f3, #7d57f8)`,
                 boxShadow: '0 8px 16px rgba(8, 7, 11, 0.63), 0 4px 8px rgba(0, 0, 0, 0.2)'
               }}
             >

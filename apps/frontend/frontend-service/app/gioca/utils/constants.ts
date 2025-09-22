@@ -66,11 +66,13 @@ export const UI_CONFIG = {
 
 // Persistence keys for localStorage
 export const STORAGE_KEYS = {
-  PERSISTENCE_STATE: (mode: string, week: number, user: string) => 
-    `swipick:gioca:state:v1:mode:${mode}:week:${week}:user:${user}`,
-  HAS_WEEK_PREDICTIONS: (week: number, user: string) => 
+  PERSISTENCE_STATE: (mode: string, week: number, user: string, virtualSession?: string) => {
+    const base = `swipick:gioca:state:v1:mode:${mode}:week:${week}:user:${user}`;
+    return virtualSession ? `${base}:vsession:${virtualSession}` : base;
+  },
+  HAS_WEEK_PREDICTIONS: (week: number, user: string) =>
     `swipick:gioca:hasPreds:test:week:${week}:user:${user}`,
-  WEEK1_ROLLOVER: (user: string) => 
+  WEEK1_ROLLOVER: (user: string) =>
     `swipick:risultati:autoRoll:week1:user:${user}`,
 } as const;
 

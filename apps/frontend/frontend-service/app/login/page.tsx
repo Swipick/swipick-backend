@@ -101,7 +101,7 @@ export default function LoginPage() {
                 <div className="space-y-4">
                   <button
                     onClick={() => router.push('/mode-selection')}
-                    className="w-full bg-[#554099] hover:bg-[#443077] text-white font-semibold py-4 text-lg rounded-lg transition-colors shadow-sm"
+                    className="w-full bg-[#6f49ff] hover:bg-[#5a3dd9] text-white font-semibold py-4 text-lg rounded-lg transition-colors shadow-sm"
                   >
                     Continua al Gioco
                   </button>

@@ -54,11 +54,28 @@ export function usePredictions({
   const [localComplete, setLocalComplete] = useState(false);
   const readyToPersistRef = useRef<boolean>(false);
 
-  // Generate persistence key
+  // Generate persistence key with virtual session for test mode
   const persistKey = useCallback((): string => {
     const modeKey = currentMode;
     const weekKey = selectedWeek ?? 0; // 0 = auto/live-no-week
     const user = userKey ?? 'anon';
+
+    // For test mode, include virtual session to isolate predictions per virtual time progression
+    if (currentMode === 'test') {
+      try {
+        const stored = localStorage.getItem('swipick:virtual-clock:reference');
+        if (stored) {
+          const state = JSON.parse(stored);
+          const fastForwardOffset = state.fastForwardOffset || 0;
+          const weeksAdvanced = Math.floor(fastForwardOffset / (7 * 24 * 60 * 60 * 1000));
+          const virtualSession = `w${weeksAdvanced}`; // e.g., "w0", "w1", "w2"
+          return STORAGE_KEYS.PERSISTENCE_STATE(modeKey, weekKey, user, virtualSession);
+        }
+      } catch (error) {
+        console.warn('Failed to read virtual clock state for persistence key:', error);
+      }
+    }
+
     return STORAGE_KEYS.PERSISTENCE_STATE(modeKey, weekKey, user);
   }, [currentMode, selectedWeek, userKey]);
 
@@ -162,6 +179,25 @@ export function usePredictions({
       // Only fetch for authenticated user and valid week (works for both live and test modes)
       if (!userKey || !selectedWeek) {
         return;
+      }
+
+      // For test mode, skip database lookup if we're in a virtual session (time has been advanced)
+      if (currentMode === 'test') {
+        try {
+          const stored = localStorage.getItem('swipick:virtual-clock:reference');
+          if (stored) {
+            const state = JSON.parse(stored);
+            const fastForwardOffset = state.fastForwardOffset || 0;
+            const weeksAdvanced = Math.floor(fastForwardOffset / (7 * 24 * 60 * 60 * 1000));
+
+            if (weeksAdvanced > 0) {
+              console.log(`[gioca] Skipping database lookup for test mode - virtual session w${weeksAdvanced}`);
+              return; // Don't load existing predictions for virtual sessions
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to check virtual session state:', error);
+        }
       }
 
       try {

@@ -66,7 +66,7 @@ export default function ModeSelectionPage() {
         {/* Live Mode Button */}
         <button
           onClick={handleLiveMode}
-          className="w-full bg-[#554099] hover:bg-[#443077] text-white font-semibold py-4 text-lg rounded-lg transition-colors shadow-sm"
+          className="w-full bg-[#6f49ff] hover:bg-[#5a3dd9] text-white font-semibold py-4 text-lg rounded-lg transition-colors shadow-sm"
         >
           Modalità Live
         </button>
@@ -74,7 +74,7 @@ export default function ModeSelectionPage() {
         {/* Test Mode Button */}
         <button
           onClick={handleTestMode}
-          className="w-full bg-[#554099] hover:bg-[#443077] text-white font-semibold py-4 text-lg rounded-lg transition-colors shadow-sm"
+          className="w-full bg-[#6f49ff] hover:bg-[#5a3dd9] text-white font-semibold py-4 text-lg rounded-lg transition-colors shadow-sm"
         >
           Modalità Test
         </button>

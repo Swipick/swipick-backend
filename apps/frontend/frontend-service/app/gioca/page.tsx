@@ -26,6 +26,9 @@ import {
   useVirtualClock,
 } from './components';
 
+// Utils
+import { calculateActiveWeek } from './utils/weekCalculator';
+
 // Types and constants
 import type { PredictionChoice } from './types';
 import { ANIMATION_CONFIG } from './utils/constants';
@@ -46,8 +49,25 @@ function GiocaPageContent() {
   // Virtual clock for test mode (used by TestGameHeader)
   const { virtualTime } = useVirtualClock();
 
-  // For test mode, we'll use a fixed week 4 since TestGameHeader handles dynamic calculation
-  const testModeWeek = 4;
+  // For test mode, calculate active week dynamically based on virtual time
+  const [testModeActiveWeek, setTestModeActiveWeek] = useState<number>(4);
+
+  // Calculate active week for test mode based on virtual time
+  useEffect(() => {
+    if (currentMode !== 'test') return;
+
+    const updateTestModeActiveWeek = async () => {
+      try {
+        const weekInfo = await calculateActiveWeek(virtualTime);
+        setTestModeActiveWeek(weekInfo.activeWeek);
+        console.log(`[Gioca] Test mode active week updated: ${weekInfo.activeWeek}`);
+      } catch (error) {
+        console.warn('Could not calculate test mode active week:', error);
+      }
+    };
+
+    updateTestModeActiveWeek();
+  }, [currentMode, virtualTime]);
 
   // Selected week logic - reliable, no fallbacks
   const selectedWeek = useMemo(() => {
@@ -69,15 +89,17 @@ function GiocaPageContent() {
       console.log('[page] No live week data available yet, returning null');
       return null;
     } else {
-      // Test mode: use URL parameter if valid, otherwise use fixed week 4
+      // Test mode: use URL parameter if valid, otherwise use dynamic active week
       const urlWeek = Number(searchParams?.get('week') ?? NaN);
       if (Number.isFinite(urlWeek) && urlWeek >= 1 && urlWeek <= 38) {
+        console.log(`[Gioca] Using URL week for test mode: ${urlWeek}`);
         return urlWeek;
       }
-      // Use fixed week 4 (TestGameHeader handles dynamic calculation)
-      return testModeWeek;
+      // Use dynamically calculated active week based on virtual time
+      console.log(`[Gioca] Using dynamic active week for test mode: ${testModeActiveWeek}`);
+      return testModeActiveWeek;
     }
-  }, [currentMode, searchParams, liveWeekData, testModeWeek]);
+  }, [currentMode, searchParams, liveWeekData, testModeActiveWeek]);
 
   // Firebase authentication
   const { firebaseUser } = useAuthContext();
