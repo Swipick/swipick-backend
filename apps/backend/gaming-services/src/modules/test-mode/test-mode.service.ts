@@ -1159,9 +1159,9 @@ export class TestModeService {
       // Group fixtures by date to determine weeks
       // Note: API response has nested structure different from Fixture interface
       const sortedFixtures = (apiFixtures as any[])
-        .filter((f) => f.fixture?.status?.short === 'FT') // Only finished matches
+        .filter((f: any) => f.fixture?.status?.short === 'FT') // Only finished matches
         .sort(
-          (a, b) =>
+          (a: any, b: any) =>
             new Date(a.fixture.date).getTime() -
             new Date(b.fixture.date).getTime(),
         );
