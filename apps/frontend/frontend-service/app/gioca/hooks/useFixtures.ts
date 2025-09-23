@@ -79,6 +79,15 @@ export function useFixtures({
       let cardsArrLocal: MatchCard[] = [];
 
       if (currentMode === 'test') {
+        // Wait for selectedWeek to be determined by TestGameHeader
+        if (selectedWeek === null) {
+          if (DEBUG_GIOCA) {
+            console.log('[gioca] waiting for TestGameHeader to provide selectedWeek, skipping fetch');
+          }
+          setLoading(false);
+          return;
+        }
+
         // Handle week 1 rollover check
         if (selectedWeek === 1) {
           try {

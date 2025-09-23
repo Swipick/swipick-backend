@@ -32,7 +32,7 @@ interface VirtualClockReturn {
 
 export function useVirtualClock(): VirtualClockReturn {
   const [state, setState] = useState<VirtualClockState>(() => {
-    // Initialize from localStorage or create new
+    // Initialize from localStorage or create new with consistent start time
     if (typeof window !== 'undefined') {
       try {
         const stored = localStorage.getItem(STORAGE_KEY);
@@ -43,17 +43,31 @@ export function useVirtualClock(): VirtualClockReturn {
         console.warn('Failed to load virtual clock state:', error);
       }
     }
-    return {
+
+    // Create default state and immediately save it to localStorage for consistency
+    const defaultState = {
       realStartTime: Date.now(),
       fastForwardOffset: 0,
     };
+
+    // Save to localStorage immediately to ensure consistency across components
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultState));
+      } catch (error) {
+        console.warn('Failed to save initial virtual clock state:', error);
+      }
+    }
+
+    return defaultState;
   });
 
   const [virtualTime, setVirtualTime] = useState<Date>(new Date());
 
   // Calculate current virtual time
   const calculateVirtualTime = useCallback((): Date => {
-    const realElapsed = Date.now() - state.realStartTime;
+    const now = Date.now();
+    const realElapsed = now - state.realStartTime;
     const totalOffset = realElapsed + state.fastForwardOffset;
     return new Date(VIRTUAL_START_DATE.getTime() + totalOffset);
   }, [state]);

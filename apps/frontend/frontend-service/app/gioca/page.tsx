@@ -23,7 +23,6 @@ import {
   PredictionButtons,
   GameSummaryScreen,
   TestGameSummaryScreen,
-  useVirtualClock,
 } from './components';
 
 // Utils
@@ -46,11 +45,10 @@ function GiocaPageContent() {
   // Get reliable live week data (live mode only)
   const { liveWeekData, loading: liveWeekLoading, error: liveWeekError } = useLiveWeek({ mode: currentMode });
 
-  // Virtual clock for test mode (used by TestGameHeader)
-  const { virtualTime } = useVirtualClock();
+  // Virtual clock will be handled by TestGameHeader only to avoid multiple instances
 
   // For test mode, receive active week from TestGameHeader (source of truth)
-  const [testModeActiveWeek, setTestModeActiveWeek] = useState<number>(4);
+  const [testModeActiveWeek, setTestModeActiveWeek] = useState<number | null>(null);
 
   // Callback to receive active week from TestGameHeader
   const handleActiveWeekChange = useCallback((activeWeek: number) => {
@@ -78,8 +76,13 @@ function GiocaPageContent() {
       console.log('[page] No live week data available yet, returning null');
       return null;
     } else {
-      // Test mode: prioritize TestGameHeader calculation over URL parameters
-      // TestGameHeader is the source of truth for virtual time progression
+      // Test mode: wait for TestGameHeader to provide the authoritative week
+      // Don't load any fixtures until we have the correct week calculation
+      if (testModeActiveWeek === null) {
+        console.log('[Gioca] Waiting for TestGameHeader to provide active week...');
+        return null;
+      }
+
       console.log(`[Gioca] Using TestGameHeader active week for test mode: ${testModeActiveWeek}`);
       return testModeActiveWeek;
     }
@@ -654,8 +657,44 @@ function GiocaPageContent() {
     );
   }
 
-  // No fixtures state
+  // No fixtures state - but allow TestGameHeader to render in test mode to provide active week
   if (fixtures.length === 0) {
+    // In test mode, render TestGameHeader even with no fixtures so it can calculate active week
+    if (currentMode === 'test') {
+      return (
+        <div className="min-h-screen bg-gray-50 flex flex-col">
+          {/* TestGameHeader renders to calculate and provide active week */}
+          <TestGameHeader
+            selectedWeek={selectedWeek}
+            predictionsCount={predictionsCount}
+            timeToMatch={timeToMatch}
+            fixtures={fixtures}
+            isSticky={false}
+            onHeightChange={setHeaderHeight}
+            userKey={userKey}
+            onReset={resetPredictions}
+            onActiveWeekChange={handleActiveWeekChange}
+          />
+
+          {/* Loading message while waiting for active week calculation */}
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center p-6">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
+              <p className="text-gray-600 mb-4">Caricamento settimana attiva...</p>
+            </div>
+          </div>
+
+          <BottomNav
+            currentMode={currentMode}
+            selectedWeek={selectedWeek}
+            onNavigateToResults={handleGoToResults}
+            onNavigateToProfile={handleGoToProfile}
+          />
+        </div>
+      );
+    }
+
+    // Live mode - show no fixtures message
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center p-6">

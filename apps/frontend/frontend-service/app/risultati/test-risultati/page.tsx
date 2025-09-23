@@ -260,7 +260,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     }
   }, [userKey]);
 
-  // Virtual clock for test mode
+  // Virtual clock for test mode - re-enabled to get correct active week calculation
   const { virtualTime, formatDisplay } = useVirtualClock();
 
   // Dynamic active week state based on virtual time
@@ -385,48 +385,26 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     return userKey ? `swipick:risultati:reveal:test:week:${selectedWeek}:user:${userKey}` : null;
   }, [userKey, selectedWeek]);
 
-  // Simplified reveal logic for test mode based on virtual time progression
+  // Reveal logic using same virtual time calculation as TestGameHeader
   useEffect(() => {
     if (!revealKey) return;
 
-    // Calculate how many weeks the user has advanced using the fast-forward button
-    const getAdvancedWeeks = () => {
-      try {
-        const stored = localStorage.getItem('swipick:virtual-clock:reference');
-        if (stored) {
-          const state = JSON.parse(stored);
-          const fastForwardOffset = state.fastForwardOffset || 0;
-          const weeksAdvanced = Math.floor(fastForwardOffset / (7 * 24 * 60 * 60 * 1000));
-          return weeksAdvanced;
-        }
-      } catch (error) {
-        console.warn('Failed to read virtual clock state:', error);
-      }
-      return 0;
-    };
-
-    const weeksAdvanced = getAdvancedWeeks();
-    const baseWeek = 4; // Starting week in test mode
-    const progressedToWeek = baseWeek + weeksAdvanced;
-
     console.log(`[TestRisultati] 📊 Test mode reveal logic:`, {
       selectedWeek,
-      baseWeek,
-      weeksAdvanced,
-      progressedToWeek,
-      shouldAutoReveal: selectedWeek < progressedToWeek,
-      VIRTUAL_CURRENT_WEEK
+      VIRTUAL_CURRENT_WEEK: activeWeekInfo.activeWeek,
+      shouldAutoReveal: selectedWeek < activeWeekInfo.activeWeek,
+      virtualTimeStatus: activeWeekInfo.status
     });
 
-    // For weeks before the progressed week, auto-reveal everything
-    if (selectedWeek < progressedToWeek) {
+    // For weeks before the virtual current week, auto-reveal everything
+    if (selectedWeek < activeWeekInfo.activeWeek) {
       if (fixtures.length > 0) {
         const toReveal: Record<string, boolean> = {};
         fixtures.forEach(fixture => {
           toReveal[String(fixture.id)] = true;
         });
         setRevealed(toReveal);
-        console.log(`[TestRisultati] 🔓 Auto-revealing past week ${selectedWeek} (progressed to week ${progressedToWeek}), fixtures:`, fixtures.length);
+        console.log(`[TestRisultati] 🔓 Auto-revealing past week ${selectedWeek} (virtual current week ${activeWeekInfo.activeWeek}), fixtures:`, fixtures.length);
       } else {
         console.log(`[TestRisultati] ⏳ Past week ${selectedWeek} waiting for fixtures to load...`);
       }
@@ -452,32 +430,14 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
       setRevealed({});
       console.log(`[TestRisultati] ❌ Failed to load reveal state for week ${selectedWeek}, starting fresh`);
     }
-  }, [revealKey, selectedWeek, fixtures, VIRTUAL_CURRENT_WEEK]);
+  }, [revealKey, selectedWeek, fixtures, activeWeekInfo]);
 
   // Persist reveal state to localStorage (only for current and future weeks)
   useEffect(() => {
     if (!revealKey) return;
 
-    // Calculate progressed week using same logic as reveal effect
-    const getProgressedWeek = () => {
-      try {
-        const stored = localStorage.getItem('swipick:virtual-clock:reference');
-        if (stored) {
-          const state = JSON.parse(stored);
-          const fastForwardOffset = state.fastForwardOffset || 0;
-          const weeksAdvanced = Math.floor(fastForwardOffset / (7 * 24 * 60 * 60 * 1000));
-          return 4 + weeksAdvanced; // baseWeek + weeksAdvanced
-        }
-      } catch (error) {
-        console.warn('Failed to read virtual clock state:', error);
-      }
-      return 4; // Default to base week
-    };
-
-    const progressedToWeek = getProgressedWeek();
-
     // Only persist reveal state for weeks that are not auto-revealed (current and future weeks)
-    if (selectedWeek < progressedToWeek) return;
+    if (selectedWeek < activeWeekInfo.activeWeek) return;
 
     try {
       const ids = Object.entries(revealed)
@@ -485,12 +445,12 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
         .map(([k]) => k);
       localStorage.setItem(revealKey, JSON.stringify(ids));
     } catch {}
-  }, [revealed, revealKey, selectedWeek]);
+  }, [revealed, revealKey, selectedWeek, activeWeekInfo]);
 
   // Reveal function with virtual timing logic
   const onReveal = useCallback(async (fixtureId: string, anchorEl?: HTMLElement) => {
     // For current and future virtual weeks, check if the virtual match has "finished"
-    if (selectedWeek >= VIRTUAL_CURRENT_WEEK) {
+    if (selectedWeek >= activeWeekInfo.activeWeek) {
       // In test mode, we simulate that not all matches in current week have finished yet
       // For simplicity, let's say only the first few matches in each week are "finished"
       const fixture = fixtures.find(f => String(f.id) === fixtureId);

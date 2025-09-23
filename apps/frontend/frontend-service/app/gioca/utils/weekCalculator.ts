@@ -41,7 +41,6 @@ export async function calculateActiveWeek(virtualTime: Date): Promise<WeekInfo> 
     const candidateWeeks = Array.from({ length: 38 }, (_, i) => i + 1); // [1, 2, 3, ..., 38]
 
     for (const week of candidateWeeks) {
-
       const fixtures = await getWeekFixturesWithCache(week);
 
       if (fixtures.length === 0) continue;

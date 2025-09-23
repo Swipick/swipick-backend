@@ -121,13 +121,18 @@ export default function TestProfiloPage() {
       // Get all test weeks available
       console.log('[TestProfilo] 📅 Calling getTestWeeks()...');
       const testWeeksResponse = await apiClient.getTestWeeks();
-      console.log('[TestProfilo] 📅 Raw getTestWeeks response:', testWeeksResponse);
+      console.log('[TestProfilo] 📅 Raw getTestWeeks response:', JSON.stringify(testWeeksResponse, null, 2));
+      console.log('[TestProfilo] 📅 Response type:', typeof testWeeksResponse);
+      console.log('[TestProfilo] 📅 Response keys:', testWeeksResponse ? Object.keys(testWeeksResponse) : 'null/undefined');
 
-      const availableWeeks = testWeeksResponse?.weeks || [];
+      const availableWeeks = testWeeksResponse?.data || [];
       console.log('[TestProfilo] 📅 Available test weeks:', availableWeeks);
+      console.log('[TestProfilo] 📅 Available weeks type:', typeof availableWeeks);
+      console.log('[TestProfilo] 📅 Available weeks length:', availableWeeks.length);
 
       if (availableWeeks.length === 0) {
         console.warn('[TestProfilo] ⚠️ No test weeks available from API');
+        console.warn('[TestProfilo] ⚠️ Full response object:', testWeeksResponse);
         setWeeklyStats([]);
         return;
       }
@@ -137,8 +142,11 @@ export default function TestProfiloPage() {
       const weekStatsPromises = availableWeeks.map(async (week: number) => {
         try {
           console.log(`[TestProfilo] 📊 Calling getTestWeeklyStats for week ${week}...`);
+          console.log(`[TestProfilo] 📊 Parameters: userKey=${userKey}, week=${week}`);
           const weekStats = await apiClient.getTestWeeklyStats(userKey, week);
-          console.log(`[TestProfilo] 📊 Raw week ${week} response:`, weekStats);
+          console.log(`[TestProfilo] 📊 Raw week ${week} response:`, JSON.stringify(weekStats, null, 2));
+          console.log(`[TestProfilo] 📊 Week ${week} response type:`, typeof weekStats);
+          console.log(`[TestProfilo] 📊 Week ${week} response keys:`, weekStats ? Object.keys(weekStats) : 'null/undefined');
 
           // Extract actual stats from the response
           const totalPredictions = weekStats?.total_predictions || 0;
@@ -150,7 +158,9 @@ export default function TestProfiloPage() {
           console.log(`[TestProfilo] ✅ Week ${week} processed stats:`, {
             total: totalPredictions,
             correct: correctPredictions,
-            accuracy: accuracy.toFixed(1) + '%'
+            accuracy: accuracy.toFixed(1) + '%',
+            rawTotalFromResponse: weekStats?.total_predictions,
+            rawCorrectFromResponse: weekStats?.correct_predictions
           });
 
           return {
@@ -161,6 +171,11 @@ export default function TestProfiloPage() {
           };
         } catch (error) {
           console.warn(`[TestProfilo] ❌ Failed to fetch week ${week} stats:`, error);
+          console.warn(`[TestProfilo] ❌ Error details:`, {
+            message: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
+            errorType: typeof error
+          });
           return {
             week,
             totalPredictions: 0,
@@ -173,11 +188,22 @@ export default function TestProfiloPage() {
       console.log('[TestProfilo] ⏳ Waiting for all week stats...');
       const weekStats = await Promise.all(weekStatsPromises);
 
-      console.log('[TestProfilo] 🎯 Final aggregated week stats:', weekStats);
+      console.log('[TestProfilo] 🎯 Final aggregated week stats:', JSON.stringify(weekStats, null, 2));
+      console.log('[TestProfilo] 🎯 Week stats summary:', weekStats.map(w => ({
+        week: w.week,
+        total: w.totalPredictions,
+        correct: w.correctPredictions,
+        accuracy: w.accuracy
+      })));
       setWeeklyStats(weekStats);
 
     } catch (error) {
       console.error('[TestProfilo] ❌ Failed to load test mode stats:', error);
+      console.error('[TestProfilo] ❌ Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        errorType: typeof error
+      });
       throw new Error('Errore nel caricamento delle statistiche test');
     }
   }, []);
@@ -190,6 +216,12 @@ export default function TestProfiloPage() {
     }
 
     console.log('[TestProfilo] 🚀 Starting data load for user:', firebaseUser.uid);
+    console.log('[TestProfilo] 🚀 Firebase user object:', {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email,
+      displayName: firebaseUser.displayName,
+      photoURL: firebaseUser.photoURL
+    });
     setLoading(true);
     setError(null);
 
@@ -197,10 +229,12 @@ export default function TestProfiloPage() {
       // Get user profile
       console.log('[TestProfilo] 📡 Fetching user profile...');
       const userResponse = await apiClient.getUserByFirebaseUid(firebaseUser.uid);
+      console.log('[TestProfilo] 👤 Raw user profile response:', JSON.stringify(userResponse, null, 2));
       const user = userResponse.data as TestUserProfile;
-      console.log('[TestProfilo] 👤 User profile response:', user);
+      console.log('[TestProfilo] 👤 User profile data:', user);
 
       if (!user?.id) {
+        console.error('[TestProfilo] ❌ No user ID found in response:', user);
         throw new Error('Utente non trovato');
       }
 
@@ -212,7 +246,9 @@ export default function TestProfiloPage() {
         firstName,
         userId: user.id,
         nickname: user.nickname,
-        email: user.email
+        email: user.email,
+        fullName,
+        firebaseDisplayName: firebaseUser.displayName
       });
 
       setDisplayName(firstName || '');
@@ -223,11 +259,17 @@ export default function TestProfiloPage() {
 
       // Load test mode statistics
       console.log('[TestProfilo] 📊 Loading test mode statistics...');
+      console.log('[TestProfilo] 📊 Using userKey for stats:', firebaseUser.uid);
       await loadTestModeStats(firebaseUser.uid);
       console.log('[TestProfilo] ✅ Data load completed successfully');
 
     } catch (e) {
       console.error('[TestProfilo] ❌ loadData failed:', e);
+      console.error('[TestProfilo] ❌ Error details:', {
+        message: e instanceof Error ? e.message : 'Unknown error',
+        stack: e instanceof Error ? e.stack : undefined,
+        errorType: typeof e
+      });
       setError(e instanceof Error ? e.message : 'Errore nel caricamento del profilo test');
     } finally {
       setLoading(false);
@@ -421,7 +463,7 @@ export default function TestProfiloPage() {
            style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0px)' }}>
         <div className="flex">
           <button
-            onClick={() => router.push('/risultati/test-risultati')}
+            onClick={() => router.push('/risultati/test-risultati?mode=test')}
             className="flex-1 text-center py-4"
           >
             <div className="text-gray-500 mb-1">
@@ -429,7 +471,7 @@ export default function TestProfiloPage() {
             </div>
             <span className="text-xs text-black">Risultati</span>
           </button>
-          <button onClick={() => router.push('/gioca')} className="flex-1 text-center py-4">
+          <button onClick={() => router.push('/gioca?mode=test')} className="flex-1 text-center py-4">
             <div className="text-gray-500 mb-1">
               <RiFootballLine className="w-6 h-6 mx-auto" />
             </div>

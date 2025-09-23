@@ -45,8 +45,8 @@ export function TestGameHeader({
   // Virtual clock for dynamic test time progression
   const { virtualTime, formatDisplay } = useVirtualClock();
 
-  // Dynamic active week state
-  const [activeWeekInfo, setActiveWeekInfo] = useState<WeekInfo>({ activeWeek: 4, status: 'prediction' });
+  // Dynamic active week state - start with null to prevent showing incorrect week
+  const [activeWeekInfo, setActiveWeekInfo] = useState<WeekInfo | null>(null);
   const [activeWeekFixtures, setActiveWeekFixtures] = useState<Array<{ date: string; id: number }>>([]);
 
   // Virtual timeToMatch state for test mode
@@ -136,12 +136,12 @@ export function TestGameHeader({
 
         console.log(`[TestGameHeader] Active week updated: ${weekInfo.activeWeek}, status: ${weekInfo.status}`);
       } catch (error) {
-        console.warn('Could not calculate active week:', error);
+        console.error('[TestGameHeader] Error in updateActiveWeek:', error);
       }
     };
 
     updateActiveWeek();
-  }, [virtualTime]); // Recalculate when virtual time changes
+  }, [virtualTime, onActiveWeekChange]); // Recalculate when virtual time changes
 
   // Update virtual countdown every second
   useEffect(() => {
@@ -233,6 +233,11 @@ export function TestGameHeader({
 
   // Calculate week data based on dynamic active week and fixtures
   const getWeekData = () => {
+    // If activeWeekInfo is null, we're still calculating - show loading state
+    if (!activeWeekInfo) {
+      return { from: '', to: '', weekNumber: null, isLoading: true };
+    }
+
     const weekNumber = activeWeekInfo.activeWeek;
 
     // Use active week fixtures for date range if available
@@ -252,34 +257,15 @@ export function TestGameHeader({
         timeZone: 'Europe/Rome'
       });
 
-      return { from, to, weekNumber };
+      return { from, to, weekNumber, isLoading: false };
     }
 
-    // Fallback: if Week 4 fixtures not loaded yet or fixtures prop has data, use fixtures prop
-    if (fixtures.length > 0) {
-      const dates = fixtures.map(f => new Date(f.date)).sort((a, b) => a.getTime() - b.getTime());
-      const firstDate = dates[0];
-      const lastDate = dates[dates.length - 1];
-
-      const from = firstDate.toLocaleDateString('it-IT', {
-        day: '2-digit',
-        month: '2-digit',
-        timeZone: 'Europe/Rome'
-      });
-      const to = lastDate.toLocaleDateString('it-IT', {
-        day: '2-digit',
-        month: '2-digit',
-        timeZone: 'Europe/Rome'
-      });
-
-      return { from, to, weekNumber };
-    }
-
-    // Final fallback: no date range
-    return { from: '', to: '', weekNumber };
+    // Don't use fixtures prop as fallback to avoid showing wrong week
+    // Wait for proper active week calculation instead
+    return { from: '', to: '', weekNumber, isLoading: false };
   };
 
-  const { from, to, weekNumber } = getWeekData();
+  const { from, to, weekNumber, isLoading } = getWeekData();
 
   return (
     <div
@@ -328,7 +314,9 @@ export function TestGameHeader({
 
         {/* Week title */}
         <h1 className="text-base md:text-lg mb-1 whitespace-nowrap">
-          {weekNumber ? (
+          {isLoading ? (
+            <span className="opacity-70">Caricamento settimana...</span>
+          ) : weekNumber ? (
             <>
               Giornata {weekNumber}
               {from && to && (

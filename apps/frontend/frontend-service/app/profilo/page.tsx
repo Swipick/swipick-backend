@@ -3,7 +3,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/src/contexts/AuthContext';
+import { useGameMode } from '@/src/contexts/GameModeContext';
 import { apiClient } from '@/lib/api-client';
+import TestProfiloPage from './testProfilo/page';
 import { FaMedal } from 'react-icons/fa';
 import { RiFootballLine } from 'react-icons/ri';
 import { BsFillFilePersonFill } from 'react-icons/bs';
@@ -28,6 +30,12 @@ const DEBUG_PROFILO = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_
 export default function ProfiloPage() {
   const router = useRouter();
   const { firebaseUser } = useAuthContext();
+  const { isTestMode } = useGameMode();
+
+  // If we're in test mode, render the TestProfilo component
+  if (isTestMode) {
+    return <TestProfiloPage />;
+  }
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -346,7 +354,7 @@ export default function ProfiloPage() {
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0px)' }}>
         <div className="flex">
           <button
-            onClick={() => router.push('/risultati')}
+            onClick={() => router.push('/risultati?mode=live')}
             className="flex-1 text-center py-4"
           >
             <div className="text-gray-500 mb-1">
@@ -354,7 +362,7 @@ export default function ProfiloPage() {
             </div>
             <span className="text-xs text-black">Risultati</span>
           </button>
-          <button onClick={() => router.push('/gioca')} className="flex-1 text-center py-4">
+          <button onClick={() => router.push('/gioca?mode=live')} className="flex-1 text-center py-4">
             <div className="text-gray-500 mb-1">
               <RiFootballLine className="w-6 h-6 mx-auto" />
             </div>
