@@ -69,8 +69,9 @@ export class AppModule {
       new Date().toISOString(),
     );
     console.log(
-      '🚀🚀🚀 [GAMING_SERVICES_INIT] Version: FINAL_WEEK_SCORES_PRODUCTION_DEPLOYMENT',
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] Version: FINAL_WEEK_SCORES_PRODUCTION_DEPLOYMENT_V2',
     );
+    console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] Build timestamp:', Date.now());
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] SpecsModule loaded: YES');
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] TestModeModule loaded: YES');
     console.log(
@@ -81,6 +82,19 @@ export class AppModule {
     );
     console.log(
       '🚀🚀🚀 [GAMING_SERVICES_INIT] Ready to receive /api/final-week-scores requests',
+    );
+    console.log(
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] FinalWeekScoresController endpoints:',
+    );
+    console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] - POST /api/final-week-scores');
+    console.log(
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] - GET /api/final-week-scores/:userId/week/:week',
+    );
+    console.log(
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] - GET /api/final-week-scores/:userId',
+    );
+    console.log(
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] - DELETE /api/final-week-scores/:userId/week/:week',
     );
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] ='.repeat(30));
   }

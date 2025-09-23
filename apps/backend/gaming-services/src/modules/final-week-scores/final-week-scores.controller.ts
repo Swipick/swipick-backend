@@ -28,9 +28,22 @@ export class FinalWeekScoresController {
   async createOrUpdateFinalWeekScore(
     @Body(ValidationPipe) createFinalWeekScoreDto: CreateFinalWeekScoreDto,
   ): Promise<FinalWeekScoreResponseDto> {
-    return this.finalWeekScoresService.createOrUpdateFinalWeekScore(
+    console.log(
+      '🎯 [FINAL_WEEK_SCORES] POST /api/final-week-scores called with:',
       createFinalWeekScoreDto,
     );
+    console.log('🎯 [FINAL_WEEK_SCORES] Request timestamp:', new Date().toISOString());
+
+    try {
+      const result = await this.finalWeekScoresService.createOrUpdateFinalWeekScore(
+        createFinalWeekScoreDto,
+      );
+      console.log('🎯 [FINAL_WEEK_SCORES] POST success, result:', result);
+      return result;
+    } catch (error) {
+      console.error('🎯 [FINAL_WEEK_SCORES] POST error:', error);
+      throw error;
+    }
   }
 
   @Get(':userId/week/:week')
