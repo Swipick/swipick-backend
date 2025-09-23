@@ -69,7 +69,7 @@ export class AppModule {
       new Date().toISOString(),
     );
     console.log(
-      '🚀🚀🚀 [GAMING_SERVICES_INIT] Version: FINAL_WEEK_SCORES_PRODUCTION_DEPLOYMENT_V2',
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] Version: FINAL_WEEK_SCORES_PRODUCTION_DEPLOYMENT_V3',
     );
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] Build timestamp:', Date.now());
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] SpecsModule loaded: YES');
