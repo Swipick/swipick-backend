@@ -69,12 +69,18 @@ export class AppModule {
       new Date().toISOString(),
     );
     console.log(
-      '🚀🚀🚀 [GAMING_SERVICES_INIT] Version: LIVE_MODE_FIXES_DEPLOYMENT_VERIFICATION',
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] Version: FINAL_WEEK_SCORES_PRODUCTION_DEPLOYMENT',
     );
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] SpecsModule loaded: YES');
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] TestModeModule loaded: YES');
     console.log(
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] FinalWeekScoresModule loaded: YES',
+    );
+    console.log(
       '🚀🚀🚀 [GAMING_SERVICES_INIT] Ready to receive /api/predictions requests',
+    );
+    console.log(
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] Ready to receive /api/final-week-scores requests',
     );
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] ='.repeat(30));
   }

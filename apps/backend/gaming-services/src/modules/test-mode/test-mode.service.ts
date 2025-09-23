@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TestFixture } from '../../entities/test-fixture.entity';
 import { TestSpec } from '../../entities/test-spec.entity';
+import { FinalWeekScore } from '../../entities/final-week-score.entity';
 import { ApiFootballService } from '../api-football/api-football.service';
 import { WeeklyStats, UserSummary } from './dto/test-mode.dto';
 import {
@@ -38,6 +39,8 @@ export class TestModeService {
     private testFixtureRepository: Repository<TestFixture>,
     @InjectRepository(TestSpec)
     private testSpecRepository: Repository<TestSpec>,
+    @InjectRepository(FinalWeekScore)
+    private finalWeekScoreRepository: Repository<FinalWeekScore>,
     private readonly apiFootballService: ApiFootballService,
   ) {}
 
@@ -1264,8 +1267,14 @@ export class TestModeService {
     // Delete all test predictions for this user
     const deleteResult = await this.testSpecRepository.delete({ userId });
 
+    // Delete all final week scores for this user in test mode
+    const finalScoresDeleteResult = await this.finalWeekScoreRepository.delete({
+      userId,
+      mode: 'test',
+    });
+
     this.logger.log(
-      `✅ Test data reset completed for user ${userId}: ${deleteResult.affected || 0} predictions deleted`,
+      `✅ Test data reset completed for user ${userId}: ${deleteResult.affected || 0} predictions deleted, ${finalScoresDeleteResult.affected || 0} final week scores deleted`,
     );
 
     // Invalidate all cache entries for this user across weeks

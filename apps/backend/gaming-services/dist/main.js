@@ -117961,11 +117961,13 @@ let FinalWeekScoresService = class FinalWeekScoresService {
                 existingScore.revealed = dto.revealed;
                 existingScore.correct = dto.correct;
                 existingScore.percent = existingScore.calculatePercent();
-                finalWeekScore = await this.finalWeekScoreRepository.save(existingScore);
+                finalWeekScore =
+                    await this.finalWeekScoreRepository.save(existingScore);
             }
             else {
                 finalWeekScore = final_week_score_entity_1.FinalWeekScore.fromCalculation(dto.userId, dto.week, dto.mode, dto.revealed, dto.correct);
-                finalWeekScore = await this.finalWeekScoreRepository.save(finalWeekScore);
+                finalWeekScore =
+                    await this.finalWeekScoreRepository.save(finalWeekScore);
             }
             return this.mapToResponseDto(finalWeekScore);
         }
@@ -118001,8 +118003,8 @@ let FinalWeekScoresService = class FinalWeekScoresService {
                 mode: 'ASC',
             },
         });
-        const mappedScores = scores.map(score => this.mapToResponseDto(score));
-        const completedWeeks = scores.filter(score => score.isComplete()).length;
+        const mappedScores = scores.map((score) => this.mapToResponseDto(score));
+        const completedWeeks = scores.filter((score) => score.isComplete()).length;
         const averagePercent = scores.length > 0
             ? scores.reduce((sum, score) => sum + score.percent, 0) / scores.length
             : 0;
@@ -121837,6 +121839,7 @@ const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_module
 const typeorm_1 = __webpack_require__(/*! @nestjs/typeorm */ "../../../node_modules/@nestjs/typeorm/index.js");
 const test_fixture_entity_1 = __webpack_require__(/*! ../../entities/test-fixture.entity */ "./src/entities/test-fixture.entity.ts");
 const test_spec_entity_1 = __webpack_require__(/*! ../../entities/test-spec.entity */ "./src/entities/test-spec.entity.ts");
+const final_week_score_entity_1 = __webpack_require__(/*! ../../entities/final-week-score.entity */ "./src/entities/final-week-score.entity.ts");
 const test_mode_service_1 = __webpack_require__(/*! ./test-mode.service */ "./src/modules/test-mode/test-mode.service.ts");
 const test_mode_controller_1 = __webpack_require__(/*! ./test-mode.controller */ "./src/modules/test-mode/test-mode.controller.ts");
 const api_football_module_1 = __webpack_require__(/*! ../api-football/api-football.module */ "./src/modules/api-football/api-football.module.ts");
@@ -121846,7 +121849,7 @@ exports.TestModeModule = TestModeModule;
 exports.TestModeModule = TestModeModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            typeorm_1.TypeOrmModule.forFeature([test_fixture_entity_1.TestFixture, test_spec_entity_1.TestSpec]),
+            typeorm_1.TypeOrmModule.forFeature([test_fixture_entity_1.TestFixture, test_spec_entity_1.TestSpec, final_week_score_entity_1.FinalWeekScore]),
             api_football_module_1.ApiFootballModule,
         ],
         controllers: [test_mode_controller_1.TestModeController],
@@ -121879,7 +121882,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 var TestModeService_1;
-var _a, _b, _c;
+var _a, _b, _c, _d;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.TestModeService = exports.UserSummary = exports.WeeklyStats = void 0;
 const common_1 = __webpack_require__(/*! @nestjs/common */ "../../../node_modules/@nestjs/common/index.js");
@@ -121887,6 +121890,7 @@ const typeorm_1 = __webpack_require__(/*! @nestjs/typeorm */ "../../../node_modu
 const typeorm_2 = __webpack_require__(/*! typeorm */ "../../../node_modules/typeorm/index.js");
 const test_fixture_entity_1 = __webpack_require__(/*! ../../entities/test-fixture.entity */ "./src/entities/test-fixture.entity.ts");
 const test_spec_entity_1 = __webpack_require__(/*! ../../entities/test-spec.entity */ "./src/entities/test-spec.entity.ts");
+const final_week_score_entity_1 = __webpack_require__(/*! ../../entities/final-week-score.entity */ "./src/entities/final-week-score.entity.ts");
 const api_football_service_1 = __webpack_require__(/*! ../api-football/api-football.service */ "./src/modules/api-football/api-football.service.ts");
 const typeorm_3 = __webpack_require__(/*! typeorm */ "../../../node_modules/typeorm/index.js");
 const fs = __webpack_require__(/*! fs */ "fs");
@@ -121895,9 +121899,10 @@ var test_mode_dto_1 = __webpack_require__(/*! ./dto/test-mode.dto */ "./src/modu
 Object.defineProperty(exports, "WeeklyStats", ({ enumerable: true, get: function () { return test_mode_dto_1.WeeklyStats; } }));
 Object.defineProperty(exports, "UserSummary", ({ enumerable: true, get: function () { return test_mode_dto_1.UserSummary; } }));
 let TestModeService = TestModeService_1 = class TestModeService {
-    constructor(testFixtureRepository, testSpecRepository, apiFootballService) {
+    constructor(testFixtureRepository, testSpecRepository, finalWeekScoreRepository, apiFootballService) {
         this.testFixtureRepository = testFixtureRepository;
         this.testSpecRepository = testSpecRepository;
+        this.finalWeekScoreRepository = finalWeekScoreRepository;
         this.apiFootballService = apiFootballService;
         this.logger = new common_1.Logger(TestModeService_1.name);
         this.matchCardsCache = new Map();
@@ -122875,7 +122880,11 @@ let TestModeService = TestModeService_1 = class TestModeService {
     async resetUserTestData(userId) {
         this.logger.log(`Resetting test data for user ${userId}...`);
         const deleteResult = await this.testSpecRepository.delete({ userId });
-        this.logger.log(`✅ Test data reset completed for user ${userId}: ${deleteResult.affected || 0} predictions deleted`);
+        const finalScoresDeleteResult = await this.finalWeekScoreRepository.delete({
+            userId,
+            mode: 'test',
+        });
+        this.logger.log(`✅ Test data reset completed for user ${userId}: ${deleteResult.affected || 0} predictions deleted, ${finalScoresDeleteResult.affected || 0} final week scores deleted`);
         this.invalidateCacheForUser(userId);
     }
     calculateResultFromScores(homeScore, awayScore) {
@@ -122933,7 +122942,8 @@ exports.TestModeService = TestModeService = TestModeService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(test_fixture_entity_1.TestFixture)),
     __param(1, (0, typeorm_1.InjectRepository)(test_spec_entity_1.TestSpec)),
-    __metadata("design:paramtypes", [typeof (_a = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _a : Object, typeof (_b = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _b : Object, typeof (_c = typeof api_football_service_1.ApiFootballService !== "undefined" && api_football_service_1.ApiFootballService) === "function" ? _c : Object])
+    __param(2, (0, typeorm_1.InjectRepository)(final_week_score_entity_1.FinalWeekScore)),
+    __metadata("design:paramtypes", [typeof (_a = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _a : Object, typeof (_b = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _b : Object, typeof (_c = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _c : Object, typeof (_d = typeof api_football_service_1.ApiFootballService !== "undefined" && api_football_service_1.ApiFootballService) === "function" ? _d : Object])
 ], TestModeService);
 
 
