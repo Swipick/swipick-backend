@@ -428,12 +428,9 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     }
   }, [revealKey, selectedWeek, fixtures, activeWeekInfo]);
 
-  // Persist reveal state to localStorage (only for current and future weeks)
+  // Persist reveal state to localStorage (for all weeks)
   useEffect(() => {
     if (!revealKey) return;
-
-    // Only persist reveal state for weeks that are not auto-revealed (current and future weeks)
-    if (selectedWeek < activeWeekInfo.activeWeek) return;
 
     try {
       const ids = Object.entries(revealed)
@@ -441,7 +438,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
         .map(([k]) => k);
       localStorage.setItem(revealKey, JSON.stringify(ids));
     } catch {}
-  }, [revealed, revealKey, selectedWeek, activeWeekInfo]);
+  }, [revealed, revealKey]);
 
   // Reveal function with virtual timing logic
   const onReveal = useCallback(async (fixtureId: string, anchorEl?: HTMLElement) => {
@@ -873,7 +870,6 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
           week: selectedWeek,
           revealed: meter.revealed,
           correct: meter.correct,
-          percent: meter.percent,
           mode: 'test'
         });
 
@@ -914,7 +910,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
         }
       } catch (error: unknown) {
         // Silently handle 404 errors (no stored score exists yet)
-        if ((error as Error).message?.includes('404') || (error as Error).message?.includes('Cannot GET')) {
+        if ((error as Error).message?.includes('Final week score not found')) {
           console.log(`[TestRisultati] 📭 No stored final score found for week ${selectedWeek} (as expected)`);
         } else {
           console.error(`[TestRisultati] ❌ Failed to load stored final score for week ${selectedWeek}:`, error);

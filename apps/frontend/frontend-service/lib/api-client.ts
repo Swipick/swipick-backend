@@ -62,7 +62,14 @@ class ApiClient {
       return response.json();
     } catch (error) {
       clearTimeout(timeoutId);
-      console.error(`🔗 API Error: ${url}`, error);
+
+      // Silently handle 404 errors for final-week-scores (expected when no score exists yet)
+      if (url.includes('/final-week-scores/') && (error as Error).message?.includes('Final week score not found')) {
+        // Don't log 404 errors for final week scores - this is expected behavior
+      } else {
+        console.error(`🔗 API Error: ${url}`, error);
+      }
+
       throw error;
     }
   }
@@ -334,7 +341,6 @@ class ApiClient {
     week: number;
     revealed: number;
     correct: number;
-    percent: number;
     mode: 'test';
   }) {
     console.log('🏆 [SAVE_FINAL_WEEK_SCORE] Saving final week score:', JSON.stringify(data, null, 2));

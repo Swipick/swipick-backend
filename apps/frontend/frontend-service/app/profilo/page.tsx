@@ -311,7 +311,7 @@ export default function ProfiloPage() {
 
         {/* Best/Worst */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="rounded-2xl p-4 shadow-lg border border-green-100/50 min-h-[162px]" style={{ background: 'linear-gradient(180deg, #f4fff1, #ffffff)' }}>
+          <div className="rounded-2xl p-4 shadow-lg border border-green-100/50 min-h-[162px]" style={{ background: 'linear-gradient(to top left, #e7f8f2, #ffffff)' }}>
             {/* Row 1: label */}
             <div className="text-sm text-gray-700">Risultato migliore</div>
             {/* Row 2: right-aligned metric */}
