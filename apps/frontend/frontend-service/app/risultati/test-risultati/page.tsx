@@ -255,7 +255,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
       if (keysToRemove.length > 0) {
         console.log(`[TestRisultati] ✅ Cleared ${keysToRemove.length} prediction localStorage keys for virtual time progression`);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.warn('Failed to clear prediction localStorage:', error);
     }
   }, [userKey]);
@@ -326,7 +326,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
         const weekInfo = await calculateActiveWeek(virtualTime);
         setActiveWeekInfo(weekInfo);
         console.log(`[TestRisultati] Active week updated: ${weekInfo.activeWeek}, status: ${weekInfo.status}`);
-      } catch (error) {
+      } catch (error: unknown) {
         console.warn('Could not calculate active week:', error);
       }
     };
@@ -805,7 +805,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
       setTimeout(() => {
         window.location.href = '/gioca?mode=test';
       }, 150);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('❌ Failed to reset test data:', error);
       alert('Errore durante il reset. Riprova più tardi.');
     } finally {
@@ -885,7 +885,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
         }));
 
         console.log(`[TestRisultati] 🏆 Final week score saved for week ${selectedWeek}:`, meter);
-      } catch (error) {
+      } catch (error: unknown) {
         console.error(`[TestRisultati] ❌ Failed to save final week score for week ${selectedWeek}:`, error);
       }
     };
@@ -912,8 +912,13 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
           setStoredFinalScore(null);
           console.log(`[TestRisultati] 📭 No stored final score found for week ${selectedWeek}`);
         }
-      } catch (error) {
-        console.error(`[TestRisultati] ❌ Failed to load stored final score for week ${selectedWeek}:`, error);
+      } catch (error: unknown) {
+        // Silently handle 404 errors (no stored score exists yet)
+        if ((error as Error).message?.includes('404') || (error as Error).message?.includes('Cannot GET')) {
+          console.log(`[TestRisultati] 📭 No stored final score found for week ${selectedWeek} (as expected)`);
+        } else {
+          console.error(`[TestRisultati] ❌ Failed to load stored final score for week ${selectedWeek}:`, error);
+        }
         setStoredFinalScore(null);
       } finally {
         setFinalScoreLoading(false);
@@ -955,7 +960,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
         return;
       }
       throw new Error('Web Share API not supported');
-    } catch (error) {
+    } catch (error: unknown) {
       console.log('Error sharing:', error);
       // Could add a toast here for desktop users
     }
@@ -1156,7 +1161,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
                       console.log(`[TestRisultati] ⏪ Virtual time rewound by 1 week, localStorage cleared`);
                       window.location.reload(); // Refresh to apply new virtual time
                     }
-                  } catch (error) {
+                  } catch (error: unknown) {
                     console.warn('Failed to update virtual clock:', error);
                   }
                 }}
@@ -1189,7 +1194,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
                         window.location.href = '/gioca?mode=test';
                       }, 100);
                     }
-                  } catch (error) {
+                  } catch (error: unknown) {
                     console.warn('Failed to update virtual clock:', error);
                   }
                 }}

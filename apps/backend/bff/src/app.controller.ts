@@ -279,4 +279,50 @@ export class AppController {
     this.logger.log('Forwarding test-mode health check');
     return this.appService.forwardToGamingServices('/api/test-mode/health');
   }
+
+  // Final Week Scores Endpoints
+  @Post('api/final-week-scores')
+  async createFinalWeekScore(@Body() body: any) {
+    this.logger.log('Creating final week score');
+    return this.appService.forwardToGamingServices(
+      '/api/final-week-scores',
+      'POST',
+      body,
+    );
+  }
+
+  @Get('api/final-week-scores/:userId/week/:week')
+  async getFinalWeekScore(
+    @Param('userId') userId: string,
+    @Param('week') week: string,
+    @Req() req: Request,
+  ) {
+    const queryString = req.url.split('?')[1] || '';
+    this.logger.log(`Getting final week score: User ${userId}, Week ${week}`);
+    const endpoint = `/api/final-week-scores/${userId}/week/${week}${queryString ? `?${queryString}` : ''}`;
+    return this.appService.forwardToGamingServices(endpoint);
+  }
+
+  @Get('api/final-week-scores/:userId')
+  async getAllFinalWeekScores(
+    @Param('userId') userId: string,
+    @Req() req: Request,
+  ) {
+    const queryString = req.url.split('?')[1] || '';
+    this.logger.log(`Getting all final week scores for user ${userId}`);
+    const endpoint = `/api/final-week-scores/${userId}${queryString ? `?${queryString}` : ''}`;
+    return this.appService.forwardToGamingServices(endpoint);
+  }
+
+  @Delete('api/final-week-scores/:userId/week/:week')
+  async deleteFinalWeekScore(
+    @Param('userId') userId: string,
+    @Param('week') week: string,
+    @Req() req: Request,
+  ) {
+    const queryString = req.url.split('?')[1] || '';
+    this.logger.log(`Deleting final week score: User ${userId}, Week ${week}`);
+    const endpoint = `/api/final-week-scores/${userId}/week/${week}${queryString ? `?${queryString}` : ''}`;
+    return this.appService.forwardToGamingServices(endpoint, 'DELETE');
+  }
 }
