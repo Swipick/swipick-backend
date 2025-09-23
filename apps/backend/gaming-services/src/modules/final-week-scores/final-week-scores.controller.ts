@@ -32,12 +32,16 @@ export class FinalWeekScoresController {
       '🎯 [FINAL_WEEK_SCORES] POST /api/final-week-scores called with:',
       createFinalWeekScoreDto,
     );
-    console.log('🎯 [FINAL_WEEK_SCORES] Request timestamp:', new Date().toISOString());
+    console.log(
+      '🎯 [FINAL_WEEK_SCORES] Request timestamp:',
+      new Date().toISOString(),
+    );
 
     try {
-      const result = await this.finalWeekScoresService.createOrUpdateFinalWeekScore(
-        createFinalWeekScoreDto,
-      );
+      const result =
+        await this.finalWeekScoresService.createOrUpdateFinalWeekScore(
+          createFinalWeekScoreDto,
+        );
       console.log('🎯 [FINAL_WEEK_SCORES] POST success, result:', result);
       return result;
     } catch (error) {
