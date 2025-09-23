@@ -4,6 +4,7 @@ import { Fixture } from '../entities/fixture.entity';
 import { Spec } from '../entities/spec.entity';
 import { TestFixture } from '../entities/test-fixture.entity';
 import { TestSpec } from '../entities/test-spec.entity';
+import { FinalWeekScore } from '../entities/final-week-score.entity';
 
 export const DatabaseConfig = registerAs(
   'database',
@@ -13,7 +14,7 @@ export const DatabaseConfig = registerAs(
       return {
         type: 'postgres',
         url: process.env.DATABASE_URL,
-        entities: [Fixture, Spec, TestFixture, TestSpec],
+        entities: [Fixture, Spec, TestFixture, TestSpec, FinalWeekScore],
         migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
         synchronize: false, // Disabled for local builds
         logging: process.env.NODE_ENV === 'development',
@@ -29,7 +30,7 @@ export const DatabaseConfig = registerAs(
       username: process.env.DATABASE_USER || 'gaming_user',
       password: process.env.DATABASE_PASSWORD || 'password',
       database: process.env.DATABASE_NAME || 'swipick_gaming',
-      entities: [Fixture, Spec, TestFixture, TestSpec],
+      entities: [Fixture, Spec, TestFixture, TestSpec, FinalWeekScore],
       migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
       synchronize: false, // Disabled for local builds
       logging: process.env.NODE_ENV === 'development',

@@ -27,7 +27,30 @@ export class SpecsController {
   constructor(
     private readonly specsService: SpecsService,
     private readonly testModeService: TestModeService,
-  ) {}
+  ) {
+    // SANITY CHECK: Verify deployment of updated SpecsController
+    console.log('🚀🚀🚀 [SPECS_CONTROLLER_INIT] ='.repeat(25));
+    console.log(
+      '🚀🚀🚀 [SPECS_CONTROLLER_INIT] *** SPECS CONTROLLER INITIALIZED ***',
+    );
+    console.log(
+      '🚀🚀🚀 [SPECS_CONTROLLER_INIT] Timestamp:',
+      new Date().toISOString(),
+    );
+    console.log(
+      '🚀🚀🚀 [SPECS_CONTROLLER_INIT] Version: LIVE_MODE_FIXES_WITH_COMPREHENSIVE_LOGGING',
+    );
+    console.log(
+      '🚀🚀🚀 [SPECS_CONTROLLER_INIT] Contains Firebase UID fixes: YES',
+    );
+    console.log(
+      '🚀🚀🚀 [SPECS_CONTROLLER_INIT] Contains fixtureId string handling: YES',
+    );
+    console.log(
+      '🚀🚀🚀 [SPECS_CONTROLLER_INIT] Contains comprehensive 🟡 logging: YES',
+    );
+    console.log('🚀🚀🚀 [SPECS_CONTROLLER_INIT] ='.repeat(25));
+  }
 
   /**
    * Create a new prediction (unified endpoint for live and test modes)

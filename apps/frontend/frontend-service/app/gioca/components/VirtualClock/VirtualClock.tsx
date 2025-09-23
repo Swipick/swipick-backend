@@ -9,7 +9,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 // Virtual clock configuration
-const VIRTUAL_START_DATE = new Date('2023-09-09T13:35:00.000Z');
+const VIRTUAL_START_DATE = new Date('2023-08-18T13:35:00.000Z');
 const STORAGE_KEY = 'swipick:virtual-clock:reference';
 
 interface VirtualClockState {

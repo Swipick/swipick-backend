@@ -1,5 +1,11 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import {
+  ValidationPipe,
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { Logger } from '@nestjs/common';
@@ -16,8 +22,14 @@ class RequestLoggingInterceptor implements NestInterceptor {
       console.log('🌐 [GLOBAL_INTERCEPTOR] === INCOMING REQUEST ===');
       console.log('🌐 [GLOBAL_INTERCEPTOR] Method:', method);
       console.log('🌐 [GLOBAL_INTERCEPTOR] URL:', url);
-      console.log('🌐 [GLOBAL_INTERCEPTOR] Headers:', JSON.stringify(headers, null, 2));
-      console.log('🌐 [GLOBAL_INTERCEPTOR] Body:', JSON.stringify(body, null, 2));
+      console.log(
+        '🌐 [GLOBAL_INTERCEPTOR] Headers:',
+        JSON.stringify(headers, null, 2),
+      );
+      console.log(
+        '🌐 [GLOBAL_INTERCEPTOR] Body:',
+        JSON.stringify(body, null, 2),
+      );
       console.log('🌐 [GLOBAL_INTERCEPTOR] === END REQUEST ===');
     }
 
@@ -27,6 +39,23 @@ class RequestLoggingInterceptor implements NestInterceptor {
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
+
+  // SANITY CHECK: Verify Gaming Services startup
+  console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] ='.repeat(35));
+  console.log(
+    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] *** GAMING SERVICES STARTING UP ***',
+  );
+  console.log(
+    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Timestamp:',
+    new Date().toISOString(),
+  );
+  console.log(
+    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Version: LIVE_MODE_FIXES_COMPLETE',
+  );
+  console.log(
+    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Contains all fixes: Firebase UID validation, fixtureId handling, comprehensive logging',
+  );
+  console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] ='.repeat(35));
 
   const app = await NestFactory.create(AppModule);
 
@@ -70,7 +99,9 @@ async function bootstrap() {
     router.stack.forEach((layer: any) => {
       if (layer.route) {
         const methods = Object.keys(layer.route.methods);
-        logger.log(`📍 [ROUTE_DEBUG] ${methods.join(',').toUpperCase()} ${layer.route.path}`);
+        logger.log(
+          `📍 [ROUTE_DEBUG] ${methods.join(',').toUpperCase()} ${layer.route.path}`,
+        );
       }
     });
   }

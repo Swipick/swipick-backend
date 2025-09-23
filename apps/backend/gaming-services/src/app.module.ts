@@ -19,6 +19,7 @@ import { HealthModule } from './modules/health/health.module';
 import { SpecsModule } from './modules/specs/specs.module';
 import { TestModeModule } from './modules/test-mode/test-mode.module';
 import { MatchCardsModule } from './modules/match-cards/match-cards.module';
+import { FinalWeekScoresModule } from './modules/final-week-scores/final-week-scores.module';
 
 @Module({
   imports: [
@@ -53,6 +54,28 @@ import { MatchCardsModule } from './modules/match-cards/match-cards.module';
     SpecsModule,
     TestModeModule,
     MatchCardsModule,
+    FinalWeekScoresModule,
   ],
 })
-export class AppModule {}
+export class AppModule {
+  constructor() {
+    // SANITY CHECK: Verify deployment of updated Gaming Services
+    console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] ='.repeat(30));
+    console.log(
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] *** GAMING SERVICES APP MODULE INITIALIZED ***',
+    );
+    console.log(
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] Timestamp:',
+      new Date().toISOString(),
+    );
+    console.log(
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] Version: LIVE_MODE_FIXES_DEPLOYMENT_VERIFICATION',
+    );
+    console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] SpecsModule loaded: YES');
+    console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] TestModeModule loaded: YES');
+    console.log(
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] Ready to receive /api/predictions requests',
+    );
+    console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] ='.repeat(30));
+  }
+}

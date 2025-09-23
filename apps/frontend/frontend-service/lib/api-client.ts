@@ -267,7 +267,11 @@ class ApiClient {
     fixtureId: number;
     choice: '1' | 'X' | '2';
   }, mode: 'live' | 'test') {
-    const payload = { ...data, mode };
+    const payload = {
+      ...data,
+      fixtureId: String(data.fixtureId), // Convert to string for backend
+      mode
+    };
     console.log('🚀 [SAVE_PREDICTION] Full payload being sent:', JSON.stringify(payload, null, 2));
     console.log('🚀 [SAVE_PREDICTION] userId type:', typeof payload.userId);
     console.log('🚀 [SAVE_PREDICTION] userId value:', payload.userId);
@@ -322,6 +326,30 @@ class ApiClient {
   async getTestWeeklyStats(userId: string | number, week: number) {
     // Use unified predictions endpoint with mode parameter
     return this.request(`/predictions/user/${userId}/week/${week}?mode=test`);
+  }
+
+  // Final Week Score API - Test Mode
+  async saveFinalWeekScore(data: {
+    userId: string;
+    week: number;
+    revealed: number;
+    correct: number;
+    percent: number;
+    mode: 'test';
+  }) {
+    console.log('🏆 [SAVE_FINAL_WEEK_SCORE] Saving final week score:', JSON.stringify(data, null, 2));
+    return this.request('/final-week-scores', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getFinalWeekScore(userId: string, week: number, mode: 'test' = 'test') {
+    return this.request(`/final-week-scores/${userId}/week/${week}?mode=${mode}`);
+  }
+
+  async getAllFinalWeekScores(userId: string, mode: 'test' = 'test') {
+    return this.request(`/final-week-scores/${userId}?mode=${mode}`);
   }
 
   async getLiveWeeklyStats(userId: string | number, week: number) {

@@ -1,6 +1,6 @@
 /**
  * TestGameHeader Component
- * Dedicated header for test mode with fixed date (September 24th, 2023)
+ * Dedicated header for test mode starting from August 18th, 2023
  * Simplified version focused on test mode functionality
  */
 
@@ -43,7 +43,7 @@ export function TestGameHeader({
   const [headerHeight, setHeaderHeight] = useState<number>(160);
 
   // Virtual clock for dynamic test time progression
-  const { virtualTime, formatDisplay } = useVirtualClock();
+  const { virtualTime, formatDisplay, resetClock } = useVirtualClock();
 
   // Dynamic active week state - start with null to prevent showing incorrect week
   const [activeWeekInfo, setActiveWeekInfo] = useState<WeekInfo | null>(null);
@@ -189,10 +189,13 @@ export function TestGameHeader({
       // Call API to reset user's test data
       await apiClient.resetTestData(userKey);
 
+      // Reset virtual clock to default start date (August 18, 2023)
+      resetClock();
+
       // Call parent reset callback to clear local state
       onReset?.();
 
-      console.log('✅ Test data and localStorage reset successfully');
+      console.log('✅ Test data, localStorage, and virtual clock reset successfully');
 
       // Small delay to ensure localStorage clearing completes before navigation
       setTimeout(() => {
@@ -204,7 +207,7 @@ export function TestGameHeader({
     } finally {
       setIsResetting(false);
     }
-  }, [userKey, isResetting, onReset]);
+  }, [userKey, isResetting, onReset, resetClock]);
 
   // Handle share function
   const handleShare = async () => {

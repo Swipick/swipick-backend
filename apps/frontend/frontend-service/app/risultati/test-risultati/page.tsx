@@ -314,6 +314,10 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
   // Track recently revealed fixture for confetti (like original)
   const [recentlyRevealed, setRecentlyRevealed] = useState<{ id: string; origin?: { x: number; y: number } } | null>(null);
 
+  // Stored final week scores
+  const [storedFinalScore, setStoredFinalScore] = useState<{ revealed: number; correct: number; percent: number } | null>(null);
+  const [finalScoreLoading, setFinalScoreLoading] = useState(false);
+
   // Calculate active week and fetch fixtures based on virtual time
   useEffect(() => {
     const updateActiveWeek = async () => {
@@ -396,19 +400,11 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
       virtualTimeStatus: activeWeekInfo.status
     });
 
-    // For weeks before the virtual current week, auto-reveal everything
+    // For weeks before the virtual current week, load saved reveal state (no auto-reveal)
+    // This allows users to experience button clicks and confetti for past weeks
     if (selectedWeek < activeWeekInfo.activeWeek) {
-      if (fixtures.length > 0) {
-        const toReveal: Record<string, boolean> = {};
-        fixtures.forEach(fixture => {
-          toReveal[String(fixture.id)] = true;
-        });
-        setRevealed(toReveal);
-        console.log(`[TestRisultati] 🔓 Auto-revealing past week ${selectedWeek} (virtual current week ${activeWeekInfo.activeWeek}), fixtures:`, fixtures.length);
-      } else {
-        console.log(`[TestRisultati] ⏳ Past week ${selectedWeek} waiting for fixtures to load...`);
-      }
-      return;
+      console.log(`[TestRisultati] 📅 Loading reveal state for past week ${selectedWeek} (virtual current week ${activeWeekInfo.activeWeek})`);
+      // Continue to load saved reveal state from localStorage (same as current/future weeks)
     }
 
     // For current and future weeks, load saved reveal state from localStorage
@@ -451,26 +447,42 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
   const onReveal = useCallback(async (fixtureId: string, anchorEl?: HTMLElement) => {
     // For current and future virtual weeks, check if the virtual match has "finished"
     if (selectedWeek >= activeWeekInfo.activeWeek) {
-      // In test mode, we simulate that not all matches in current week have finished yet
-      // For simplicity, let's say only the first few matches in each week are "finished"
+      // Use virtual clock to determine if match has been played
       const fixture = fixtures.find(f => String(f.id) === fixtureId);
       if (fixture) {
-        const fixtureIndex = fixtures.findIndex(f => String(f.id) === fixtureId);
-        // Simulate that only first 3 matches of current/future weeks have "finished"
-        const virtuallyFinished = fixtureIndex < 3;
+        // Get match date from fixture
+        const matchDate = new Date(fixture.date || fixture.kickoff || fixture.datetime || fixture.match_date || '');
+
+        // Add 2 hours (120 minutes) to match start time to simulate match completion
+        const matchEndTime = new Date(matchDate.getTime() + (120 * 60 * 1000));
+
+        // Check if virtual time has passed the match end time
+        const virtuallyFinished = virtualTime.getTime() >= matchEndTime.getTime();
 
         if (!virtuallyFinished) {
-          setToast('Il fischio finale non è ancora stato suonato');
+          setToast('La partita non è ancora terminata');
           setTimeout(() => setToast(null), 3000); // Auto-dismiss after 3 seconds
           console.log(`[TestRisultati] 🚫 Reveal blocked - virtual match not finished yet:`, {
             fixtureId,
             week: selectedWeek,
-            fixtureIndex,
-            reason: 'virtual final whistle not blown'
+            matchDate: matchDate.toISOString(),
+            matchEndTime: matchEndTime.toISOString(),
+            virtualTime: virtualTime.toISOString(),
+            reason: 'virtual match still in progress or not started'
           });
           return;
         }
+
+        console.log(`[TestRisultati] ✅ Reveal allowed - virtual match finished:`, {
+          fixtureId,
+          week: selectedWeek,
+          matchEndTime: matchEndTime.toISOString(),
+          virtualTime: virtualTime.toISOString()
+        });
       }
+    } else {
+      // For past weeks, always allow reveals (no time restrictions)
+      console.log(`[TestRisultati] ✅ Reveal allowed - past week ${selectedWeek} (virtual current week ${activeWeekInfo.activeWeek})`);
     }
 
     // Allow reveal
@@ -494,7 +506,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     setRecentlyRevealed({ id: fixtureId, origin });
 
     console.log(`[TestRisultati] 🔍 Revealed fixture ${fixtureId} in week ${selectedWeek}`);
-  }, [selectedWeek, fixtures, userKey]);
+  }, [selectedWeek, fixtures, userKey, activeWeekInfo, virtualTime]);
 
   // Helper function to get prediction data for a fixture
   const getPredictionData = useCallback((fixtureId: number) => {
@@ -841,10 +853,99 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     return { revealed: revealedCount, correct: correctCount, percent };
   }, [fixtures, revealed, weeklyStats]); // Include weeklyStats since getPredictionData depends on it
 
+  // Auto-save final week score when all 10 matches are revealed
+  useEffect(() => {
+    const saveFinalScore = async () => {
+      // Only save if we have a user, valid week, and exactly 10 matches revealed
+      if (!userKey || !selectedWeek || meter.revealed !== 10) return;
+
+      // Check if we already saved this score to avoid duplicate saves
+      const storageKey = `swipick:final-score-saved:test:week${selectedWeek}:user:${userKey}`;
+      const alreadySaved = localStorage.getItem(storageKey);
+      if (alreadySaved) {
+        console.log(`[TestRisultati] 🏆 Final score already saved for week ${selectedWeek}`);
+        return;
+      }
+
+      try {
+        await apiClient.saveFinalWeekScore({
+          userId: userKey,
+          week: selectedWeek,
+          revealed: meter.revealed,
+          correct: meter.correct,
+          percent: meter.percent,
+          mode: 'test'
+        });
+
+        // Mark as saved to prevent duplicate saves
+        localStorage.setItem(storageKey, JSON.stringify({
+          week: selectedWeek,
+          score: meter,
+          savedAt: new Date().toISOString()
+        }));
+
+        console.log(`[TestRisultati] 🏆 Final week score saved for week ${selectedWeek}:`, meter);
+      } catch (error) {
+        console.error(`[TestRisultati] ❌ Failed to save final week score for week ${selectedWeek}:`, error);
+      }
+    };
+
+    saveFinalScore();
+  }, [userKey, selectedWeek, meter]); // Trigger when meter changes
+
+  // Load stored final score for current week
+  useEffect(() => {
+    const loadStoredFinalScore = async () => {
+      if (!userKey || !selectedWeek) return;
+
+      setFinalScoreLoading(true);
+      try {
+        const storedScore = await apiClient.getFinalWeekScore(userKey, selectedWeek, 'test');
+        if (storedScore) {
+          setStoredFinalScore({
+            revealed: storedScore.revealed || 0,
+            correct: storedScore.correct || 0,
+            percent: storedScore.percent || 0
+          });
+          console.log(`[TestRisultati] 📥 Loaded stored final score for week ${selectedWeek}:`, storedScore);
+        } else {
+          setStoredFinalScore(null);
+          console.log(`[TestRisultati] 📭 No stored final score found for week ${selectedWeek}`);
+        }
+      } catch (error) {
+        console.error(`[TestRisultati] ❌ Failed to load stored final score for week ${selectedWeek}:`, error);
+        setStoredFinalScore(null);
+      } finally {
+        setFinalScoreLoading(false);
+      }
+    };
+
+    loadStoredFinalScore();
+  }, [userKey, selectedWeek]); // Load when user or week changes
+
+  // Display meter: Use stored final score if available and complete, otherwise use live meter
+  const displayMeter = useMemo(() => {
+    // If we have a stored final score and it's complete (10/10), use that
+    if (storedFinalScore && storedFinalScore.revealed === 10) {
+      return {
+        ...storedFinalScore,
+        isStored: true,
+        label: 'Risultato Finale'
+      };
+    }
+
+    // Otherwise, use live calculation for active revealing
+    return {
+      ...meter,
+      isStored: false,
+      label: meter.revealed === 10 ? 'Completato' : `${meter.revealed}/10`
+    };
+  }, [meter, storedFinalScore]);
+
   // Share handler matching original format
   const handleShare = useCallback(async () => {
     const title = `Giornata ${selectedWeek} — Swipick`;
-    const text = `Ho rivelato ${meter.revealed}/10: ${meter.correct} corrette (${meter.percent}%).`;
+    const text = `Ho rivelato ${displayMeter.revealed}/10: ${displayMeter.correct} corrette (${displayMeter.percent}%).`;
     const url = typeof window !== 'undefined' ? window.location.href : undefined;
 
     try {
@@ -858,7 +959,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
       console.log('Error sharing:', error);
       // Could add a toast here for desktop users
     }
-  }, [selectedWeek, meter]);
+  }, [selectedWeek, displayMeter]);
 
   // Date range calculation - OPTIMIZED to reduce re-renders
   const dateRange = useMemo(() => {
@@ -1107,10 +1208,18 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
         {/* Success Meter (matching original design) */}
         <div className="px-4 pb-2 pointer-events-auto">
           <CircularMeter
-            percent={meter.percent}
+            percent={displayMeter.percent}
             onShare={handleShare}
             shareEnabled={shareSupported}
           />
+          {/* Show indicator if using stored final score */}
+          {displayMeter.isStored && (
+            <div className="text-center mt-2">
+              <span className="text-xs text-white/80 bg-green-600/80 px-2 py-1 rounded-full">
+                📊 {displayMeter.label}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
