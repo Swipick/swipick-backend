@@ -2,21 +2,4 @@
 > @swipick/gaming-services@1.0.0 build
 > nest build
 
-[1m[31mERROR[39m[22m in [1m./src/modules/match-cards/match-cards.service.ts:103:9[39m[22m
-[1mTS2322: Type 'string' is not assignable to type 'number'.
-    101 |       const matchCard: MatchCardDto = {
-    102 |         week: weekNumber,
-  > 103 |         fixtureId: fixture.id,
-        |         ^^^^^^^^^
-    104 |         kickoff,
-    105 |         stadium: fixture.stadium,
-    106 |         home: homeTeam,[39m[22m
-
-webpack 5.97.1 compiled with [1m[31m1 error[39m[22m in 2382 ms
-npm error Lifecycle script `build` failed with error:
-npm error code 1
-npm error path /Users/ashm4/Projects/swipick-backend/apps/backend/gaming-services
-npm error workspace @swipick/gaming-services@1.0.0
-npm error location /Users/ashm4/Projects/swipick-backend/apps/backend/gaming-services
-npm error command failed
-npm error command sh -c nest build
+webpack 5.97.1 compiled [1m[32msuccessfully[39m[22m in 2212 ms

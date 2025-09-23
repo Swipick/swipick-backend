@@ -82,36 +82,107 @@ export class SpecsService {
     userId: string,
     week: number,
   ): Promise<WeeklyStatsResponseDto> {
-    // Get all predictions for the user in the specified week
-    const specs = await this.specRepository.find({
-      where: { user_id: userId, week },
-      relations: ['fixture'],
-      order: { timestamp: 'ASC' },
+    console.log('🟢 [SPECS_SERVICE] ='.repeat(50));
+    console.log('🟢 [SPECS_SERVICE] getWeeklyStats called');
+    console.log('🟢 [SPECS_SERVICE] Timestamp:', new Date().toISOString());
+    console.log('🟢 [SPECS_SERVICE] Parameters:');
+    console.log('🟢 [SPECS_SERVICE] - userId:', {
+      value: userId,
+      type: typeof userId,
+      length: userId?.length,
+      isString: typeof userId === 'string',
+    });
+    console.log('🟢 [SPECS_SERVICE] - week:', {
+      value: week,
+      type: typeof week,
+      isNumber: typeof week === 'number',
     });
 
-    const predictions = specs.map((spec) =>
-      this.mapSpecToResponse(spec, spec.fixture),
-    );
+    try {
+      console.log('🟢 [SPECS_SERVICE] Preparing database query...');
+      console.log('🟢 [SPECS_SERVICE] Query params:', {
+        where: { user_id: userId, week },
+        relations: ['fixture'],
+        order: { timestamp: 'ASC' },
+      });
 
-    const correctPredictions = specs.filter(
-      (spec) => spec.isCorrect() === true,
-    );
-    const totalPredictions = specs.filter((spec) =>
-      spec.countsTowardPercentage(),
-    );
+      // Get all predictions for the user in the specified week
+      console.log('🟢 [SPECS_SERVICE] Executing database query...');
+      const specs = await this.specRepository.find({
+        where: { user_id: userId, week },
+        relations: ['fixture'],
+        order: { timestamp: 'ASC' },
+      });
 
-    const successRate =
-      totalPredictions.length > 0
-        ? (correctPredictions.length / totalPredictions.length) * 100
-        : 0;
+      console.log('🟢 [SPECS_SERVICE] Database query completed successfully');
+      console.log('🟢 [SPECS_SERVICE] Found specs count:', specs.length);
 
-    return {
-      week,
-      total_predictions: totalPredictions.length,
-      correct_predictions: correctPredictions.length,
-      success_rate: Math.round(successRate * 100) / 100, // Round to 2 decimal places
-      predictions,
-    };
+      if (specs.length > 0) {
+        console.log('🟢 [SPECS_SERVICE] Sample spec:', {
+          id: specs[0].id,
+          user_id: specs[0].user_id,
+          fixture_id: specs[0].fixture_id,
+          choice: specs[0].choice,
+          week: specs[0].week,
+          fixture_exists: !!specs[0].fixture,
+        });
+      }
+
+      console.log('🟢 [SPECS_SERVICE] Mapping specs to responses...');
+      const predictions = specs.map((spec) =>
+        this.mapSpecToResponse(spec, spec.fixture),
+      );
+
+      const correctPredictions = specs.filter(
+        (spec) => spec.isCorrect() === true,
+      );
+      const totalPredictions = specs.filter((spec) =>
+        spec.countsTowardPercentage(),
+      );
+
+      const successRate =
+        totalPredictions.length > 0
+          ? (correctPredictions.length / totalPredictions.length) * 100
+          : 0;
+
+      const result = {
+        week,
+        total_predictions: totalPredictions.length,
+        correct_predictions: correctPredictions.length,
+        success_rate: Math.round(successRate * 100) / 100, // Round to 2 decimal places
+        predictions,
+      };
+
+      console.log('🟢 [SPECS_SERVICE] Result computed successfully:', {
+        week: result.week,
+        total_predictions: result.total_predictions,
+        correct_predictions: result.correct_predictions,
+        success_rate: result.success_rate,
+        predictions_count: result.predictions.length,
+      });
+      console.log('🟢 [SPECS_SERVICE] ='.repeat(50));
+
+      return result;
+    } catch (error) {
+      console.log('🔴 [SPECS_SERVICE] ERROR in getWeeklyStats:');
+      console.log('🔴 [SPECS_SERVICE] Error details:', {
+        userId,
+        week,
+        errorType: typeof error,
+        errorConstructor: error?.constructor?.name,
+        errorMessage: error?.message,
+        errorCode: error?.code,
+        errorSeverity: error?.severity,
+        errorDetail: error?.detail,
+        errorConstraint: error?.constraint,
+        errorTable: error?.table,
+        errorColumn: error?.column,
+      });
+      console.log('🔴 [SPECS_SERVICE] Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      console.log('🔴 [SPECS_SERVICE] Error stack:', error?.stack);
+      console.log('🟢 [SPECS_SERVICE] ='.repeat(50));
+      throw error;
+    }
   }
 
   async getUserSummary(userId: string): Promise<UserSummaryResponseDto> {

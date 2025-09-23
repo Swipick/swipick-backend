@@ -220964,7 +220964,11 @@ let SpecsController = class SpecsController {
         try {
             console.log('🚀 [SPECS_CONTROLLER] Starting validation and processing...');
             if (data.mode === 'test') {
-                const testSpec = await this.testModeService.createTestPrediction(data.userId, data.fixtureId, data.choice);
+                const fixtureIdNumber = parseInt(data.fixtureId, 10);
+                if (isNaN(fixtureIdNumber)) {
+                    throw new common_1.BadRequestException(`Invalid fixtureId for test mode: ${data.fixtureId} - must be convertible to number`);
+                }
+                const testSpec = await this.testModeService.createTestPrediction(data.userId, fixtureIdNumber, data.choice);
                 return {
                     id: testSpec.id.toString(),
                     user_id: testSpec.userId,
@@ -220983,7 +220987,7 @@ let SpecsController = class SpecsController {
             else {
                 const createSpecDto = {
                     user_id: data.userId,
-                    fixture_id: data.fixtureId.toString(),
+                    fixture_id: data.fixtureId,
                     choice: data.choice,
                     week: 1,
                 };
@@ -221002,28 +221006,79 @@ let SpecsController = class SpecsController {
         }
     }
     async getWeeklyStats(userId, week, mode) {
-        if (mode === 'test') {
-            const testStats = await this.testModeService.getTestWeeklyStats(userId, week);
-            return {
-                week: testStats.week,
-                total_predictions: testStats.totalPredictions,
-                correct_predictions: testStats.correctPredictions,
-                success_rate: testStats.weeklyPercentage,
-                predictions: testStats.predictions.map((pred) => ({
-                    id: `test-${pred.fixtureId}`,
-                    user_id: userId,
-                    fixture_id: pred.fixtureId.toString(),
-                    choice: pred.userChoice,
-                    result: pred.actualResult,
-                    is_correct: pred.isCorrect,
+        console.log('🟡 [SPECS_CONTROLLER] ='.repeat(50));
+        console.log('🟡 [SPECS_CONTROLLER] getWeeklyStats endpoint hit');
+        console.log('🟡 [SPECS_CONTROLLER] Timestamp:', new Date().toISOString());
+        console.log('🟡 [SPECS_CONTROLLER] Raw params received:');
+        console.log('🟡 [SPECS_CONTROLLER] - userId:', {
+            value: userId,
+            type: typeof userId,
+            length: userId?.length,
+            isString: typeof userId === 'string',
+            isValidFirebaseUID: typeof userId === 'string' && userId.length > 20,
+        });
+        console.log('🟡 [SPECS_CONTROLLER] - week:', {
+            value: week,
+            type: typeof week,
+            isNumber: typeof week === 'number',
+        });
+        console.log('🟡 [SPECS_CONTROLLER] - mode:', {
+            value: mode,
+            type: typeof mode,
+            isLive: mode === 'live',
+            isTest: mode === 'test',
+        });
+        try {
+            if (mode === 'test') {
+                console.log('🟡 [SPECS_CONTROLLER] Routing to TEST mode service');
+                const testStats = await this.testModeService.getTestWeeklyStats(userId, week);
+                console.log('🟡 [SPECS_CONTROLLER] Test mode service completed successfully');
+                return {
                     week: testStats.week,
-                    timestamp: new Date(),
-                    match_display: `${pred.homeTeam} vs ${pred.awayTeam}`,
-                    choice_display: pred.userChoice,
-                })),
-            };
+                    total_predictions: testStats.totalPredictions,
+                    correct_predictions: testStats.correctPredictions,
+                    success_rate: testStats.weeklyPercentage,
+                    predictions: testStats.predictions.map((pred) => ({
+                        id: `test-${pred.fixtureId}`,
+                        user_id: userId,
+                        fixture_id: pred.fixtureId.toString(),
+                        choice: pred.userChoice,
+                        result: pred.actualResult,
+                        is_correct: pred.isCorrect,
+                        week: testStats.week,
+                        timestamp: new Date(),
+                        match_display: `${pred.homeTeam} vs ${pred.awayTeam}`,
+                        choice_display: pred.userChoice,
+                    })),
+                };
+            }
+            console.log('🟡 [SPECS_CONTROLLER] Routing to LIVE mode service (specs.service.getWeeklyStats)');
+            const result = await this.specsService.getWeeklyStats(userId, week);
+            console.log('🟡 [SPECS_CONTROLLER] Live mode service completed successfully');
+            console.log('🟡 [SPECS_CONTROLLER] Result preview:', {
+                week: result.week,
+                total_predictions: result.total_predictions,
+                correct_predictions: result.correct_predictions,
+                success_rate: result.success_rate,
+                predictions_count: result.predictions?.length || 0,
+            });
+            return result;
         }
-        return this.specsService.getWeeklyStats(userId, week);
+        catch (error) {
+            console.log('🔴 [SPECS_CONTROLLER] ERROR in getWeeklyStats:');
+            console.log('🔴 [SPECS_CONTROLLER] Error details:', {
+                userId,
+                week,
+                mode,
+                errorType: typeof error,
+                errorConstructor: error?.constructor?.name,
+                errorMessage: error?.message,
+                errorStack: error?.stack,
+            });
+            console.log('🔴 [SPECS_CONTROLLER] Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+            console.log('🟡 [SPECS_CONTROLLER] ='.repeat(50));
+            throw error;
+        }
     }
     async getUserSummary(userId) {
         return this.specsService.getUserSummary(userId);
@@ -221137,24 +221192,90 @@ let SpecsService = class SpecsService {
         return this.mapSpecToResponse(savedSpec, fixture);
     }
     async getWeeklyStats(userId, week) {
-        const specs = await this.specRepository.find({
-            where: { user_id: userId, week },
-            relations: ['fixture'],
-            order: { timestamp: 'ASC' },
+        console.log('🟢 [SPECS_SERVICE] ='.repeat(50));
+        console.log('🟢 [SPECS_SERVICE] getWeeklyStats called');
+        console.log('🟢 [SPECS_SERVICE] Timestamp:', new Date().toISOString());
+        console.log('🟢 [SPECS_SERVICE] Parameters:');
+        console.log('🟢 [SPECS_SERVICE] - userId:', {
+            value: userId,
+            type: typeof userId,
+            length: userId?.length,
+            isString: typeof userId === 'string',
         });
-        const predictions = specs.map((spec) => this.mapSpecToResponse(spec, spec.fixture));
-        const correctPredictions = specs.filter((spec) => spec.isCorrect() === true);
-        const totalPredictions = specs.filter((spec) => spec.countsTowardPercentage());
-        const successRate = totalPredictions.length > 0
-            ? (correctPredictions.length / totalPredictions.length) * 100
-            : 0;
-        return {
-            week,
-            total_predictions: totalPredictions.length,
-            correct_predictions: correctPredictions.length,
-            success_rate: Math.round(successRate * 100) / 100,
-            predictions,
-        };
+        console.log('🟢 [SPECS_SERVICE] - week:', {
+            value: week,
+            type: typeof week,
+            isNumber: typeof week === 'number',
+        });
+        try {
+            console.log('🟢 [SPECS_SERVICE] Preparing database query...');
+            console.log('🟢 [SPECS_SERVICE] Query params:', {
+                where: { user_id: userId, week },
+                relations: ['fixture'],
+                order: { timestamp: 'ASC' },
+            });
+            console.log('🟢 [SPECS_SERVICE] Executing database query...');
+            const specs = await this.specRepository.find({
+                where: { user_id: userId, week },
+                relations: ['fixture'],
+                order: { timestamp: 'ASC' },
+            });
+            console.log('🟢 [SPECS_SERVICE] Database query completed successfully');
+            console.log('🟢 [SPECS_SERVICE] Found specs count:', specs.length);
+            if (specs.length > 0) {
+                console.log('🟢 [SPECS_SERVICE] Sample spec:', {
+                    id: specs[0].id,
+                    user_id: specs[0].user_id,
+                    fixture_id: specs[0].fixture_id,
+                    choice: specs[0].choice,
+                    week: specs[0].week,
+                    fixture_exists: !!specs[0].fixture,
+                });
+            }
+            console.log('🟢 [SPECS_SERVICE] Mapping specs to responses...');
+            const predictions = specs.map((spec) => this.mapSpecToResponse(spec, spec.fixture));
+            const correctPredictions = specs.filter((spec) => spec.isCorrect() === true);
+            const totalPredictions = specs.filter((spec) => spec.countsTowardPercentage());
+            const successRate = totalPredictions.length > 0
+                ? (correctPredictions.length / totalPredictions.length) * 100
+                : 0;
+            const result = {
+                week,
+                total_predictions: totalPredictions.length,
+                correct_predictions: correctPredictions.length,
+                success_rate: Math.round(successRate * 100) / 100,
+                predictions,
+            };
+            console.log('🟢 [SPECS_SERVICE] Result computed successfully:', {
+                week: result.week,
+                total_predictions: result.total_predictions,
+                correct_predictions: result.correct_predictions,
+                success_rate: result.success_rate,
+                predictions_count: result.predictions.length,
+            });
+            console.log('🟢 [SPECS_SERVICE] ='.repeat(50));
+            return result;
+        }
+        catch (error) {
+            console.log('🔴 [SPECS_SERVICE] ERROR in getWeeklyStats:');
+            console.log('🔴 [SPECS_SERVICE] Error details:', {
+                userId,
+                week,
+                errorType: typeof error,
+                errorConstructor: error?.constructor?.name,
+                errorMessage: error?.message,
+                errorCode: error?.code,
+                errorSeverity: error?.severity,
+                errorDetail: error?.detail,
+                errorConstraint: error?.constraint,
+                errorTable: error?.table,
+                errorColumn: error?.column,
+            });
+            console.log('🔴 [SPECS_SERVICE] Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+            console.log('🔴 [SPECS_SERVICE] Error stack:', error?.stack);
+            console.log('🟢 [SPECS_SERVICE] ='.repeat(50));
+            throw error;
+        }
     }
     async getUserSummary(userId) {
         const allSpecs = await this.specRepository.find({
@@ -222416,8 +222537,8 @@ __decorate([
     __metadata("design:type", String)
 ], CreateUnifiedPredictionDto.prototype, "userId", void 0);
 __decorate([
-    (0, class_validator_1.IsNumber)({}, { message: 'fixtureId must be a number' }),
-    __metadata("design:type", Number)
+    (0, class_validator_1.IsString)({ message: 'fixtureId must be a string' }),
+    __metadata("design:type", String)
 ], CreateUnifiedPredictionDto.prototype, "fixtureId", void 0);
 __decorate([
     (0, class_validator_1.IsEnum)(['1', 'X', '2'], {

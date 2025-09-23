@@ -58,8 +58,8 @@ export class CreateUnifiedPredictionDto {
   @IsString({ message: 'userId must be a string' })
   userId: string;
 
-  @IsNumber({}, { message: 'fixtureId must be a number' })
-  fixtureId: number;
+  @IsString({ message: 'fixtureId must be a string' })
+  fixtureId: string;
 
   @IsEnum(['1', 'X', '2'], {
     message: 'choice must be one of: 1 (Home Win), X (Draw), 2 (Away Win)',

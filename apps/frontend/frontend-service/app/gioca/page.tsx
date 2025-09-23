@@ -298,17 +298,26 @@ function GiocaPageContent() {
   }, [currentFixtureIndex, cardX, cardY, cardOpacity]);
 
 
-  // Commit immediately (no delay) to avoid race with animations
+  // Commit prediction and advance immediately, save prediction in background
   const commitPredictionImmediate = useCallback(async (fixtureId: number, choice: PredictionChoice) => {
-    await handlePrediction(fixtureId, choice);
-    if (userKey) {
-      try {
-        const k = hasWeekPredsKey(selectedWeek, userKey);
-        localStorage.setItem(k, '1');
-      } catch {}
-    }
+    // Advance to next card immediately for smooth visual transition
     handleNext();
-  }, [handlePrediction, handleNext, userKey, selectedWeek, hasWeekPredsKey]);
+
+    // Save prediction in background (non-blocking)
+    Promise.resolve().then(async () => {
+      try {
+        await handlePrediction(fixtureId, choice);
+        if (userKey) {
+          try {
+            const k = hasWeekPredsKey(selectedWeek, userKey);
+            localStorage.setItem(k, '1');
+          } catch {}
+        }
+      } catch (error) {
+        console.error('Failed to save prediction:', error);
+      }
+    });
+  }, [handleNext, handlePrediction, userKey, selectedWeek, hasWeekPredsKey]);
 
   // Swipe handling
   type MotionAnimateOptions = {
@@ -447,13 +456,13 @@ function GiocaPageContent() {
         }
 
         // Commit prediction and advance immediately
-        void commitPredictionImmediate(currentFixture.id, choice!).finally(() => {
-          // Clear states immediately to prevent flash
-          setTimeout(() => {
-            setFrozenPreviewIndex(null);
-            setPreviewOnTop(false);
-          }, 16); // One frame delay
-        });
+        void commitPredictionImmediate(currentFixture.id, choice!);
+
+        // Clear states after animation completes
+        setTimeout(() => {
+          setFrozenPreviewIndex(null);
+          setPreviewOnTop(false);
+        }, 220 + 16); // Animation duration + one frame
       }
     } else {
       // Not enough movement → snap back
@@ -488,15 +497,20 @@ function GiocaPageContent() {
       cardX.set(0);
     }
     
-    // Handle prediction based on direction
+    // Handle prediction based on direction - advance immediately
     if (direction === 'up') {
-      await commitPredictionImmediate(currentFixture.id, 'X');
+      commitPredictionImmediate(currentFixture.id, 'X');
     } else if (direction === 'left') {
-      await commitPredictionImmediate(currentFixture.id, '1');
+      commitPredictionImmediate(currentFixture.id, '1');
     } else if (direction === 'right') {
-      await commitPredictionImmediate(currentFixture.id, '2');
+      commitPredictionImmediate(currentFixture.id, '2');
     }
-    setTimeout(() => { setFrozenPreviewIndex(null); setPreviewOnTop(false); }, 50);
+
+    // Clear states after animation
+    setTimeout(() => {
+      setFrozenPreviewIndex(null);
+      setPreviewOnTop(false);
+    }, 220 + 16);
   }, [currentFixture, handleSkip, cardX, cardY, currentFixtureIndex, commitPredictionImmediate, animateValue]);
 
   // Live mode typically doesn't show completion veil

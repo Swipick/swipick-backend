@@ -9,6 +9,7 @@ import {
   UsePipes,
   ValidationPipe,
   ParseIntPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { SpecsService } from './specs.service';
 import { TestModeService } from '../test-mode/test-mode.service';
@@ -80,9 +81,17 @@ export class SpecsController {
 
       if (data.mode === 'test') {
         // Route to test mode service
+        // Convert fixtureId from string to number for test mode
+        const fixtureIdNumber = parseInt(data.fixtureId, 10);
+        if (isNaN(fixtureIdNumber)) {
+          throw new BadRequestException(
+            `Invalid fixtureId for test mode: ${data.fixtureId} - must be convertible to number`,
+          );
+        }
+
         const testSpec = await this.testModeService.createTestPrediction(
           data.userId,
-          data.fixtureId,
+          fixtureIdNumber,
           data.choice,
         );
 
@@ -105,7 +114,7 @@ export class SpecsController {
         // Route to live mode service - convert to expected format
         const createSpecDto: CreateSpecDto = {
           user_id: data.userId,
-          fixture_id: data.fixtureId.toString(), // Convert number to string
+          fixture_id: data.fixtureId, // fixtureId is already a string
           choice: data.choice,
           week: 1, // TODO: Determine current week for live mode
         };
@@ -141,32 +150,93 @@ export class SpecsController {
     @Param('week', ParseIntPipe) week: number,
     @Query('mode') mode?: 'live' | 'test',
   ): Promise<WeeklyStatsResponseDto> {
-    if (mode === 'test') {
-      const testStats = await this.testModeService.getTestWeeklyStats(
+    console.log('🟡 [SPECS_CONTROLLER] ='.repeat(50));
+    console.log('🟡 [SPECS_CONTROLLER] getWeeklyStats endpoint hit');
+    console.log('🟡 [SPECS_CONTROLLER] Timestamp:', new Date().toISOString());
+    console.log('🟡 [SPECS_CONTROLLER] Raw params received:');
+    console.log('🟡 [SPECS_CONTROLLER] - userId:', {
+      value: userId,
+      type: typeof userId,
+      length: userId?.length,
+      isString: typeof userId === 'string',
+      isValidFirebaseUID: typeof userId === 'string' && userId.length > 20,
+    });
+    console.log('🟡 [SPECS_CONTROLLER] - week:', {
+      value: week,
+      type: typeof week,
+      isNumber: typeof week === 'number',
+    });
+    console.log('🟡 [SPECS_CONTROLLER] - mode:', {
+      value: mode,
+      type: typeof mode,
+      isLive: mode === 'live',
+      isTest: mode === 'test',
+    });
+
+    try {
+      if (mode === 'test') {
+        console.log('🟡 [SPECS_CONTROLLER] Routing to TEST mode service');
+        const testStats = await this.testModeService.getTestWeeklyStats(
+          userId,
+          week,
+        );
+        console.log(
+          '🟡 [SPECS_CONTROLLER] Test mode service completed successfully',
+        );
+        // Convert test mode format to unified format
+        return {
+          week: testStats.week,
+          total_predictions: testStats.totalPredictions,
+          correct_predictions: testStats.correctPredictions,
+          success_rate: testStats.weeklyPercentage,
+          predictions: testStats.predictions.map((pred) => ({
+            id: `test-${pred.fixtureId}`, // Generate a temporary ID
+            user_id: userId,
+            fixture_id: pred.fixtureId.toString(),
+            choice: pred.userChoice as '1' | 'X' | '2',
+            result: pred.actualResult as '1' | 'X' | '2',
+            is_correct: pred.isCorrect,
+            week: testStats.week,
+            timestamp: new Date(), // Use current timestamp as placeholder
+            match_display: `${pred.homeTeam} vs ${pred.awayTeam}`,
+            choice_display: pred.userChoice,
+          })),
+        };
+      }
+
+      console.log(
+        '🟡 [SPECS_CONTROLLER] Routing to LIVE mode service (specs.service.getWeeklyStats)',
+      );
+      const result = await this.specsService.getWeeklyStats(userId, week);
+      console.log(
+        '🟡 [SPECS_CONTROLLER] Live mode service completed successfully',
+      );
+      console.log('🟡 [SPECS_CONTROLLER] Result preview:', {
+        week: result.week,
+        total_predictions: result.total_predictions,
+        correct_predictions: result.correct_predictions,
+        success_rate: result.success_rate,
+        predictions_count: result.predictions?.length || 0,
+      });
+      return result;
+    } catch (error) {
+      console.log('🔴 [SPECS_CONTROLLER] ERROR in getWeeklyStats:');
+      console.log('🔴 [SPECS_CONTROLLER] Error details:', {
         userId,
         week,
+        mode,
+        errorType: typeof error,
+        errorConstructor: error?.constructor?.name,
+        errorMessage: error?.message,
+        errorStack: error?.stack,
+      });
+      console.log(
+        '🔴 [SPECS_CONTROLLER] Full error object:',
+        JSON.stringify(error, Object.getOwnPropertyNames(error), 2),
       );
-      // Convert test mode format to unified format
-      return {
-        week: testStats.week,
-        total_predictions: testStats.totalPredictions,
-        correct_predictions: testStats.correctPredictions,
-        success_rate: testStats.weeklyPercentage,
-        predictions: testStats.predictions.map((pred) => ({
-          id: `test-${pred.fixtureId}`, // Generate a temporary ID
-          user_id: userId,
-          fixture_id: pred.fixtureId.toString(),
-          choice: pred.userChoice as '1' | 'X' | '2',
-          result: pred.actualResult as '1' | 'X' | '2',
-          is_correct: pred.isCorrect,
-          week: testStats.week,
-          timestamp: new Date(), // Use current timestamp as placeholder
-          match_display: `${pred.homeTeam} vs ${pred.awayTeam}`,
-          choice_display: pred.userChoice,
-        })),
-      };
+      console.log('🟡 [SPECS_CONTROLLER] ='.repeat(50));
+      throw error;
     }
-    return this.specsService.getWeeklyStats(userId, week);
   }
 
   /**
