@@ -32,11 +32,6 @@ export default function ProfiloPage() {
   const { firebaseUser } = useAuthContext();
   const { isTestMode } = useGameMode();
 
-  // If we're in test mode, render the TestProfilo component
-  if (isTestMode) {
-    return <TestProfiloPage />;
-  }
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>('');
@@ -255,6 +250,11 @@ export default function ProfiloPage() {
       </div>
     );
   };
+
+  // If we're in test mode, render the TestProfilo component
+  if (isTestMode) {
+    return <TestProfiloPage />;
+  }
 
   return (
     <div className="min-h-screen bg-white pb-24">
