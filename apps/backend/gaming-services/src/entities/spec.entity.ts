@@ -18,7 +18,7 @@ export class Spec {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'uuid', nullable: false })
+  @Column({ type: 'varchar', length: 255, nullable: false })
   @Index()
   user_id: string;
 

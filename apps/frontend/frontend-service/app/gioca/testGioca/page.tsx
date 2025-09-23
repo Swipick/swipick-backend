@@ -4,61 +4,56 @@ import React, { useState, useCallback, Suspense, useEffect, useMemo } from "reac
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMotionValue, useTransform, PanInfo, animate, MotionValue } from 'framer-motion';
 import { Toast } from '@/src/components/Toast';
-import { useGameMode } from "@/src/contexts/GameModeContext";
 import { useAuthContext } from "@/src/contexts/AuthContext";
+import { apiClient } from "@/lib/api-client";
 
 // Hooks
-import { useFixtures } from './hooks/useFixtures';
-import { usePredictions } from './hooks/usePredictions';
-import { useCountdown } from './hooks/useCountdown';
-import { useLiveWeek } from './hooks/useLiveWeek';
+import { useFixtures } from '../hooks/useFixtures';
+import { usePredictions } from '../hooks/usePredictions';
+import { useCountdown } from '../hooks/useCountdown';
 
 // Components
 import {
-  GameHeader,
+  TestGameHeader,
   MatchCard,
   BottomNav,
   PredictionButtons,
-  GameSummaryScreen,
-} from './components';
+  TestGameSummaryScreen,
+} from '../components';
 
 
 // Types and constants
-import type { PredictionChoice } from './types';
-import { ANIMATION_CONFIG } from './utils/constants';
+import type { PredictionChoice } from '../types';
+import { ANIMATION_CONFIG } from '../utils/constants';
 
-function GiocaPageContent() {
+function TestGiocaPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
-  // Game state management - live mode focused
-  const { mode } = useGameMode();
 
-  // Get mode from URL parameters or context (default to live)
-  const currentMode = ((searchParams?.get('mode') as 'live' | 'test' | null) ?? null) || mode || 'live';
+  // Test mode is hardcoded
+  const currentMode = 'test' as const;
 
-  // Get reliable live week data
-  const { liveWeekData, loading: liveWeekLoading, error: liveWeekError } = useLiveWeek({ mode: currentMode });
+  // For test mode, receive active week from TestGameHeader (source of truth)
+  const [testModeActiveWeek, setTestModeActiveWeek] = useState<number | null>(null);
 
-  // Selected week logic - simplified for live mode
+  // Callback to receive active week from TestGameHeader
+  const handleActiveWeekChange = useCallback((activeWeek: number) => {
+    setTestModeActiveWeek(activeWeek);
+    console.log(`[TestGioca] Active week received from TestGameHeader: ${activeWeek}`);
+  }, []);
+
+  // Selected week logic - simplified for test mode only
   const selectedWeek = useMemo(() => {
-    // Use URL parameter if valid, otherwise use reliable database week
-    const urlWeek = Number(searchParams?.get('week') ?? NaN);
-    if (Number.isFinite(urlWeek) && urlWeek >= 1 && urlWeek <= 38) {
-      console.log('[page] Using URL week:', urlWeek);
-      return urlWeek; // Use URL week if valid
+    // Test mode: wait for TestGameHeader to provide the authoritative week
+    // Don't load any fixtures until we have the correct week calculation
+    if (testModeActiveWeek === null) {
+      console.log('[TestGioca] Waiting for TestGameHeader to provide active week...');
+      return null;
     }
 
-    // Use reliable current week from database
-    if (liveWeekData?.currentWeek) {
-      console.log('[page] Using live week from database:', liveWeekData.currentWeek);
-      return liveWeekData.currentWeek;
-    }
-
-    // If no reliable data available, return null (will cause error in useFixtures)
-    console.log('[page] No live week data available yet, returning null');
-    return null;
-  }, [searchParams, liveWeekData]);
+    console.log(`[TestGioca] Using TestGameHeader active week: ${testModeActiveWeek}`);
+    return testModeActiveWeek;
+  }, [testModeActiveWeek]);
 
   // Firebase authentication
   const { firebaseUser } = useAuthContext();
@@ -67,20 +62,22 @@ function GiocaPageContent() {
   const userKey = firebaseUser?.uid || null;
 
   // UI state
+  const [weekComplete, setWeekComplete] = useState(false);
+  const [rolledWeek1Once, setRolledWeek1Once] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   // Helper function to generate week prediction keys
   const hasWeekPredsKey = useCallback((week: number | null, userId: string | null): string => {
     const user = userId ?? 'anon';
     const w = week ?? 0;
-    return `swipick:gioca:hasWeekPreds:live:week${w}:user:${user}`;
+    return `swipick:gioca:hasWeekPreds:test:week${w}:user:${user}`;
   }, []);
-  
+
   // Navigation handlers
   const handleGoToResults = useCallback(() => {
-    router.push('/risultati?mode=' + currentMode);
-  }, [router, currentMode]);
-  
+    router.push(`/risultati/test-risultati?week=${selectedWeek}`);
+  }, [router, selectedWeek]);
+
   const handleGoToProfile = useCallback(() => {
     router.push('/profilo');
   }, [router]);
@@ -122,12 +119,58 @@ function GiocaPageContent() {
     timeToMatch,
   } = useCountdown({ currentMode, fixtures });
 
-  // Redirect test mode to dedicated test page
+  // Check if selected week is already fully predicted (Test Mode) and set veil
   useEffect(() => {
-    if (currentMode === 'test') {
-      router.push('/gioca/testGioca');
+    const checkWeekCompletion = async () => {
+      if (!userKey || selectedWeek == null) {
+        setWeekComplete(false);
+        return;
+      }
+
+      try {
+        // Check localStorage flag first - if this week has any predictions recorded
+        const k = hasWeekPredsKey(selectedWeek, userKey);
+        const hasAnyFlag = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
+        if (!hasAnyFlag) {
+          setWeekComplete(false);
+          return;
+        }
+
+        // Query backend for actual weekly completion status
+        const weekly = await apiClient.getTestWeeklyStats(userKey, selectedWeek);
+        const totalPreds = (() => {
+          const r = weekly as unknown;
+          if (r && typeof r === 'object') {
+            const obj = r as Record<string, unknown>;
+            if (typeof obj.totalPredictions === 'number') return obj.totalPredictions;
+            if (typeof obj.total === 'number') return obj.total;
+            if (Array.isArray(obj.predictions)) return obj.predictions.length;
+          }
+          return 0;
+        })();
+
+        setWeekComplete(totalPreds >= 10);
+      } catch {
+        // If weekly endpoint not available, fall back to no veil
+        setWeekComplete(false);
+      }
+    };
+    checkWeekCompletion();
+  }, [selectedWeek, userKey, hasWeekPredsKey]);
+
+  // Ensure no veil appears for Week 2 until the user has at least one prediction there
+  useEffect(() => {
+    if (selectedWeek !== 2) return;
+    try {
+      const k = hasWeekPredsKey(2, userKey);
+      const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
+      if (!hasAny) {
+        setWeekComplete(false);
+      }
+    } catch {
+      setWeekComplete(false);
     }
-  }, [currentMode, router]);
+  }, [selectedWeek, userKey, hasWeekPredsKey]);
 
   // Card navigation state
   const [currentFixtureIndex, setCurrentFixtureIndex] = useState(0);
@@ -154,6 +197,7 @@ function GiocaPageContent() {
     resetPredictions();
     setCurrentFixtureIndex(0);
     setShowSummaryScreen(false);
+    setWeekComplete(false); // Reset week completion veil
     cardX.set(0);
     cardY.set(0);
     cardOpacity.set(1);
@@ -170,8 +214,8 @@ function GiocaPageContent() {
 
   const handleViewResults = useCallback(() => {
     setShowSummaryScreen(false);
-    router.push(`/risultati?mode=${currentMode}`);
-  }, [router, currentMode]);
+    router.push(`/risultati/test-risultati?week=${selectedWeek}`);
+  }, [router, selectedWeek]);
 
   // Current fixture data
   const currentFixture = fixtures[currentFixtureIndex];
@@ -182,7 +226,7 @@ function GiocaPageContent() {
   const handleCardPrediction = useCallback(async (fixtureId: number, choice: PredictionChoice) => {
     await handlePrediction(fixtureId, choice);
 
-    // Mark prediction for potential future features
+    // Mark that the user has at least one prediction for this week (to enable weekly-stats checks later)
     if (userKey) {
       try {
         const k = hasWeekPredsKey(selectedWeek, userKey);
@@ -191,7 +235,7 @@ function GiocaPageContent() {
     }
 
     // Note: Auto-advance removed to avoid circular dependency - handled elsewhere
-  }, [handlePrediction, currentMode, userKey, selectedWeek, hasWeekPredsKey]);
+  }, [handlePrediction, userKey, selectedWeek, hasWeekPredsKey]);
 
   // Preview card calculation - memoized with stable keys to prevent flash re-renders
   const previewCard = React.useMemo(() => {
@@ -230,7 +274,7 @@ function GiocaPageContent() {
       >
         <div className={`w-full max-w-sm transform scale-95 ${isSkipAnimating ? 'opacity-100' : 'opacity-60'}`}>
           <MatchCard
-            key={`preview-card-${previewFixture.id}-idx-${displayIndex}-frozen-${frozenPreviewIndex}-current-${currentFixtureIndex}`}
+            key={`test-preview-card-${previewFixture.id}-idx-${displayIndex}-frozen-${frozenPreviewIndex}-current-${currentFixtureIndex}`}
             fixture={previewFixture}
             matchCard={matchCards.find(mc => mc.fixtureId === previewFixture.id)}
             onPrediction={handleCardPrediction}
@@ -467,15 +511,15 @@ function GiocaPageContent() {
   // Animation function for diamond buttons
   const animateAndCommit = useCallback(async (direction: 'up' | 'down' | 'left' | 'right') => {
     if (!currentFixture) return;
-    
+
     const distance = 350;
-    
+
     if (direction === 'down') {
       // Skip animation (bring preview on top during vertical move)
       await handleSkip();
       return;
     }
-    
+
     setFrozenPreviewIndex(currentFixtureIndex + 1);
     // Animate based on direction
     if (direction === 'up') {
@@ -487,7 +531,7 @@ function GiocaPageContent() {
       await animateValue('x', targetX, { type: 'tween', ease: 'easeInOut', duration: 0.22 });
       cardX.set(0);
     }
-    
+
     // Handle prediction based on direction
     if (direction === 'up') {
       await commitPredictionImmediate(currentFixture.id, 'X');
@@ -499,38 +543,29 @@ function GiocaPageContent() {
     setTimeout(() => { setFrozenPreviewIndex(null); setPreviewOnTop(false); }, 50);
   }, [currentFixture, handleSkip, cardX, cardY, currentFixtureIndex, commitPredictionImmediate, animateValue]);
 
-  // Live mode typically doesn't show completion veil
-  const canShowVeil = false;
-
-  // Live week error state
-  if (liveWeekError) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center p-6">
-          <p className="text-red-600 mb-4">Impossibile determinare la settimana corrente: {liveWeekError}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-          >
-            Riprova
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Decide if the completion veil should be displayed for the current context
+  const canShowVeil = (() => {
+    if (weekComplete !== true) return false;
+    if (selectedWeek === 1 && rolledWeek1Once) return false;
+    if (selectedWeek === 2) {
+      try {
+        const k = hasWeekPredsKey(2, userKey);
+        const hasAny = typeof window !== 'undefined' ? localStorage.getItem(k) === '1' : false;
+        return hasAny;
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  })();
 
   // Loading state
-  if (loading || liveWeekLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">
-            {liveWeekLoading
-              ? 'Caricamento settimana corrente...'
-              : 'Caricamento partite...'
-            }
-          </p>
+          <p className="text-gray-600">Caricamento partite...</p>
         </div>
       </div>
     );
@@ -553,40 +588,57 @@ function GiocaPageContent() {
     );
   }
 
-  // No fixtures state
+  // No fixtures state - render TestGameHeader to provide active week
   if (fixtures.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center p-6">
-          <p className="text-gray-600 mb-4">Nessuna partita disponibile per questa settimana.</p>
-          <BottomNav
-            currentMode={currentMode}
-            selectedWeek={selectedWeek}
-            onNavigateToResults={handleGoToResults}
-            onNavigateToProfile={handleGoToProfile}
-          />
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        {/* TestGameHeader renders to calculate and provide active week */}
+        <TestGameHeader
+          selectedWeek={selectedWeek}
+          predictionsCount={predictionsCount}
+          timeToMatch={timeToMatch}
+          fixtures={fixtures}
+          isSticky={false}
+          onHeightChange={setHeaderHeight}
+          userKey={userKey}
+          onReset={resetPredictions}
+          onActiveWeekChange={handleActiveWeekChange}
+        />
+
+        {/* Loading message while waiting for active week calculation */}
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center p-6">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 mb-4">Caricamento settimana attiva...</p>
+          </div>
         </div>
+
+        <BottomNav
+          currentMode={currentMode}
+          selectedWeek={selectedWeek}
+          onNavigateToResults={handleGoToResults}
+          onNavigateToGioca={() => {}}
+          onNavigateToProfile={handleGoToProfile}
+          activeTab="gioca"
+        />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header - GameHeader for live mode */}
-      <GameHeader
-        currentMode={currentMode}
+      {/* TestGameHeader */}
+      <TestGameHeader
         selectedWeek={selectedWeek}
         predictionsCount={predictionsCount}
         timeToMatch={timeToMatch}
         fixtures={fixtures}
         isSticky={showSummaryScreen}
         onHeightChange={setHeaderHeight}
-        onReset={handlePlayAgain}
-        isInSkippedMode={isInSkippedMode}
-        skippedCardIndexes={skippedCardIndexes}
-        currentFixtureIndex={currentFixtureIndex}
+        userKey={userKey}
+        onReset={resetPredictions}
+        onActiveWeekChange={handleActiveWeekChange}
       />
-
 
       {/* Main Content */}
       <div className="flex-1 relative overflow-hidden px-4">
@@ -604,7 +656,7 @@ function GiocaPageContent() {
             }`}>
               <div className="w-full max-w-sm">
                 <MatchCard
-                  key={`current-card-${currentFixture.id}-idx-${currentFixtureIndex}-zindex-${cardZIndex}`}
+                  key={`test-current-card-${currentFixture.id}-idx-${currentFixtureIndex}-zindex-${cardZIndex}`}
                   fixture={currentFixture}
                   matchCard={currentMatchCard}
                   onPrediction={handleCardPrediction}
@@ -675,12 +727,33 @@ function GiocaPageContent() {
         activeTab="gioca"
       />
 
+      {/* Veil when week is completed (Test Mode). Hidden for Week 1 once rollover occurred, to avoid blocking UI when user navigates back. Also hidden when summary screen is showing. */}
+      {canShowVeil && !showSummaryScreen && (
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+          <div className="fixed top-[calc(env(safe-area-inset-top)+12px)] left-1/2 -translate-x-1/2 w-[88%] max-w-md pointer-events-auto">
+            <div className="bg-white rounded-2xl shadow-2xl p-6 text-center">
+              <h3 className="text-xl font-semibold text-black mb-2">Giornata completata</h3>
+              <p className="text-sm text-gray-700 mb-5">Hai già effettuato 10 scelte per questa settimana. Vai alla pagina Risultati per rivelare e vedere l&apos;andamento.</p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => router.push(`/risultati/test-risultati?week=${selectedWeek}`)}
+                  className="px-5 py-2 rounded-md bg-purple-600 text-white font-medium hover:bg-purple-700"
+                >
+                  Vai a Risultati
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Game Summary Screen */}
-      {showSummaryScreen && (
-        <GameSummaryScreen
-          predictions={predictions}
+      {/* Test Game Summary Screen */}
+      {showSummaryScreen && userKey && selectedWeek && (
+        <TestGameSummaryScreen
           fixtures={fixtures}
+          userId={userKey}
+          week={selectedWeek}
           headerHeight={headerHeight}
         />
       )}
@@ -696,7 +769,7 @@ function GiocaPageContent() {
   );
 }
 
-export default function GiocaPage() {
+export default function TestGiocaPage() {
   return (
     <Suspense
       fallback={
@@ -705,7 +778,7 @@ export default function GiocaPage() {
         </div>
       }
     >
-      <GiocaPageContent />
+      <TestGiocaPageContent />
     </Suspense>
   );
 }

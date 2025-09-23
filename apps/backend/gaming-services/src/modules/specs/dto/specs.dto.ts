@@ -1,7 +1,7 @@
 import { IsEnum, IsUUID, IsNumber, IsString, Min, Max } from 'class-validator';
 
 export class CreateSpecDto {
-  @IsUUID(4, { message: 'user_id must be a valid UUID' })
+  @IsString({ message: 'user_id must be a string' })
   user_id: string;
 
   @IsUUID(4, { message: 'fixture_id must be a valid UUID' })

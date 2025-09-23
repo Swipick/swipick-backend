@@ -4,9 +4,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '@/src/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
-import { FaMedal } from 'react-icons/fa';
-import { RiFootballLine } from 'react-icons/ri';
-import { BsFillFilePersonFill } from 'react-icons/bs';
+import { BottomNav } from '@/app/gioca/components/Navigation/BottomNav';
+import type { GameMode } from '@/app/gioca/types';
 import { MdOutlineIosShare } from 'react-icons/md';
 
 // Test mode specific types
@@ -459,32 +458,14 @@ export default function TestProfiloPage() {
       </div>
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t"
-           style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0px)' }}>
-        <div className="flex">
-          <button
-            onClick={() => router.push('/risultati/test-risultati?mode=test')}
-            className="flex-1 text-center py-4"
-          >
-            <div className="text-gray-500 mb-1">
-              <FaMedal className="w-6 h-6 mx-auto" />
-            </div>
-            <span className="text-xs text-black">Risultati</span>
-          </button>
-          <button onClick={() => router.push('/gioca?mode=test')} className="flex-1 text-center py-4">
-            <div className="text-gray-500 mb-1">
-              <RiFootballLine className="w-6 h-6 mx-auto" />
-            </div>
-            <span className="text-xs text-black">Gioca</span>
-          </button>
-          <div className="flex-1 text-center py-4 border-b-2 border-purple-600">
-            <div className="text-purple-600 mb-1">
-              <BsFillFilePersonFill className="w-6 h-6 mx-auto" />
-            </div>
-            <span className="text-xs text-purple-600 font-medium">Profilo</span>
-          </div>
-        </div>
-      </div>
+      <BottomNav
+        currentMode="test"
+        selectedWeek={null}
+        onNavigateToResults={() => router.push('/risultati/test-risultati?mode=test')}
+        onNavigateToGioca={() => router.push('/gioca?mode=test')}
+        onNavigateToProfile={() => {}}
+        activeTab="profilo"
+      />
     </div>
   );
 }

@@ -9,9 +9,8 @@ import { useLiveWeek } from '@/app/gioca/hooks/useLiveWeek';
 import { resolveTeamLogo } from '@/lib/club-logos';
 import { IoShareOutline } from 'react-icons/io5';
 import { AnimatePresence, motion } from 'framer-motion';
-import { FaMedal } from 'react-icons/fa';
-import { RiFootballLine } from 'react-icons/ri';
-import { BsFillFilePersonFill } from 'react-icons/bs';
+import { BottomNav } from '@/app/gioca/components/Navigation/BottomNav';
+import type { GameMode } from '@/app/gioca/types';
 import { Toast } from '@/src/components/Toast';
 import confetti from 'canvas-confetti';
 // Gradient header is inlined; page background is white per design
@@ -1057,38 +1056,18 @@ function RisultatiPageContent() {
           </div>
         )}
 
-        {/* Bottom Navigation (icons and styles match Gioca/Profilo) */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t pb-[max(env(safe-area-inset-bottom),0px)]">
-          <div className="flex">
-            <div className="flex-1 text-center py-4 border-b-2 border-purple-600">
-              <div className="text-purple-600 mb-1">
-                <FaMedal className="w-6 h-6 mx-auto" />
-              </div>
-              <span className="text-xs text-purple-600 font-medium">Risultati</span>
-            </div>
-            <button
-              onClick={() => {
-                if (DEBUG_RISULTATI) { try { console.log('[risultati] nav -> gioca', { week: selectedWeek }); } catch {} }
-                router.push('/gioca');
-              }}
-              className="flex-1 text-center py-4"
-            >
-              <div className="text-gray-500 mb-1">
-                <RiFootballLine className="w-6 h-6 mx-auto" />
-              </div>
-              <span className="text-xs text-black">Gioca</span>
-            </button>
-            <button
-              onClick={() => router.push('/profilo')}
-              className="flex-1 text-center py-4"
-            >
-              <div className="text-gray-500 mb-1">
-                <BsFillFilePersonFill className="w-6 h-6 mx-auto" />
-              </div>
-              <span className="text-xs text-black">Profilo</span>
-            </button>
-          </div>
-        </div>
+        {/* Bottom Navigation */}
+        <BottomNav
+          currentMode={mode as GameMode}
+          selectedWeek={selectedWeek}
+          onNavigateToResults={() => {}}
+          onNavigateToGioca={() => {
+            if (DEBUG_RISULTATI) { try { console.log('[risultati] nav -> gioca', { week: selectedWeek }); } catch {} }
+            router.push('/gioca');
+          }}
+          onNavigateToProfile={() => router.push('/profilo')}
+          activeTab="risultati"
+        />
       </div>
       {/* Share toast */}
       {shareToast && (
