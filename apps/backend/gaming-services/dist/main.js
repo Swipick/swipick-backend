@@ -118934,14 +118934,18 @@ let FixturesService = FixturesService_1 = class FixturesService {
             this.logger.log('💾 Processing and inserting fixtures...');
             const savedFixtures = [];
             for (const apiFixture of apiFixtures) {
-                const weekMatch = apiFixture.league.round.match(/(\d+)$/);
+                const roundString = apiFixture.league?.round || '';
+                const weekMatch = roundString.match(/(\d+)$/);
                 const week = weekMatch ? parseInt(weekMatch[1], 10) : 1;
                 let result = null;
-                if (apiFixture.status.short === 'FT' && apiFixture.goals.home !== null && apiFixture.goals.away !== null) {
-                    if (apiFixture.goals.home > apiFixture.goals.away) {
+                const apiStatus = apiFixture.fixture?.status?.short || apiFixture.status?.short;
+                const homeGoals = apiFixture.goals?.home;
+                const awayGoals = apiFixture.goals?.away;
+                if (apiStatus === 'FT' && homeGoals !== null && awayGoals !== null) {
+                    if (homeGoals > awayGoals) {
                         result = '1';
                     }
-                    else if (apiFixture.goals.home < apiFixture.goals.away) {
+                    else if (homeGoals < awayGoals) {
                         result = '2';
                     }
                     else {
@@ -118949,23 +118953,23 @@ let FixturesService = FixturesService_1 = class FixturesService {
                     }
                 }
                 let status = 'SCHEDULED';
-                if (apiFixture.status.short === 'FT') {
+                if (apiStatus === 'FT') {
                     status = 'FINISHED';
                 }
-                else if (['1H', '2H', 'HT', 'ET', 'BT', 'P'].includes(apiFixture.status.short)) {
+                else if (['1H', '2H', 'HT', 'ET', 'BT', 'P'].includes(apiStatus || '')) {
                     status = 'LIVE';
                 }
                 const fixture = this.fixtureRepository.create({
-                    home_team: apiFixture.teams.home.name,
-                    away_team: apiFixture.teams.away.name,
-                    match_date: new Date(apiFixture.date),
-                    stadium: apiFixture.venue.name || 'TBD',
+                    home_team: apiFixture.teams?.home?.name || 'Unknown',
+                    away_team: apiFixture.teams?.away?.name || 'Unknown',
+                    match_date: new Date(apiFixture.fixture?.date || apiFixture.date),
+                    stadium: apiFixture.fixture?.venue?.name || apiFixture.venue?.name || 'TBD',
                     week: week,
                     result: result,
-                    home_score: apiFixture.goals.home,
-                    away_score: apiFixture.goals.away,
+                    home_score: homeGoals,
+                    away_score: awayGoals,
                     status: status,
-                    external_api_id: `api_football_${apiFixture.id}`,
+                    external_api_id: `api_football_${apiFixture.fixture?.id || apiFixture.id}`,
                     created_at: new Date(),
                     updated_at: new Date(),
                 });
