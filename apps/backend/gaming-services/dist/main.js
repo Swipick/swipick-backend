@@ -120609,20 +120609,22 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
             return [];
         }
         const isWeekOne = weekNumber <= 1;
-        const completedUpToWeek = isWeekOne ? [] : await this.fixtureRepository
-            .createQueryBuilder('fixture')
-            .where('fixture.week <= :week', { week: weekNumber })
-            .andWhere('fixture.home_score IS NOT NULL AND fixture.away_score IS NOT NULL')
-            .orderBy('fixture.match_date', 'ASC')
-            .getMany();
-        let userPredictions = new Map();
+        const completedUpToWeek = isWeekOne
+            ? []
+            : await this.fixtureRepository
+                .createQueryBuilder('fixture')
+                .where('fixture.week <= :week', { week: weekNumber })
+                .andWhere('fixture.home_score IS NOT NULL AND fixture.away_score IS NOT NULL')
+                .orderBy('fixture.match_date', 'ASC')
+                .getMany();
+        const userPredictions = new Map();
         if (userId && !isWeekOne && completedUpToWeek.length > 0) {
             try {
-                const allFixtureIds = completedUpToWeek.map(f => f.id);
+                const allFixtureIds = completedUpToWeek.map((f) => f.id);
                 const predictions = await this.specRepository.find({
                     where: { user_id: userId, fixture_id: (0, typeorm_2.In)(allFixtureIds) },
                 });
-                predictions.forEach(pred => {
+                predictions.forEach((pred) => {
                     if (pred.choice !== 'SKIP') {
                         userPredictions.set(pred.fixture_id, pred.choice);
                     }
@@ -120636,10 +120638,15 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
         for (const fixture of fixtures) {
             const priorForThisFixture = isWeekOne
                 ? []
-                : completedUpToWeek.filter(f => new Date(f.match_date).getTime() < new Date(fixture.match_date).getTime());
+                : completedUpToWeek.filter((f) => new Date(f.match_date).getTime() <
+                    new Date(fixture.match_date).getTime());
+            console.log(`🔍 [MATCH_CARDS] Processing fixture: ${fixture.home_team} vs ${fixture.away_team}`);
+            console.log(`🔍 [MATCH_CARDS] Fixture date: ${fixture.match_date}`);
+            console.log(`🔍 [MATCH_CARDS] Total completed up to week: ${completedUpToWeek.length}`);
+            console.log(`🔍 [MATCH_CARDS] Prior fixtures for this match: ${priorForThisFixture.length}`);
             const standings = this.computeStandings(priorForThisFixture);
-            const { results: homeLast5, fixtureIds: homeFixtureIds, wasHomeFlags: homeWasHomeFlags } = this.computeLast5WithIds(priorForThisFixture, fixture.home_team);
-            const { results: awayLast5, fixtureIds: awayFixtureIds, wasHomeFlags: awayWasHomeFlags } = this.computeLast5WithIds(priorForThisFixture, fixture.away_team);
+            const { results: homeLast5, fixtureIds: homeFixtureIds, wasHomeFlags: homeWasHomeFlags, } = this.computeLast5WithIds(priorForThisFixture, fixture.home_team);
+            const { results: awayLast5, fixtureIds: awayFixtureIds, wasHomeFlags: awayWasHomeFlags, } = this.computeLast5WithIds(priorForThisFixture, fixture.away_team);
             const homeWinRate = this.computeWinRate(priorForThisFixture, fixture.home_team, 'home');
             const awayWinRate = this.computeWinRate(priorForThisFixture, fixture.away_team, 'away');
             const kickoff = {
@@ -120685,8 +120692,16 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
         const teamStats = new Map();
         for (const fixture of priorFixtures) {
             if (fixture.home_score !== null && fixture.away_score !== null) {
-                const homeStats = teamStats.get(fixture.home_team) || { points: 0, goalsFor: 0, goalsAgainst: 0 };
-                const awayStats = teamStats.get(fixture.away_team) || { points: 0, goalsFor: 0, goalsAgainst: 0 };
+                const homeStats = teamStats.get(fixture.home_team) || {
+                    points: 0,
+                    goalsFor: 0,
+                    goalsAgainst: 0,
+                };
+                const awayStats = teamStats.get(fixture.away_team) || {
+                    points: 0,
+                    goalsFor: 0,
+                    goalsAgainst: 0,
+                };
                 homeStats.goalsFor += fixture.home_score;
                 homeStats.goalsAgainst += fixture.away_score;
                 awayStats.goalsFor += fixture.away_score;
@@ -120705,12 +120720,11 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
                 teamStats.set(fixture.away_team, awayStats);
             }
         }
-        const sortedTeams = Array.from(teamStats.entries())
-            .sort(([, a], [, b]) => {
+        const sortedTeams = Array.from(teamStats.entries()).sort(([, a], [, b]) => {
             const pointsDiff = b.points - a.points;
             if (pointsDiff !== 0)
                 return pointsDiff;
-            return (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst);
+            return b.goalsFor - b.goalsAgainst - (a.goalsFor - a.goalsAgainst);
         });
         const standings = new Map();
         sortedTeams.forEach(([teamName], index) => {
@@ -120720,11 +120734,11 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
     }
     computeLast5Results(priorFixtures, teamName) {
         const teamFixtures = priorFixtures
-            .filter(f => f.home_team === teamName || f.away_team === teamName)
-            .filter(f => f.home_score !== null && f.away_score !== null)
+            .filter((f) => f.home_team === teamName || f.away_team === teamName)
+            .filter((f) => f.home_score !== null && f.away_score !== null)
             .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())
             .slice(0, 5);
-        return teamFixtures.map(fixture => {
+        return teamFixtures.map((fixture) => {
             if (fixture.home_score > fixture.away_score) {
                 return '1';
             }
@@ -120737,13 +120751,13 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
         });
     }
     computeWinRate(priorFixtures, teamName, venue) {
-        const relevantFixtures = priorFixtures.filter(f => {
+        const relevantFixtures = priorFixtures.filter((f) => {
             const isRelevant = venue === 'home' ? f.home_team === teamName : f.away_team === teamName;
             return isRelevant && f.home_score !== null && f.away_score !== null;
         });
         if (relevantFixtures.length === 0)
             return null;
-        const wins = relevantFixtures.filter(fixture => {
+        const wins = relevantFixtures.filter((fixture) => {
             const won = venue === 'home'
                 ? fixture.home_score > fixture.away_score
                 : fixture.away_score > fixture.home_score;
@@ -120753,39 +120767,45 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
     }
     getTeamLogo(teamName) {
         const logoMap = {
-            'Juventus': '/teams/JuventusFcLogo.png',
-            'Inter': '/teams/FcInternazionaleMilano.png',
-            'Milan': '/teams/AcMilanLogo.png',
-            'Roma': '/teams/AsRomaLogo.png',
-            'Napoli': '/teams/NapolLogo.png',
-            'Lazio': '/teams/StemmaLazioCentenarioLogo.png',
-            'Atalanta': '/teams/AtalantaBcLogo.png',
-            'Fiorentina': '/teams/AcfFiorentinaLogo.png',
-            'Bologna': '/teams/LogobolognaLogo.png',
-            'Torino': '/teams/TorinoFcLogo.png',
-            'Genoa': '/teams/GenoaCfcLogo.png',
-            'Lecce': '/teams/LecceLogo.png',
-            'Sassuolo': '/teams/SassuoloLogo.png',
-            'Cagliari': '/teams/CagliariCalcioLogo.png',
-            'Como': '/teams/ComoLogo.png',
-            'Parma': '/teams/ParmaLogo.png',
-            'Cremonese': '/teams/CremoneseLogo.png',
-            'Udinese': '/teams/UdineseLogo.png',
-            'Venezia': '/teams/VeneziaFcLogo.png',
-            'Monza': '/teams/AcMonzaLogo.png',
-            'Empoli': '/teams/EmpoliFcLogo.png',
-            'Verona': '/teams/HellasVeronaFcLogo.png',
-            'Pisa': '/teams/PisaLogo.png',
+            Juventus: '/teams/JuventusFcLogo.png',
+            Inter: '/teams/FcInternazionaleMilano.png',
+            Milan: '/teams/AcMilanLogo.png',
+            Roma: '/teams/AsRomaLogo.png',
+            Napoli: '/teams/NapolLogo.png',
+            Lazio: '/teams/StemmaLazioCentenarioLogo.png',
+            Atalanta: '/teams/AtalantaBcLogo.png',
+            Fiorentina: '/teams/AcfFiorentinaLogo.png',
+            Bologna: '/teams/LogobolognaLogo.png',
+            Torino: '/teams/TorinoFcLogo.png',
+            Genoa: '/teams/GenoaCfcLogo.png',
+            Lecce: '/teams/LecceLogo.png',
+            Sassuolo: '/teams/SassuoloLogo.png',
+            Cagliari: '/teams/CagliariCalcioLogo.png',
+            Como: '/teams/ComoLogo.png',
+            Parma: '/teams/ParmaLogo.png',
+            Cremonese: '/teams/CremoneseLogo.png',
+            Udinese: '/teams/UdineseLogo.png',
+            Venezia: '/teams/VeneziaFcLogo.png',
+            Monza: '/teams/AcMonzaLogo.png',
+            Empoli: '/teams/EmpoliFcLogo.png',
+            Verona: '/teams/HellasVeronaFcLogo.png',
+            Pisa: '/teams/PisaLogo.png',
         };
         return logoMap[teamName] || null;
     }
     computeLast5WithIds(priorFixtures, teamName) {
-        const teamFixtures = priorFixtures
-            .filter(f => f.home_team === teamName || f.away_team === teamName)
-            .filter(f => f.home_score !== null && f.away_score !== null)
-            .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())
-            .slice(0, 5);
-        const results = teamFixtures.map(fixture => {
+        console.log(`🔍 [MATCH_CARDS] computeLast5WithIds for team: ${teamName}`);
+        console.log(`🔍 [MATCH_CARDS] Total prior fixtures: ${priorFixtures.length}`);
+        const teamFixtures = priorFixtures.filter((f) => f.home_team === teamName || f.away_team === teamName);
+        console.log(`🔍 [MATCH_CARDS] Team fixtures (before score filter): ${teamFixtures.length}`);
+        teamFixtures.forEach((f) => console.log(`🔍 [MATCH_CARDS] - ${f.home_team} vs ${f.away_team}, scores: ${f.home_score}-${f.away_score}, date: ${f.match_date}`));
+        const completedTeamFixtures = teamFixtures.filter((f) => f.home_score !== null && f.away_score !== null);
+        console.log(`🔍 [MATCH_CARDS] Completed team fixtures: ${completedTeamFixtures.length}`);
+        const sortedFixtures = completedTeamFixtures.sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime());
+        const last5Fixtures = sortedFixtures.slice(0, 5);
+        console.log(`🔍 [MATCH_CARDS] Last 5 fixtures for ${teamName}:`);
+        last5Fixtures.forEach((f) => console.log(`🔍 [MATCH_CARDS] - ${f.home_team} ${f.home_score}-${f.away_score} ${f.away_team}, date: ${f.match_date}`));
+        const results = last5Fixtures.map((fixture) => {
             if (fixture.home_score > fixture.away_score) {
                 return '1';
             }
@@ -120796,8 +120816,10 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
                 return 'X';
             }
         });
-        const fixtureIds = teamFixtures.map(f => f.id);
-        const wasHomeFlags = teamFixtures.map(f => f.home_team === teamName);
+        const fixtureIds = last5Fixtures.map((f) => f.id);
+        const wasHomeFlags = last5Fixtures.map((f) => f.home_team === teamName);
+        console.log(`🔍 [MATCH_CARDS] Final results for ${teamName}: ${results.join(',')}`);
+        console.log(`🔍 [MATCH_CARDS] Final fixture IDs: ${fixtureIds.join(',')}`);
         return { results, fixtureIds, wasHomeFlags };
     }
     createFormWithOverlay(results, fixtureIds, userPredictions, wasHomeFlags) {
@@ -120806,7 +120828,7 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
         return results.map((code, index) => {
             const fixtureId = fixtureIds[index];
             const predicted = userPredictions.get(fixtureIds[index]) || null;
-            const correct = predicted ? (predicted === code) : null;
+            const correct = predicted ? predicted === code : null;
             const wasHome = wasHomeFlags[index] || false;
             return {
                 fixtureId,

@@ -3,7 +3,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Fixture } from '../../entities/fixture.entity';
 import { Spec } from '../../entities/spec.entity';
-import { MatchCardDto, MatchCardKickoffDto, MatchCardTeamHomeDto, MatchCardTeamAwayDto, ResultCode, Last5ItemDto } from './dto/match-cards.dto';
+import {
+  MatchCardDto,
+  MatchCardKickoffDto,
+  MatchCardTeamHomeDto,
+  MatchCardTeamAwayDto,
+  ResultCode,
+  Last5ItemDto,
+} from './dto/match-cards.dto';
 
 interface CacheEntry {
   data: MatchCardDto[];
@@ -26,10 +33,13 @@ export class MatchCardsService {
   /**
    * Get enriched match cards for a specific week with statistics
    */
-  async getMatchCardsByWeek(weekNumber: number, userId?: string): Promise<MatchCardDto[]> {
+  async getMatchCardsByWeek(
+    weekNumber: number,
+    userId?: string,
+  ): Promise<MatchCardDto[]> {
     const cacheKey = `live-match-cards-${weekNumber}-${userId || 'anonymous'}`;
     const cached = this.matchCardsCache.get(cacheKey);
-    
+
     if (cached && cached.expiresAt > Date.now()) {
       this.logger.debug(`Cache hit for match cards week ${weekNumber}`);
       return cached.data;
@@ -50,28 +60,35 @@ export class MatchCardsService {
     const isWeekOne = weekNumber <= 1;
 
     // Preload all completed fixtures up to and including the requested week
-    const completedUpToWeek = isWeekOne ? [] : await this.fixtureRepository
-      .createQueryBuilder('fixture')
-      .where('fixture.week <= :week', { week: weekNumber })
-      .andWhere('fixture.home_score IS NOT NULL AND fixture.away_score IS NOT NULL')
-      .orderBy('fixture.match_date', 'ASC')
-      .getMany();
+    const completedUpToWeek = isWeekOne
+      ? []
+      : await this.fixtureRepository
+          .createQueryBuilder('fixture')
+          .where('fixture.week <= :week', { week: weekNumber })
+          .andWhere(
+            'fixture.home_score IS NOT NULL AND fixture.away_score IS NOT NULL',
+          )
+          .orderBy('fixture.match_date', 'ASC')
+          .getMany();
 
     // Preload user predictions overlay for any completed fixtures we might include in last-5
-    let userPredictions = new Map<string, ResultCode>();
+    const userPredictions = new Map<string, ResultCode>();
     if (userId && !isWeekOne && completedUpToWeek.length > 0) {
       try {
-        const allFixtureIds = completedUpToWeek.map(f => f.id);
+        const allFixtureIds = completedUpToWeek.map((f) => f.id);
         const predictions = await this.specRepository.find({
           where: { user_id: userId, fixture_id: In(allFixtureIds) },
         });
-        predictions.forEach(pred => {
+        predictions.forEach((pred) => {
           if (pred.choice !== 'SKIP') {
             userPredictions.set(pred.fixture_id, pred.choice as ResultCode);
           }
         });
       } catch (error) {
-        this.logger.warn(`Failed to fetch user predictions for ${userId}:`, error);
+        this.logger.warn(
+          `Failed to fetch user predictions for ${userId}:`,
+          error,
+        );
       }
     }
 
@@ -82,27 +99,66 @@ export class MatchCardsService {
       // Prior fixtures are any completed fixtures strictly before this fixture's kickoff
       const priorForThisFixture = isWeekOne
         ? []
-        : completedUpToWeek.filter(f => new Date(f.match_date).getTime() < new Date(fixture.match_date).getTime());
+        : completedUpToWeek.filter(
+            (f) =>
+              new Date(f.match_date).getTime() <
+              new Date(fixture.match_date).getTime(),
+          );
+
+      console.log(
+        `🔍 [MATCH_CARDS] Processing fixture: ${fixture.home_team} vs ${fixture.away_team}`,
+      );
+      console.log(`🔍 [MATCH_CARDS] Fixture date: ${fixture.match_date}`);
+      console.log(
+        `🔍 [MATCH_CARDS] Total completed up to week: ${completedUpToWeek.length}`,
+      );
+      console.log(
+        `🔍 [MATCH_CARDS] Prior fixtures for this match: ${priorForThisFixture.length}`,
+      );
 
       // Standings up to this moment
       const standings = this.computeStandings(priorForThisFixture);
 
       // Last-5 and win rates from prior context
-      const { results: homeLast5, fixtureIds: homeFixtureIds, wasHomeFlags: homeWasHomeFlags } =
-        this.computeLast5WithIds(priorForThisFixture, fixture.home_team);
-      const { results: awayLast5, fixtureIds: awayFixtureIds, wasHomeFlags: awayWasHomeFlags } =
-        this.computeLast5WithIds(priorForThisFixture, fixture.away_team);
+      const {
+        results: homeLast5,
+        fixtureIds: homeFixtureIds,
+        wasHomeFlags: homeWasHomeFlags,
+      } = this.computeLast5WithIds(priorForThisFixture, fixture.home_team);
+      const {
+        results: awayLast5,
+        fixtureIds: awayFixtureIds,
+        wasHomeFlags: awayWasHomeFlags,
+      } = this.computeLast5WithIds(priorForThisFixture, fixture.away_team);
 
-      const homeWinRate = this.computeWinRate(priorForThisFixture, fixture.home_team, 'home');
-      const awayWinRate = this.computeWinRate(priorForThisFixture, fixture.away_team, 'away');
+      const homeWinRate = this.computeWinRate(
+        priorForThisFixture,
+        fixture.home_team,
+        'home',
+      );
+      const awayWinRate = this.computeWinRate(
+        priorForThisFixture,
+        fixture.away_team,
+        'away',
+      );
       const kickoff: MatchCardKickoffDto = {
         iso: new Date(fixture.match_date).toISOString(),
         display: this.formatDisplayDate(new Date(fixture.match_date)),
       };
 
       // Create form with user overlay
-      const homeForm = this.createFormWithOverlay(homeLast5, homeFixtureIds, userPredictions, homeWasHomeFlags);
-      const awayForm = this.createFormWithOverlay(awayLast5, awayFixtureIds, userPredictions, awayWasHomeFlags);
+      const homeForm = this.createFormWithOverlay(
+        homeLast5,
+        homeFixtureIds,
+        userPredictions,
+        homeWasHomeFlags,
+      );
+      const awayForm = this.createFormWithOverlay(
+        awayLast5,
+        awayFixtureIds,
+        userPredictions,
+        awayWasHomeFlags,
+      );
 
       const homeTeam: MatchCardTeamHomeDto = {
         name: fixture.home_team,
@@ -140,7 +196,9 @@ export class MatchCardsService {
       expiresAt: Date.now() + this.CACHE_TTL_MS,
     });
 
-    this.logger.log(`Generated ${cards.length} match cards for week ${weekNumber}`);
+    this.logger.log(
+      `Generated ${cards.length} match cards for week ${weekNumber}`,
+    );
     return cards;
   }
 
@@ -148,12 +206,23 @@ export class MatchCardsService {
    * Compute standings based on prior fixtures
    */
   private computeStandings(priorFixtures: Fixture[]): Map<string, number> {
-    const teamStats = new Map<string, { points: number; goalsFor: number; goalsAgainst: number }>();
+    const teamStats = new Map<
+      string,
+      { points: number; goalsFor: number; goalsAgainst: number }
+    >();
 
     for (const fixture of priorFixtures) {
       if (fixture.home_score !== null && fixture.away_score !== null) {
-        const homeStats = teamStats.get(fixture.home_team) || { points: 0, goalsFor: 0, goalsAgainst: 0 };
-        const awayStats = teamStats.get(fixture.away_team) || { points: 0, goalsFor: 0, goalsAgainst: 0 };
+        const homeStats = teamStats.get(fixture.home_team) || {
+          points: 0,
+          goalsFor: 0,
+          goalsAgainst: 0,
+        };
+        const awayStats = teamStats.get(fixture.away_team) || {
+          points: 0,
+          goalsFor: 0,
+          goalsAgainst: 0,
+        };
 
         homeStats.goalsFor += fixture.home_score;
         homeStats.goalsAgainst += fixture.away_score;
@@ -178,12 +247,11 @@ export class MatchCardsService {
     }
 
     // Sort teams by points, then goal difference
-    const sortedTeams = Array.from(teamStats.entries())
-      .sort(([, a], [, b]) => {
-        const pointsDiff = b.points - a.points;
-        if (pointsDiff !== 0) return pointsDiff;
-        return (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst);
-      });
+    const sortedTeams = Array.from(teamStats.entries()).sort(([, a], [, b]) => {
+      const pointsDiff = b.points - a.points;
+      if (pointsDiff !== 0) return pointsDiff;
+      return b.goalsFor - b.goalsAgainst - (a.goalsFor - a.goalsAgainst);
+    });
 
     const standings = new Map<string, number>();
     sortedTeams.forEach(([teamName], index) => {
@@ -196,14 +264,20 @@ export class MatchCardsService {
   /**
    * Compute last 5 results for a team
    */
-  private computeLast5Results(priorFixtures: Fixture[], teamName: string): ResultCode[] {
+  private computeLast5Results(
+    priorFixtures: Fixture[],
+    teamName: string,
+  ): ResultCode[] {
     const teamFixtures = priorFixtures
-      .filter(f => f.home_team === teamName || f.away_team === teamName)
-      .filter(f => f.home_score !== null && f.away_score !== null)
-      .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())
+      .filter((f) => f.home_team === teamName || f.away_team === teamName)
+      .filter((f) => f.home_score !== null && f.away_score !== null)
+      .sort(
+        (a, b) =>
+          new Date(b.match_date).getTime() - new Date(a.match_date).getTime(),
+      )
       .slice(0, 5);
 
-    return teamFixtures.map(fixture => {
+    return teamFixtures.map((fixture) => {
       if (fixture.home_score! > fixture.away_score!) {
         return '1'; // Home team won
       } else if (fixture.home_score! < fixture.away_score!) {
@@ -217,18 +291,24 @@ export class MatchCardsService {
   /**
    * Compute win rate for home/away games
    */
-  private computeWinRate(priorFixtures: Fixture[], teamName: string, venue: 'home' | 'away'): number | null {
-    const relevantFixtures = priorFixtures.filter(f => {
-      const isRelevant = venue === 'home' ? f.home_team === teamName : f.away_team === teamName;
+  private computeWinRate(
+    priorFixtures: Fixture[],
+    teamName: string,
+    venue: 'home' | 'away',
+  ): number | null {
+    const relevantFixtures = priorFixtures.filter((f) => {
+      const isRelevant =
+        venue === 'home' ? f.home_team === teamName : f.away_team === teamName;
       return isRelevant && f.home_score !== null && f.away_score !== null;
     });
 
     if (relevantFixtures.length === 0) return null;
 
-    const wins = relevantFixtures.filter(fixture => {
-      const won = venue === 'home' 
-        ? fixture.home_score! > fixture.away_score!
-        : fixture.away_score! > fixture.home_score!;
+    const wins = relevantFixtures.filter((fixture) => {
+      const won =
+        venue === 'home'
+          ? fixture.home_score! > fixture.away_score!
+          : fixture.away_score! > fixture.home_score!;
       return won;
     }).length;
 
@@ -242,46 +322,83 @@ export class MatchCardsService {
     // Map exact database team names to logo URLs (matching frontend public/teams/ folder)
     const logoMap: Record<string, string> = {
       // Core Serie A teams from fixtures
-      'Juventus': '/teams/JuventusFcLogo.png',
-      'Inter': '/teams/FcInternazionaleMilano.png', 
-      'Milan': '/teams/AcMilanLogo.png',
-      'Roma': '/teams/AsRomaLogo.png',
-      'Napoli': '/teams/NapolLogo.png',
-      'Lazio': '/teams/StemmaLazioCentenarioLogo.png',
-      'Atalanta': '/teams/AtalantaBcLogo.png',
-      'Fiorentina': '/teams/AcfFiorentinaLogo.png',
-      'Bologna': '/teams/LogobolognaLogo.png',
-      'Torino': '/teams/TorinoFcLogo.png',
-      'Genoa': '/teams/GenoaCfcLogo.png',
-      'Lecce': '/teams/LecceLogo.png',
-      'Sassuolo': '/teams/SassuoloLogo.png',
-      'Cagliari': '/teams/CagliariCalcioLogo.png',
-      'Como': '/teams/ComoLogo.png',
-      'Parma': '/teams/ParmaLogo.png',
-      'Cremonese': '/teams/CremoneseLogo.png',
-      'Udinese': '/teams/UdineseLogo.png',
-      'Venezia': '/teams/VeneziaFcLogo.png',
-      'Monza': '/teams/AcMonzaLogo.png',
-      'Empoli': '/teams/EmpoliFcLogo.png',
-      'Verona': '/teams/HellasVeronaFcLogo.png',
-      'Pisa': '/teams/PisaLogo.png',
+      Juventus: '/teams/JuventusFcLogo.png',
+      Inter: '/teams/FcInternazionaleMilano.png',
+      Milan: '/teams/AcMilanLogo.png',
+      Roma: '/teams/AsRomaLogo.png',
+      Napoli: '/teams/NapolLogo.png',
+      Lazio: '/teams/StemmaLazioCentenarioLogo.png',
+      Atalanta: '/teams/AtalantaBcLogo.png',
+      Fiorentina: '/teams/AcfFiorentinaLogo.png',
+      Bologna: '/teams/LogobolognaLogo.png',
+      Torino: '/teams/TorinoFcLogo.png',
+      Genoa: '/teams/GenoaCfcLogo.png',
+      Lecce: '/teams/LecceLogo.png',
+      Sassuolo: '/teams/SassuoloLogo.png',
+      Cagliari: '/teams/CagliariCalcioLogo.png',
+      Como: '/teams/ComoLogo.png',
+      Parma: '/teams/ParmaLogo.png',
+      Cremonese: '/teams/CremoneseLogo.png',
+      Udinese: '/teams/UdineseLogo.png',
+      Venezia: '/teams/VeneziaFcLogo.png',
+      Monza: '/teams/AcMonzaLogo.png',
+      Empoli: '/teams/EmpoliFcLogo.png',
+      Verona: '/teams/HellasVeronaFcLogo.png',
+      Pisa: '/teams/PisaLogo.png',
       // Add more teams as they appear in fixtures
     };
-    
+
     return logoMap[teamName] || null;
   }
 
   /**
    * Compute last 5 results with fixture IDs for a team
    */
-  private computeLast5WithIds(priorFixtures: Fixture[], teamName: string): { results: ResultCode[]; fixtureIds: string[]; wasHomeFlags: boolean[] } {
-    const teamFixtures = priorFixtures
-      .filter(f => f.home_team === teamName || f.away_team === teamName)
-      .filter(f => f.home_score !== null && f.away_score !== null)
-      .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())
-      .slice(0, 5);
+  private computeLast5WithIds(
+    priorFixtures: Fixture[],
+    teamName: string,
+  ): { results: ResultCode[]; fixtureIds: string[]; wasHomeFlags: boolean[] } {
+    console.log(`🔍 [MATCH_CARDS] computeLast5WithIds for team: ${teamName}`);
+    console.log(
+      `🔍 [MATCH_CARDS] Total prior fixtures: ${priorFixtures.length}`,
+    );
 
-    const results = teamFixtures.map(fixture => {
+    const teamFixtures = priorFixtures.filter(
+      (f) => f.home_team === teamName || f.away_team === teamName,
+    );
+
+    console.log(
+      `🔍 [MATCH_CARDS] Team fixtures (before score filter): ${teamFixtures.length}`,
+    );
+    teamFixtures.forEach((f) =>
+      console.log(
+        `🔍 [MATCH_CARDS] - ${f.home_team} vs ${f.away_team}, scores: ${f.home_score}-${f.away_score}, date: ${f.match_date}`,
+      ),
+    );
+
+    const completedTeamFixtures = teamFixtures.filter(
+      (f) => f.home_score !== null && f.away_score !== null,
+    );
+
+    console.log(
+      `🔍 [MATCH_CARDS] Completed team fixtures: ${completedTeamFixtures.length}`,
+    );
+
+    const sortedFixtures = completedTeamFixtures.sort(
+      (a, b) =>
+        new Date(b.match_date).getTime() - new Date(a.match_date).getTime(),
+    );
+
+    const last5Fixtures = sortedFixtures.slice(0, 5);
+
+    console.log(`🔍 [MATCH_CARDS] Last 5 fixtures for ${teamName}:`);
+    last5Fixtures.forEach((f) =>
+      console.log(
+        `🔍 [MATCH_CARDS] - ${f.home_team} ${f.home_score}-${f.away_score} ${f.away_team}, date: ${f.match_date}`,
+      ),
+    );
+
+    const results = last5Fixtures.map((fixture) => {
       if (fixture.home_score! > fixture.away_score!) {
         return '1'; // Home team won
       } else if (fixture.home_score! < fixture.away_score!) {
@@ -291,9 +408,14 @@ export class MatchCardsService {
       }
     });
 
-    const fixtureIds = teamFixtures.map(f => f.id);
-    const wasHomeFlags = teamFixtures.map(f => f.home_team === teamName);
-    
+    const fixtureIds = last5Fixtures.map((f) => f.id);
+    const wasHomeFlags = last5Fixtures.map((f) => f.home_team === teamName);
+
+    console.log(
+      `🔍 [MATCH_CARDS] Final results for ${teamName}: ${results.join(',')}`,
+    );
+    console.log(`🔍 [MATCH_CARDS] Final fixture IDs: ${fixtureIds.join(',')}`);
+
     return { results, fixtureIds, wasHomeFlags };
   }
 
@@ -304,14 +426,14 @@ export class MatchCardsService {
     results: ResultCode[],
     fixtureIds: string[],
     userPredictions: Map<string, ResultCode>,
-    wasHomeFlags: boolean[]
+    wasHomeFlags: boolean[],
   ): Last5ItemDto[] {
     if (!results.length || !fixtureIds.length) return [];
 
     return results.map((code, index) => {
       const fixtureId = fixtureIds[index]; // Keep as string
       const predicted = userPredictions.get(fixtureIds[index]) || null;
-      const correct = predicted ? (predicted === code) : null;
+      const correct = predicted ? predicted === code : null;
       const wasHome = wasHomeFlags[index] || false;
 
       return {
@@ -336,7 +458,7 @@ export class MatchCardsService {
       minute: '2-digit',
       // No timeZone conversion - database already stores Italian time
     };
-    
+
     const formatted = date.toLocaleString('it-IT', options);
     return formatted.replace(',', ' –');
   }
