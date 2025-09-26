@@ -116291,6 +116291,16 @@ __decorate([
     __metadata("design:type", Number)
 ], Spec.prototype, "week", void 0);
 __decorate([
+    (0, typeorm_1.Column)({
+        type: 'enum',
+        enum: ['live', 'test'],
+        default: 'live',
+        nullable: false,
+    }),
+    (0, typeorm_1.Index)(),
+    __metadata("design:type", String)
+], Spec.prototype, "mode", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)(),
     __metadata("design:type", typeof (_a = typeof Date !== "undefined" && Date) === "function" ? _a : Object)
 ], Spec.prototype, "timestamp", void 0);
@@ -116303,10 +116313,12 @@ __decorate([
 ], Spec.prototype, "fixture", void 0);
 exports.Spec = Spec = __decorate([
     (0, typeorm_1.Entity)('specs'),
-    (0, typeorm_1.Unique)(['user_id', 'fixture_id']),
+    (0, typeorm_1.Unique)(['user_id', 'fixture_id', 'mode']),
     (0, typeorm_1.Index)(['user_id']),
     (0, typeorm_1.Index)(['week']),
-    (0, typeorm_1.Index)(['user_id', 'week'])
+    (0, typeorm_1.Index)(['user_id', 'week']),
+    (0, typeorm_1.Index)(['user_id', 'mode']),
+    (0, typeorm_1.Index)(['mode'])
 ], Spec);
 
 
@@ -121077,7 +121089,7 @@ let SpecsController = class SpecsController {
                 };
             }
             console.log('🟡 [SPECS_CONTROLLER] Routing to LIVE mode service (specs.service.getWeeklyStats)');
-            const result = await this.specsService.getWeeklyStats(userId, week);
+            const result = await this.specsService.getWeeklyStats(userId, week, 'live');
             console.log('🟡 [SPECS_CONTROLLER] Live mode service completed successfully');
             console.log('🟡 [SPECS_CONTROLLER] Result preview:', {
                 week: result.week,
@@ -121104,8 +121116,9 @@ let SpecsController = class SpecsController {
             throw error;
         }
     }
-    async getUserSummary(userId) {
-        return this.specsService.getUserSummary(userId);
+    async getUserSummary(userId, mode) {
+        const summaryMode = mode || 'live';
+        return this.specsService.getUserSummary(userId, summaryMode);
     }
     async deleteUserPredictions(userId) {
         const deleted = await this.specsService.deleteUserPredictions(userId);
@@ -121136,8 +121149,9 @@ __decorate([
 __decorate([
     (0, common_1.Get)('user/:userId/summary'),
     __param(0, (0, common_1.Param)('userId')),
+    __param(1, (0, common_1.Query)('mode')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", typeof (_f = typeof Promise !== "undefined" && Promise) === "function" ? _f : Object)
 ], SpecsController.prototype, "getUserSummary", null);
 __decorate([
@@ -121243,7 +121257,7 @@ let SpecsService = class SpecsService {
             throw new common_1.BadRequestException('Cannot predict on a fixture that has already started');
         }
         const existingSpec = await this.specRepository.findOne({
-            where: { user_id, fixture_id },
+            where: { user_id, fixture_id, mode: 'live' },
         });
         if (existingSpec) {
             throw new common_1.ConflictException('User already has a prediction for this fixture');
@@ -121253,11 +121267,12 @@ let SpecsService = class SpecsService {
             fixture_id,
             choice,
             week,
+            mode: 'live',
         });
         const savedSpec = await this.specRepository.save(spec);
         return this.mapSpecToResponse(savedSpec, fixture);
     }
-    async getWeeklyStats(userId, week) {
+    async getWeeklyStats(userId, week, mode = 'live') {
         console.log('🟢 [SPECS_SERVICE] ='.repeat(50));
         console.log('🟢 [SPECS_SERVICE] getWeeklyStats called');
         console.log('🟢 [SPECS_SERVICE] Timestamp:', new Date().toISOString());
@@ -121273,16 +121288,20 @@ let SpecsService = class SpecsService {
             type: typeof week,
             isNumber: typeof week === 'number',
         });
+        console.log('🟢 [SPECS_SERVICE] - mode:', {
+            value: mode,
+            type: typeof mode,
+        });
         try {
             console.log('🟢 [SPECS_SERVICE] Preparing database query...');
             console.log('🟢 [SPECS_SERVICE] Query params:', {
-                where: { user_id: userId, week },
+                where: { user_id: userId, week, mode },
                 relations: ['fixture'],
                 order: { timestamp: 'ASC' },
             });
             console.log('🟢 [SPECS_SERVICE] Executing database query...');
             const specs = await this.specRepository.find({
-                where: { user_id: userId, week },
+                where: { user_id: userId, week, mode },
                 relations: ['fixture'],
                 order: { timestamp: 'ASC' },
             });
@@ -121343,9 +121362,9 @@ let SpecsService = class SpecsService {
             throw error;
         }
     }
-    async getUserSummary(userId) {
+    async getUserSummary(userId, mode = 'live') {
         const allSpecs = await this.specRepository.find({
-            where: { user_id: userId },
+            where: { user_id: userId, mode },
             relations: ['fixture'],
             order: { week: 'ASC', timestamp: 'ASC' },
         });

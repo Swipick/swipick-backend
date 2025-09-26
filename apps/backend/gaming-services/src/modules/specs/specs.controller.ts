@@ -230,7 +230,11 @@ export class SpecsController {
       console.log(
         '🟡 [SPECS_CONTROLLER] Routing to LIVE mode service (specs.service.getWeeklyStats)',
       );
-      const result = await this.specsService.getWeeklyStats(userId, week);
+      const result = await this.specsService.getWeeklyStats(
+        userId,
+        week,
+        'live',
+      );
       console.log(
         '🟡 [SPECS_CONTROLLER] Live mode service completed successfully',
       );
@@ -264,13 +268,15 @@ export class SpecsController {
 
   /**
    * Get user summary (all weeks)
-   * GET /api/predictions/user/:userId/summary
+   * GET /api/predictions/user/:userId/summary?mode=live|test
    */
   @Get('user/:userId/summary')
   async getUserSummary(
     @Param('userId') userId: string,
+    @Query('mode') mode?: 'live' | 'test',
   ): Promise<UserSummaryResponseDto> {
-    return this.specsService.getUserSummary(userId);
+    const summaryMode = mode || 'live';
+    return this.specsService.getUserSummary(userId, summaryMode);
   }
 
   /**

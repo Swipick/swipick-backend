@@ -53,9 +53,9 @@ export class SpecsService {
       );
     }
 
-    // Check if user already has a prediction for this fixture
+    // Check if user already has a prediction for this fixture in live mode
     const existingSpec = await this.specRepository.findOne({
-      where: { user_id, fixture_id },
+      where: { user_id, fixture_id, mode: 'live' },
     });
 
     if (existingSpec) {
@@ -64,12 +64,13 @@ export class SpecsService {
       );
     }
 
-    // Create the prediction
+    // Create the prediction for live mode
     const spec = this.specRepository.create({
       user_id,
       fixture_id,
       choice,
       week,
+      mode: 'live',
     });
 
     const savedSpec = await this.specRepository.save(spec);
@@ -81,6 +82,7 @@ export class SpecsService {
   async getWeeklyStats(
     userId: string,
     week: number,
+    mode: 'live' | 'test' = 'live',
   ): Promise<WeeklyStatsResponseDto> {
     console.log('🟢 [SPECS_SERVICE] ='.repeat(50));
     console.log('🟢 [SPECS_SERVICE] getWeeklyStats called');
@@ -97,19 +99,23 @@ export class SpecsService {
       type: typeof week,
       isNumber: typeof week === 'number',
     });
+    console.log('🟢 [SPECS_SERVICE] - mode:', {
+      value: mode,
+      type: typeof mode,
+    });
 
     try {
       console.log('🟢 [SPECS_SERVICE] Preparing database query...');
       console.log('🟢 [SPECS_SERVICE] Query params:', {
-        where: { user_id: userId, week },
+        where: { user_id: userId, week, mode },
         relations: ['fixture'],
         order: { timestamp: 'ASC' },
       });
 
-      // Get all predictions for the user in the specified week
+      // Get all predictions for the user in the specified week and mode
       console.log('🟢 [SPECS_SERVICE] Executing database query...');
       const specs = await this.specRepository.find({
-        where: { user_id: userId, week },
+        where: { user_id: userId, week, mode },
         relations: ['fixture'],
         order: { timestamp: 'ASC' },
       });
@@ -178,17 +184,23 @@ export class SpecsService {
         errorTable: error?.table,
         errorColumn: error?.column,
       });
-      console.log('🔴 [SPECS_SERVICE] Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      console.log(
+        '🔴 [SPECS_SERVICE] Full error object:',
+        JSON.stringify(error, Object.getOwnPropertyNames(error), 2),
+      );
       console.log('🔴 [SPECS_SERVICE] Error stack:', error?.stack);
       console.log('🟢 [SPECS_SERVICE] ='.repeat(50));
       throw error;
     }
   }
 
-  async getUserSummary(userId: string): Promise<UserSummaryResponseDto> {
-    // Get all predictions for the user
+  async getUserSummary(
+    userId: string,
+    mode: 'live' | 'test' = 'live',
+  ): Promise<UserSummaryResponseDto> {
+    // Get all predictions for the user in the specified mode
     const allSpecs = await this.specRepository.find({
-      where: { user_id: userId },
+      where: { user_id: userId, mode },
       relations: ['fixture'],
       order: { week: 'ASC', timestamp: 'ASC' },
     });

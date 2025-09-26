@@ -10,10 +10,12 @@ import {
 } from 'typeorm';
 
 @Entity('specs')
-@Unique(['user_id', 'fixture_id']) // Ensures one prediction per fixture per user
+@Unique(['user_id', 'fixture_id', 'mode']) // Ensures one prediction per fixture per user per mode
 @Index(['user_id'])
 @Index(['week'])
 @Index(['user_id', 'week'])
+@Index(['user_id', 'mode'])
+@Index(['mode'])
 export class Spec {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -45,6 +47,15 @@ export class Spec {
   @Column({ type: 'integer', nullable: false })
   @Index()
   week: number;
+
+  @Column({
+    type: 'enum',
+    enum: ['live', 'test'],
+    default: 'live',
+    nullable: false,
+  })
+  @Index()
+  mode: 'live' | 'test';
 
   @CreateDateColumn()
   timestamp: Date;
