@@ -30,7 +30,7 @@ export function LastFiveResults({ results, form, isHomeTeam = false, className =
 
   // Normalize to Last5Item[], pad to 5, then render right-to-left (most recent on the right)
   const base: (Last5Item | null)[] = (form && form.length)
-    ? form.filter(item => item.wasHome === isHomeTeam) // Filter by venue when using form data
+    ? form // Don't filter by venue - show all recent matches for this team
     : results.map((code) => ({
         fixtureId: 0,
         code,

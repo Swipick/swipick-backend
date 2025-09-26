@@ -120640,10 +120640,6 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
                 ? []
                 : completedUpToWeek.filter((f) => new Date(f.match_date).getTime() <
                     new Date(fixture.match_date).getTime());
-            console.log(`🔍 [MATCH_CARDS] Processing fixture: ${fixture.home_team} vs ${fixture.away_team}`);
-            console.log(`🔍 [MATCH_CARDS] Fixture date: ${fixture.match_date}`);
-            console.log(`🔍 [MATCH_CARDS] Total completed up to week: ${completedUpToWeek.length}`);
-            console.log(`🔍 [MATCH_CARDS] Prior fixtures for this match: ${priorForThisFixture.length}`);
             const standings = this.computeStandings(priorForThisFixture);
             const { results: homeLast5, fixtureIds: homeFixtureIds, wasHomeFlags: homeWasHomeFlags, } = this.computeLast5WithIds(priorForThisFixture, fixture.home_team);
             const { results: awayLast5, fixtureIds: awayFixtureIds, wasHomeFlags: awayWasHomeFlags, } = this.computeLast5WithIds(priorForThisFixture, fixture.away_team);
@@ -120794,17 +120790,10 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
         return logoMap[teamName] || null;
     }
     computeLast5WithIds(priorFixtures, teamName) {
-        console.log(`🔍 [MATCH_CARDS] computeLast5WithIds for team: ${teamName}`);
-        console.log(`🔍 [MATCH_CARDS] Total prior fixtures: ${priorFixtures.length}`);
         const teamFixtures = priorFixtures.filter((f) => f.home_team === teamName || f.away_team === teamName);
-        console.log(`🔍 [MATCH_CARDS] Team fixtures (before score filter): ${teamFixtures.length}`);
-        teamFixtures.forEach((f) => console.log(`🔍 [MATCH_CARDS] - ${f.home_team} vs ${f.away_team}, scores: ${f.home_score}-${f.away_score}, date: ${f.match_date}`));
         const completedTeamFixtures = teamFixtures.filter((f) => f.home_score !== null && f.away_score !== null);
-        console.log(`🔍 [MATCH_CARDS] Completed team fixtures: ${completedTeamFixtures.length}`);
         const sortedFixtures = completedTeamFixtures.sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime());
         const last5Fixtures = sortedFixtures.slice(0, 5);
-        console.log(`🔍 [MATCH_CARDS] Last 5 fixtures for ${teamName}:`);
-        last5Fixtures.forEach((f) => console.log(`🔍 [MATCH_CARDS] - ${f.home_team} ${f.home_score}-${f.away_score} ${f.away_team}, date: ${f.match_date}`));
         const results = last5Fixtures.map((fixture) => {
             if (fixture.home_score > fixture.away_score) {
                 return '1';
@@ -120818,8 +120807,6 @@ let MatchCardsService = MatchCardsService_1 = class MatchCardsService {
         });
         const fixtureIds = last5Fixtures.map((f) => f.id);
         const wasHomeFlags = last5Fixtures.map((f) => f.home_team === teamName);
-        console.log(`🔍 [MATCH_CARDS] Final results for ${teamName}: ${results.join(',')}`);
-        console.log(`🔍 [MATCH_CARDS] Final fixture IDs: ${fixtureIds.join(',')}`);
         return { results, fixtureIds, wasHomeFlags };
     }
     createFormWithOverlay(results, fixtureIds, userPredictions, wasHomeFlags) {
