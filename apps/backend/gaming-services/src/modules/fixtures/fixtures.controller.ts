@@ -76,6 +76,12 @@ export class FixturesController {
     };
   }
 
+  @Post('sync/season')
+  async syncAllSeasonFixtures(@Body() body: { season?: number }) {
+    const season = body?.season || 2025;
+    return await this.fixturesService.syncAllSeasonFixtures(season);
+  }
+
   @Get('quota/status')
   async getQuotaStatus() {
     const quotaStatus = await this.rateLimitService.getDailyQuotaStatus();

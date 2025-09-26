@@ -779,6 +779,134 @@ export class FixturesService {
   }
 
   /**
+   * Sync all Serie A 2025 fixtures in bulk from API-Football using single API call
+   */
+  async syncAllSeasonFixtures(season: number = 2025): Promise<{
+    success: boolean;
+    message: string;
+    syncedCount: number;
+    existingCount: number;
+  }> {
+    try {
+      this.logger.log(`🚀 Starting bulk Serie A ${season} fixtures sync...`);
+
+      // Check existing fixtures count
+      const existingCount = await this.fixtureRepository.count();
+      this.logger.log(`📊 Found ${existingCount} existing fixtures in database`);
+
+      if (existingCount > 300) {
+        return {
+          success: false,
+          message: `Database already contains ${existingCount} fixtures. Use force parameter to clear and resync.`,
+          syncedCount: 0,
+          existingCount,
+        };
+      }
+
+      // Clear existing fixtures if any exist
+      if (existingCount > 0) {
+        this.logger.log('🗑️  Clearing existing fixtures and dependent records...');
+
+        // Delete dependent specs first
+        await this.fixtureRepository.manager.query(
+          'DELETE FROM specs WHERE fixture_id IN (SELECT id FROM fixtures)',
+        );
+
+        // Then delete fixtures
+        await this.fixtureRepository.manager.query('DELETE FROM fixtures');
+
+        this.logger.log('✅ Existing fixtures and dependent records cleared');
+      }
+
+      // Fetch all Serie A 2025 fixtures using the service method that makes one API call
+      this.logger.log(`🌐 Fetching all Serie A ${season} fixtures from API-Football...`);
+
+      const apiFixtures = await this.apiFootballService.getFixtures({
+        league: 135,
+        season,
+      });
+
+      this.logger.log(`📥 Retrieved ${apiFixtures.length} fixtures from API-Football`);
+
+      if (apiFixtures.length === 0) {
+        throw new Error(`No fixtures returned from API-Football for Serie A ${season}`);
+      }
+
+      // Transform and save fixtures to database
+      this.logger.log('💾 Processing and inserting fixtures...');
+      const savedFixtures = [];
+
+      for (const apiFixture of apiFixtures) {
+        // Extract week number from round (e.g., "Regular Season - 1" -> 1)
+        const weekMatch = apiFixture.league.round.match(/(\d+)$/);
+        const week = weekMatch ? parseInt(weekMatch[1], 10) : 1;
+
+        // Determine result based on goals
+        let result: '1' | 'X' | '2' | null = null;
+        if (apiFixture.status.short === 'FT' && apiFixture.goals.home !== null && apiFixture.goals.away !== null) {
+          if (apiFixture.goals.home > apiFixture.goals.away) {
+            result = '1';
+          } else if (apiFixture.goals.home < apiFixture.goals.away) {
+            result = '2';
+          } else {
+            result = 'X';
+          }
+        }
+
+        // Map API status to our status
+        let status: 'SCHEDULED' | 'FINISHED' | 'LIVE' = 'SCHEDULED';
+        if (apiFixture.status.short === 'FT') {
+          status = 'FINISHED';
+        } else if (['1H', '2H', 'HT', 'ET', 'BT', 'P'].includes(apiFixture.status.short)) {
+          status = 'LIVE';
+        }
+
+        const fixture = this.fixtureRepository.create({
+          home_team: apiFixture.teams.home.name,
+          away_team: apiFixture.teams.away.name,
+          match_date: new Date(apiFixture.date),
+          stadium: apiFixture.venue.name || 'TBD',
+          week: week,
+          result: result,
+          home_score: apiFixture.goals.home,
+          away_score: apiFixture.goals.away,
+          status: status,
+          external_api_id: `api_football_${apiFixture.id}`,
+          created_at: new Date(),
+          updated_at: new Date(),
+        });
+
+        const saved = await this.fixtureRepository.save(fixture);
+        savedFixtures.push(saved);
+
+        // Log progress every 50 fixtures
+        if (savedFixtures.length % 50 === 0) {
+          this.logger.log(`📈 Processed ${savedFixtures.length}/${apiFixtures.length} fixtures...`);
+        }
+      }
+
+      // Log completion
+      this.logger.log(`🎉 Bulk sync complete! Inserted ${savedFixtures.length} fixtures from API-Football`);
+
+      return {
+        success: true,
+        message: `Successfully synced ${savedFixtures.length} Serie A ${season} fixtures`,
+        syncedCount: savedFixtures.length,
+        existingCount: 0,
+      };
+
+    } catch (error) {
+      this.logger.error(`❌ Bulk season fixtures sync failed: ${error.message}`, error);
+      return {
+        success: false,
+        message: `Bulk sync failed: ${error.message}`,
+        syncedCount: 0,
+        existingCount: 0,
+      };
+    }
+  }
+
+  /**
    * Get active matches from database (SCHEDULED or LIVE) that need API polling
    */
   async getActiveMatches(): Promise<FixtureEntity[]> {

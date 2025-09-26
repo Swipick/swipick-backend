@@ -130,6 +130,16 @@ export class AppController {
     );
   }
 
+  @Post('api/fixtures/sync/season')
+  async syncAllSeasonFixtures(@Body() body: { season?: number }) {
+    this.logger.log(`Forwarding bulk season sync request to Gaming Services for season ${body?.season || 2025}`);
+    return this.appService.forwardToGamingServices(
+      '/api/fixtures/sync/season',
+      'POST',
+      body,
+    );
+  }
+
   @Get('api/teams')
   async getTeams() {
     this.logger.log('Forwarding teams request to Gaming Services');
