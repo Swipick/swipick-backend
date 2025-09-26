@@ -121424,7 +121424,9 @@ let SpecsService = class SpecsService {
             is_correct: spec.isCorrect(),
             week: spec.week,
             timestamp: spec.timestamp,
-            match_display: fixture.getMatchDisplay(),
+            match_display: fixture
+                ? fixture.getMatchDisplay()
+                : `Fixture ${spec.fixture_id}`,
             choice_display: spec.getChoiceDisplay(),
         };
     }
