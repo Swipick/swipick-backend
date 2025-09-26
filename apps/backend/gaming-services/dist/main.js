@@ -118938,7 +118938,8 @@ let FixturesService = FixturesService_1 = class FixturesService {
                 const weekMatch = roundString.match(/(\d+)$/);
                 const week = weekMatch ? parseInt(weekMatch[1], 10) : 1;
                 let result = null;
-                const apiStatus = apiFixture.fixture?.status?.short || apiFixture.status?.short;
+                const apiStatus = apiFixture.fixture?.status?.short ||
+                    apiFixture.status?.short;
                 const homeGoals = apiFixture.goals?.home;
                 const awayGoals = apiFixture.goals?.away;
                 if (apiStatus === 'FT' && homeGoals !== null && awayGoals !== null) {
@@ -118963,7 +118964,9 @@ let FixturesService = FixturesService_1 = class FixturesService {
                     home_team: apiFixture.teams?.home?.name || 'Unknown',
                     away_team: apiFixture.teams?.away?.name || 'Unknown',
                     match_date: new Date(apiFixture.fixture?.date || apiFixture.date),
-                    stadium: apiFixture.fixture?.venue?.name || apiFixture.venue?.name || 'TBD',
+                    stadium: apiFixture.fixture?.venue?.name ||
+                        apiFixture.venue?.name ||
+                        'TBD',
                     week: week,
                     result: result,
                     home_score: homeGoals,

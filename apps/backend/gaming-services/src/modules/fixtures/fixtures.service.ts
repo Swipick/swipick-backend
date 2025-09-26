@@ -792,7 +792,9 @@ export class FixturesService {
 
       // Check existing fixtures count
       const existingCount = await this.fixtureRepository.count();
-      this.logger.log(`📊 Found ${existingCount} existing fixtures in database`);
+      this.logger.log(
+        `📊 Found ${existingCount} existing fixtures in database`,
+      );
 
       if (existingCount > 300) {
         return {
@@ -805,7 +807,9 @@ export class FixturesService {
 
       // Clear existing fixtures if any exist
       if (existingCount > 0) {
-        this.logger.log('🗑️  Clearing existing fixtures and dependent records...');
+        this.logger.log(
+          '🗑️  Clearing existing fixtures and dependent records...',
+        );
 
         // Delete dependent specs first
         await this.fixtureRepository.manager.query(
@@ -819,17 +823,23 @@ export class FixturesService {
       }
 
       // Fetch all Serie A 2025 fixtures using the service method that makes one API call
-      this.logger.log(`🌐 Fetching all Serie A ${season} fixtures from API-Football...`);
+      this.logger.log(
+        `🌐 Fetching all Serie A ${season} fixtures from API-Football...`,
+      );
 
       const apiFixtures = await this.apiFootballService.getFixtures({
         league: 135,
         season,
       });
 
-      this.logger.log(`📥 Retrieved ${apiFixtures.length} fixtures from API-Football`);
+      this.logger.log(
+        `📥 Retrieved ${apiFixtures.length} fixtures from API-Football`,
+      );
 
       if (apiFixtures.length === 0) {
-        throw new Error(`No fixtures returned from API-Football for Serie A ${season}`);
+        throw new Error(
+          `No fixtures returned from API-Football for Serie A ${season}`,
+        );
       }
 
       // Transform and save fixtures to database
@@ -844,7 +854,9 @@ export class FixturesService {
 
         // Determine result based on goals
         let result: '1' | 'X' | '2' | null = null;
-        const apiStatus = apiFixture.fixture?.status?.short || apiFixture.status?.short;
+        const apiStatus =
+          (apiFixture as any).fixture?.status?.short ||
+          apiFixture.status?.short;
         const homeGoals = apiFixture.goals?.home;
         const awayGoals = apiFixture.goals?.away;
 
@@ -862,21 +874,28 @@ export class FixturesService {
         let status: 'SCHEDULED' | 'FINISHED' | 'LIVE' = 'SCHEDULED';
         if (apiStatus === 'FT') {
           status = 'FINISHED';
-        } else if (['1H', '2H', 'HT', 'ET', 'BT', 'P'].includes(apiStatus || '')) {
+        } else if (
+          ['1H', '2H', 'HT', 'ET', 'BT', 'P'].includes(apiStatus || '')
+        ) {
           status = 'LIVE';
         }
 
         const fixture = this.fixtureRepository.create({
           home_team: apiFixture.teams?.home?.name || 'Unknown',
           away_team: apiFixture.teams?.away?.name || 'Unknown',
-          match_date: new Date(apiFixture.fixture?.date || apiFixture.date),
-          stadium: apiFixture.fixture?.venue?.name || apiFixture.venue?.name || 'TBD',
+          match_date: new Date(
+            (apiFixture as any).fixture?.date || apiFixture.date,
+          ),
+          stadium:
+            (apiFixture as any).fixture?.venue?.name ||
+            apiFixture.venue?.name ||
+            'TBD',
           week: week,
           result: result,
           home_score: homeGoals,
           away_score: awayGoals,
           status: status,
-          external_api_id: `api_football_${apiFixture.fixture?.id || apiFixture.id}`,
+          external_api_id: `api_football_${(apiFixture as any).fixture?.id || apiFixture.id}`,
           created_at: new Date(),
           updated_at: new Date(),
         });
@@ -886,12 +905,16 @@ export class FixturesService {
 
         // Log progress every 50 fixtures
         if (savedFixtures.length % 50 === 0) {
-          this.logger.log(`📈 Processed ${savedFixtures.length}/${apiFixtures.length} fixtures...`);
+          this.logger.log(
+            `📈 Processed ${savedFixtures.length}/${apiFixtures.length} fixtures...`,
+          );
         }
       }
 
       // Log completion
-      this.logger.log(`🎉 Bulk sync complete! Inserted ${savedFixtures.length} fixtures from API-Football`);
+      this.logger.log(
+        `🎉 Bulk sync complete! Inserted ${savedFixtures.length} fixtures from API-Football`,
+      );
 
       return {
         success: true,
@@ -899,9 +922,11 @@ export class FixturesService {
         syncedCount: savedFixtures.length,
         existingCount: 0,
       };
-
     } catch (error) {
-      this.logger.error(`❌ Bulk season fixtures sync failed: ${error.message}`, error);
+      this.logger.error(
+        `❌ Bulk season fixtures sync failed: ${error.message}`,
+        error,
+      );
       return {
         success: false,
         message: `Bulk sync failed: ${error.message}`,
