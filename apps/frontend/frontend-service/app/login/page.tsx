@@ -75,8 +75,8 @@ export default function LoginPage() {
         </button>
       </div>
 
-      <div className="flex-1 flex items-center justify-center ">
-        <div className='w-full h-full flex flex-col'>
+      <div className="flex-1 flex items-center justify-center">
+        <div className='w-full max-w-sm flex flex-col'>
           <div className="text-center">
             <h1 className="text-5xl text-[#554099]">
               swipick
@@ -87,7 +87,7 @@ export default function LoginPage() {
           <div style={{ height: '90px' }}></div>
 
         <LoginProvider>
-          <div className="w-full h-full max-w-sm space-y-8" >
+          <div className="w-full space-y-8">
           {/* Header */}
 
 

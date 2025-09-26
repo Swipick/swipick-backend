@@ -243,8 +243,8 @@ const RegistrationForm: React.FC = () => {
               <div className="text-sm">
                 <label htmlFor="agreeToTerms" className="text-gray-700">
                   Accetto i{' '}
-                  <Link 
-                    href="/terms" 
+                  <Link
+                    href="https://www.iubenda.com/terms-and-conditions/55491947?ifr=false#terms-of-use"
                     className="text-purple-600 hover:text-purple-700 underline"
                     target="_blank"
                   >
@@ -324,11 +324,19 @@ const RegistrationForm: React.FC = () => {
           <div className="mt-3 text-center">
             <p className="text-xs text-gray-500">
               Creando un account accetti i nostri{' '}
-              <Link href="/terms" className="text-purple-600 hover:text-purple-700">
+              <Link
+                href="https://www.iubenda.com/terms-and-conditions/55491947?ifr=false#terms-of-use"
+                className="text-purple-600 hover:text-purple-700"
+                target="_blank"
+              >
                 Termini di Servizio
               </Link>
               {' '}e la{' '}
-              <Link href="/privacy" className="text-purple-600 hover:text-purple-700">
+              <Link
+                href="https://www.iubenda.com/terms-and-conditions/55491947?ifr=false#user-rights"
+                className="text-purple-600 hover:text-purple-700"
+                target="_blank"
+              >
                 Privacy Policy
               </Link>
             </p>
