@@ -40,7 +40,6 @@ export function TestGameHeader({
   onActiveWeekChange,
 }: TestGameHeaderProps) {
   const headerRef = useRef<HTMLDivElement | null>(null);
-  const [headerHeight, setHeaderHeight] = useState<number>(160);
 
   // Virtual clock for dynamic test time progression
   const { virtualTime, formatDisplay, resetClock } = useVirtualClock();
@@ -108,7 +107,6 @@ export function TestGameHeader({
     const measure = () => {
       if (headerRef.current) {
         const height = headerRef.current.getBoundingClientRect().height;
-        setHeaderHeight(height);
         onHeightChange?.(height);
       }
     };
@@ -274,7 +272,7 @@ export function TestGameHeader({
     <div
       ref={headerRef}
       className={`
-        w-full mx-0 mt-0 rounded-b-2xl rounded-t-none text-white p-6
+        w-full mx-0 mt-0 rounded-b-2xl rounded-t-none text-white p-6 game-header-responsive
         ${isSticky ? 'fixed left-0 right-0 top-0 z-40 pt-[max(env(safe-area-inset-top),8px)]' : 'mb-6'}
         ${className}
       `}
@@ -285,7 +283,7 @@ export function TestGameHeader({
       <div className="text-center">
         {/* Test Mode indicator with Reset button */}
         <div className="flex items-center justify-center gap-2 mb-2">
-          <div className="inline-block px-2 py-1 text-xs bg-white/20 rounded-full">
+          <div className="inline-block px-2 py-1 text-xs bg-white/20 rounded-full game-header-mode-responsive">
             Modalità Test
           </div>
           {userKey && (
@@ -316,7 +314,7 @@ export function TestGameHeader({
         </div>
 
         {/* Week title */}
-        <h1 className="text-base md:text-lg mb-1 whitespace-nowrap">
+        <h1 className="text-base md:text-lg mb-1 whitespace-nowrap game-header-title-responsive">
           {isLoading ? (
             <span className="opacity-70">Caricamento settimana...</span>
           ) : weekNumber ? (
@@ -332,7 +330,7 @@ export function TestGameHeader({
         </h1>
 
         {/* Countdown timer */}
-        <CountdownTimer timeToMatch={virtualTimeToMatch} className="mb-4" />
+        <CountdownTimer timeToMatch={virtualTimeToMatch} className="mb-4 game-header-countdown-responsive" />
 
         {/* Progress bar */}
         <ProgressBar
@@ -360,7 +358,7 @@ export function TestGameHeader({
         )}
 
         {/* Test mode info - virtual date calendar with controls */}
-        <div className="mt-3 pt-3 border-t border-white/20">
+        <div className="mt-3 pt-3 border-t border-white/20 game-header-reset-responsive">
           <div className="text-xs text-white/80 mb-2">
             📅 Data simulata: {formatDisplay()}
           </div>
