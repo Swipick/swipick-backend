@@ -1,80 +1,221 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class ReplaceFixturesData1757655000000 implements MigrationInterface {
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`TRUNCATE TABLE fixtures RESTART IDENTITY CASCADE;`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Genoa', 'Lecce', '2025-08-23 00:00:00', 'Stadio Luigi Ferraris', 1, 'X', 0, 0, 'FINISHED', 'serie_a_2025_1_Genoa_vs_Lecce', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Sassuolo', 'Napoli', '2025-08-23 00:00:00', 'Mapei Stadium – Città del Tricolore', 1, '2', 0, 2, 'FINISHED', 'serie_a_2025_1_Sassuolo_vs_Napoli', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Roma', 'Bologna', '2025-08-23 00:00:00', 'Stadio Olimpico', 1, '1', 1, 0, 'FINISHED', 'serie_a_2025_1_Roma_vs_Bologna', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Milan', 'Cremonese', '2025-08-23 00:00:00', 'Stadio Giuseppe Meazza', 1, '2', 1, 2, 'FINISHED', 'serie_a_2025_1_Milan_vs_Cremonese', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cagliari', 'Fiorentina', '2025-08-24 00:00:00', 'Unipol Domus', 1, 'X', 1, 1, 'FINISHED', 'serie_a_2025_1_Cagliari_vs_Fiorentina', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Como', 'Lazio', '2025-08-24 00:00:00', 'Stadio Giuseppe Sinigaglia', 1, '1', 2, 0, 'FINISHED', 'serie_a_2025_1_Como_vs_Lazio', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Juventus', 'Parma', '2025-08-24 00:00:00', 'Allianz Stadium', 1, '1', 2, 0, 'FINISHED', 'serie_a_2025_1_Juventus_vs_Parma', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Atalanta', 'Pisa', '2025-08-24 00:00:00', 'Gewiss Stadium', 1, 'X', 1, 1, 'FINISHED', 'serie_a_2025_1_Atalanta_vs_Pisa', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Udinese', 'Verona', '2025-08-25 00:00:00', 'Stadio Friuli', 1, 'X', 1, 1, 'FINISHED', 'serie_a_2025_1_Udinese_vs_Verona', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Inter', 'Torino', '2025-08-25 00:00:00', 'Stadio Giuseppe Meazza', 1, '1', 5, 0, 'FINISHED', 'serie_a_2025_1_Inter_vs_Torino', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cremonese', 'Sassuolo', '2025-08-29 00:00:00', 'Stadio Giovanni Zini', 2, '1', 3, 2, 'FINISHED', 'serie_a_2025_2_Cremonese_vs_Sassuolo', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lecce', 'Milan', '2025-08-29 00:00:00', 'Stadio Via del Mare', 2, '2', 0, 2, 'FINISHED', 'serie_a_2025_2_Lecce_vs_Milan', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Bologna', 'Como', '2025-08-30 00:00:00', 'Stadio Renato Dall’Ara', 2, '1', 1, 0, 'FINISHED', 'serie_a_2025_2_Bologna_vs_Como', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Parma', 'Atalanta', '2025-08-30 00:00:00', 'Stadio Ennio Tardini', 2, 'X', 1, 1, 'FINISHED', 'serie_a_2025_2_Parma_vs_Atalanta', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Napoli', 'Cagliari', '2025-08-30 00:00:00', 'Stadio Diego Armando Maradona', 2, '1', 1, 0, 'FINISHED', 'serie_a_2025_2_Napoli_vs_Cagliari', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Pisa', 'Roma', '2025-08-30 00:00:00', 'Arena Garibaldi – Stadio Romeo Anconetani', 2, '2', 0, 1, 'FINISHED', 'serie_a_2025_2_Pisa_vs_Roma', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Torino', 'Fiorentina', '2025-08-31 00:00:00', 'Stadio Olimpico Grande Torino', 2, 'X', 0, 0, 'FINISHED', 'serie_a_2025_2_Torino_vs_Fiorentina', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Genoa', 'Juventus', '2025-08-31 00:00:00', 'Stadio Luigi Ferraris', 2, '2', 0, 1, 'FINISHED', 'serie_a_2025_2_Genoa_vs_Juventus', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Inter', 'Udinese', '2025-08-31 00:00:00', 'Stadio Giuseppe Meazza', 2, '2', 1, 2, 'FINISHED', 'serie_a_2025_2_Inter_vs_Udinese', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lazio', 'Verona', '2025-08-31 00:00:00', 'Stadio Olimpico', 2, '1', 4, 0, 'FINISHED', 'serie_a_2025_2_Lazio_vs_Verona', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Verona', 'Sassuolo', '2025-10-03 20:45:00', 'Stadio Marcantonio Bentegodi', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Verona_vs_Sassuolo', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Parma', 'Lecce', '2025-10-04 15:00:00', 'Stadio Ennio Tardini', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Parma_vs_Lecce', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lazio', 'Torino', '2025-10-04 15:00:00', 'Stadio Olimpico', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Lazio_vs_Torino', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Inter', 'Cremonese', '2025-10-04 18:00:00', 'Stadio Giuseppe Meazza', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Inter_vs_Cremonese', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Atalanta', 'Como', '2025-10-04 20:45:00', 'Gewiss Stadium', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Atalanta_vs_Como', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Udinese', 'Cagliari', '2025-10-05 12:30:00', 'Stadio Friuli', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Udinese_vs_Cagliari', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Bologna', 'Pisa', '2025-10-05 15:00:00', 'Stadio Renato Dall’Ara', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Bologna_vs_Pisa', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Fiorentina', 'Roma', '2025-10-05 15:00:00', 'Stadio Artemio Franchi', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Fiorentina_vs_Roma', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Napoli', 'Genoa', '2025-10-05 18:00:00', 'Stadio Diego Armando Maradona', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Napoli_vs_Genoa', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Juventus', 'Milan', '2025-10-05 20:45:00', 'Allianz Stadium', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Juventus_vs_Milan', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lecce', 'Sassuolo', '2025-10-18 15:00:00', 'Stadio Via del Mare', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Lecce_vs_Sassuolo', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Pisa', 'Verona', '2025-10-18 15:00:00', 'Arena Garibaldi – Stadio Romeo Anconetani', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Pisa_vs_Verona', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Torino', 'Napoli', '2025-10-18 18:00:00', 'Stadio Olimpico Grande Torino', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Torino_vs_Napoli', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Roma', 'Inter', '2025-10-18 20:45:00', 'Stadio Olimpico', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Roma_vs_Inter', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Como', 'Juventus', '2025-10-19 12:30:00', 'Stadio Giuseppe Sinigaglia', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Como_vs_Juventus', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Genoa', 'Parma', '2025-10-19 15:00:00', 'Stadio Luigi Ferraris', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Genoa_vs_Parma', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cagliari', 'Bologna', '2025-10-19 15:00:00', 'Unipol Domus', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Cagliari_vs_Bologna', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Atalanta', 'Lazio', '2025-10-19 18:00:00', 'Gewiss Stadium', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Atalanta_vs_Lazio', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Milan', 'Fiorentina', '2025-10-19 20:45:00', 'Stadio Giuseppe Meazza', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Milan_vs_Fiorentina', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cremonese', 'Udinese', '2025-10-20 20:45:00', 'Stadio Giovanni Zini', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Cremonese_vs_Udinese', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Milan', 'Pisa', '2025-10-24 20:45:00', 'Stadio Giuseppe Meazza', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Milan_vs_Pisa', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Parma', 'Como', '2025-10-25 15:00:00', 'Stadio Ennio Tardini', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Parma_vs_Como', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Udinese', 'Lecce', '2025-10-25 15:00:00', 'Stadio Friuli', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Udinese_vs_Lecce', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Napoli', 'Inter', '2025-10-25 18:00:00', 'Stadio Diego Armando Maradona', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Napoli_vs_Inter', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cremonese', 'Atalanta', '2025-10-25 20:45:00', 'Stadio Giovanni Zini', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Cremonese_vs_Atalanta', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Torino', 'Genoa', '2025-10-26 12:30:00', 'Stadio Olimpico Grande Torino', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Torino_vs_Genoa', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Verona', 'Cagliari', '2025-10-26 15:00:00', 'Stadio Marcantonio Bentegodi', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Verona_vs_Cagliari', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Sassuolo', 'Roma', '2025-10-26 15:00:00', 'Mapei Stadium – Città del Tricolore', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Sassuolo_vs_Roma', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Fiorentina', 'Bologna', '2025-10-26 18:00:00', 'Stadio Artemio Franchi', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Fiorentina_vs_Bologna', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lazio', 'Juventus', '2025-10-26 20:45:00', 'Stadio Olimpico', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Lazio_vs_Juventus', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lecce', 'Napoli', '2025-10-28 18:30:00', 'Stadio Via del Mare', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Lecce_vs_Napoli', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Atalanta', 'Milan', '2025-10-28 20:45:00', 'Gewiss Stadium', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Atalanta_vs_Milan', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Como', 'Verona', '2025-10-29 18:30:00', 'Stadio Giuseppe Sinigaglia', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Como_vs_Verona', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Juventus', 'Udinese', '2025-10-29 18:30:00', 'Allianz Stadium', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Juventus_vs_Udinese', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Roma', 'Parma', '2025-10-29 18:30:00', 'Stadio Olimpico', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Roma_vs_Parma', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Inter', 'Fiorentina', '2025-10-29 20:45:00', 'Stadio Giuseppe Meazza', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Inter_vs_Fiorentina', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Genoa', 'Cremonese', '2025-10-29 20:45:00', 'Stadio Luigi Ferraris', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Genoa_vs_Cremonese', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Bologna', 'Torino', '2025-10-29 20:45:00', 'Stadio Renato Dall’Ara', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Bologna_vs_Torino', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cagliari', 'Sassuolo', '2025-10-30 18:30:00', 'Unipol Domus', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Cagliari_vs_Sassuolo', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Pisa', 'Lazio', '2025-10-30 20:45:00', 'Arena Garibaldi – Stadio Romeo Anconetani', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Pisa_vs_Lazio', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Udinese', 'Atalanta', '2025-11-01 15:00:00', 'Stadio Friuli', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Udinese_vs_Atalanta', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Napoli', 'Como', '2025-11-01 18:00:00', 'Stadio Diego Armando Maradona', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Napoli_vs_Como', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cremonese', 'Juventus', '2025-11-01 20:45:00', 'Stadio Giovanni Zini', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Cremonese_vs_Juventus', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Verona', 'Inter', '2025-11-02 12:30:00', 'Stadio Marcantonio Bentegodi', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Verona_vs_Inter', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Torino', 'Pisa', '2025-11-02 15:00:00', 'Stadio Olimpico Grande Torino', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Torino_vs_Pisa', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Fiorentina', 'Lecce', '2025-11-02 15:00:00', 'Stadio Artemio Franchi', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Fiorentina_vs_Lecce', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Parma', 'Bologna', '2025-11-02 18:00:00', 'Stadio Ennio Tardini', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Parma_vs_Bologna', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Milan', 'Roma', '2025-11-02 20:45:00', 'Stadio Giuseppe Meazza', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Milan_vs_Roma', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Sassuolo', 'Genoa', '2025-11-03 18:30:00', 'Mapei Stadium – Città del Tricolore', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Sassuolo_vs_Genoa', NOW(), NOW());`);
-        await queryRunner.query(`INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lazio', 'Cagliari', '2025-11-03 20:45:00', 'Stadio Olimpico', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Lazio_vs_Cagliari', NOW(), NOW());`);
-    }
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `TRUNCATE TABLE fixtures RESTART IDENTITY CASCADE;`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Genoa', 'Lecce', '2025-08-23 00:00:00', 'Stadio Luigi Ferraris', 1, 'X', 0, 0, 'FINISHED', 'serie_a_2025_1_Genoa_vs_Lecce', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Sassuolo', 'Napoli', '2025-08-23 00:00:00', 'Mapei Stadium – Città del Tricolore', 1, '2', 0, 2, 'FINISHED', 'serie_a_2025_1_Sassuolo_vs_Napoli', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Roma', 'Bologna', '2025-08-23 00:00:00', 'Stadio Olimpico', 1, '1', 1, 0, 'FINISHED', 'serie_a_2025_1_Roma_vs_Bologna', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Milan', 'Cremonese', '2025-08-23 00:00:00', 'Stadio Giuseppe Meazza', 1, '2', 1, 2, 'FINISHED', 'serie_a_2025_1_Milan_vs_Cremonese', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cagliari', 'Fiorentina', '2025-08-24 00:00:00', 'Unipol Domus', 1, 'X', 1, 1, 'FINISHED', 'serie_a_2025_1_Cagliari_vs_Fiorentina', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Como', 'Lazio', '2025-08-24 00:00:00', 'Stadio Giuseppe Sinigaglia', 1, '1', 2, 0, 'FINISHED', 'serie_a_2025_1_Como_vs_Lazio', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Juventus', 'Parma', '2025-08-24 00:00:00', 'Allianz Stadium', 1, '1', 2, 0, 'FINISHED', 'serie_a_2025_1_Juventus_vs_Parma', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Atalanta', 'Pisa', '2025-08-24 00:00:00', 'Gewiss Stadium', 1, 'X', 1, 1, 'FINISHED', 'serie_a_2025_1_Atalanta_vs_Pisa', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Udinese', 'Verona', '2025-08-25 00:00:00', 'Stadio Friuli', 1, 'X', 1, 1, 'FINISHED', 'serie_a_2025_1_Udinese_vs_Verona', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Inter', 'Torino', '2025-08-25 00:00:00', 'Stadio Giuseppe Meazza', 1, '1', 5, 0, 'FINISHED', 'serie_a_2025_1_Inter_vs_Torino', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cremonese', 'Sassuolo', '2025-08-29 00:00:00', 'Stadio Giovanni Zini', 2, '1', 3, 2, 'FINISHED', 'serie_a_2025_2_Cremonese_vs_Sassuolo', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lecce', 'Milan', '2025-08-29 00:00:00', 'Stadio Via del Mare', 2, '2', 0, 2, 'FINISHED', 'serie_a_2025_2_Lecce_vs_Milan', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Bologna', 'Como', '2025-08-30 00:00:00', 'Stadio Renato Dall’Ara', 2, '1', 1, 0, 'FINISHED', 'serie_a_2025_2_Bologna_vs_Como', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Parma', 'Atalanta', '2025-08-30 00:00:00', 'Stadio Ennio Tardini', 2, 'X', 1, 1, 'FINISHED', 'serie_a_2025_2_Parma_vs_Atalanta', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Napoli', 'Cagliari', '2025-08-30 00:00:00', 'Stadio Diego Armando Maradona', 2, '1', 1, 0, 'FINISHED', 'serie_a_2025_2_Napoli_vs_Cagliari', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Pisa', 'Roma', '2025-08-30 00:00:00', 'Arena Garibaldi – Stadio Romeo Anconetani', 2, '2', 0, 1, 'FINISHED', 'serie_a_2025_2_Pisa_vs_Roma', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Torino', 'Fiorentina', '2025-08-31 00:00:00', 'Stadio Olimpico Grande Torino', 2, 'X', 0, 0, 'FINISHED', 'serie_a_2025_2_Torino_vs_Fiorentina', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Genoa', 'Juventus', '2025-08-31 00:00:00', 'Stadio Luigi Ferraris', 2, '2', 0, 1, 'FINISHED', 'serie_a_2025_2_Genoa_vs_Juventus', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Inter', 'Udinese', '2025-08-31 00:00:00', 'Stadio Giuseppe Meazza', 2, '2', 1, 2, 'FINISHED', 'serie_a_2025_2_Inter_vs_Udinese', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lazio', 'Verona', '2025-08-31 00:00:00', 'Stadio Olimpico', 2, '1', 4, 0, 'FINISHED', 'serie_a_2025_2_Lazio_vs_Verona', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Verona', 'Sassuolo', '2025-10-03 20:45:00', 'Stadio Marcantonio Bentegodi', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Verona_vs_Sassuolo', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Parma', 'Lecce', '2025-10-04 15:00:00', 'Stadio Ennio Tardini', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Parma_vs_Lecce', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lazio', 'Torino', '2025-10-04 15:00:00', 'Stadio Olimpico', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Lazio_vs_Torino', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Inter', 'Cremonese', '2025-10-04 18:00:00', 'Stadio Giuseppe Meazza', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Inter_vs_Cremonese', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Atalanta', 'Como', '2025-10-04 20:45:00', 'Gewiss Stadium', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Atalanta_vs_Como', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Udinese', 'Cagliari', '2025-10-05 12:30:00', 'Stadio Friuli', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Udinese_vs_Cagliari', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Bologna', 'Pisa', '2025-10-05 15:00:00', 'Stadio Renato Dall’Ara', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Bologna_vs_Pisa', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Fiorentina', 'Roma', '2025-10-05 15:00:00', 'Stadio Artemio Franchi', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Fiorentina_vs_Roma', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Napoli', 'Genoa', '2025-10-05 18:00:00', 'Stadio Diego Armando Maradona', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Napoli_vs_Genoa', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Juventus', 'Milan', '2025-10-05 20:45:00', 'Allianz Stadium', 6, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_6_Juventus_vs_Milan', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lecce', 'Sassuolo', '2025-10-18 15:00:00', 'Stadio Via del Mare', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Lecce_vs_Sassuolo', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Pisa', 'Verona', '2025-10-18 15:00:00', 'Arena Garibaldi – Stadio Romeo Anconetani', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Pisa_vs_Verona', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Torino', 'Napoli', '2025-10-18 18:00:00', 'Stadio Olimpico Grande Torino', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Torino_vs_Napoli', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Roma', 'Inter', '2025-10-18 20:45:00', 'Stadio Olimpico', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Roma_vs_Inter', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Como', 'Juventus', '2025-10-19 12:30:00', 'Stadio Giuseppe Sinigaglia', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Como_vs_Juventus', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Genoa', 'Parma', '2025-10-19 15:00:00', 'Stadio Luigi Ferraris', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Genoa_vs_Parma', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cagliari', 'Bologna', '2025-10-19 15:00:00', 'Unipol Domus', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Cagliari_vs_Bologna', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Atalanta', 'Lazio', '2025-10-19 18:00:00', 'Gewiss Stadium', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Atalanta_vs_Lazio', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Milan', 'Fiorentina', '2025-10-19 20:45:00', 'Stadio Giuseppe Meazza', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Milan_vs_Fiorentina', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cremonese', 'Udinese', '2025-10-20 20:45:00', 'Stadio Giovanni Zini', 7, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_7_Cremonese_vs_Udinese', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Milan', 'Pisa', '2025-10-24 20:45:00', 'Stadio Giuseppe Meazza', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Milan_vs_Pisa', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Parma', 'Como', '2025-10-25 15:00:00', 'Stadio Ennio Tardini', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Parma_vs_Como', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Udinese', 'Lecce', '2025-10-25 15:00:00', 'Stadio Friuli', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Udinese_vs_Lecce', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Napoli', 'Inter', '2025-10-25 18:00:00', 'Stadio Diego Armando Maradona', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Napoli_vs_Inter', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cremonese', 'Atalanta', '2025-10-25 20:45:00', 'Stadio Giovanni Zini', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Cremonese_vs_Atalanta', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Torino', 'Genoa', '2025-10-26 12:30:00', 'Stadio Olimpico Grande Torino', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Torino_vs_Genoa', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Verona', 'Cagliari', '2025-10-26 15:00:00', 'Stadio Marcantonio Bentegodi', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Verona_vs_Cagliari', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Sassuolo', 'Roma', '2025-10-26 15:00:00', 'Mapei Stadium – Città del Tricolore', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Sassuolo_vs_Roma', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Fiorentina', 'Bologna', '2025-10-26 18:00:00', 'Stadio Artemio Franchi', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Fiorentina_vs_Bologna', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lazio', 'Juventus', '2025-10-26 20:45:00', 'Stadio Olimpico', 8, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_8_Lazio_vs_Juventus', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lecce', 'Napoli', '2025-10-28 18:30:00', 'Stadio Via del Mare', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Lecce_vs_Napoli', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Atalanta', 'Milan', '2025-10-28 20:45:00', 'Gewiss Stadium', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Atalanta_vs_Milan', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Como', 'Verona', '2025-10-29 18:30:00', 'Stadio Giuseppe Sinigaglia', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Como_vs_Verona', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Juventus', 'Udinese', '2025-10-29 18:30:00', 'Allianz Stadium', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Juventus_vs_Udinese', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Roma', 'Parma', '2025-10-29 18:30:00', 'Stadio Olimpico', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Roma_vs_Parma', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Inter', 'Fiorentina', '2025-10-29 20:45:00', 'Stadio Giuseppe Meazza', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Inter_vs_Fiorentina', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Genoa', 'Cremonese', '2025-10-29 20:45:00', 'Stadio Luigi Ferraris', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Genoa_vs_Cremonese', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Bologna', 'Torino', '2025-10-29 20:45:00', 'Stadio Renato Dall’Ara', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Bologna_vs_Torino', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cagliari', 'Sassuolo', '2025-10-30 18:30:00', 'Unipol Domus', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Cagliari_vs_Sassuolo', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Pisa', 'Lazio', '2025-10-30 20:45:00', 'Arena Garibaldi – Stadio Romeo Anconetani', 9, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_9_Pisa_vs_Lazio', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Udinese', 'Atalanta', '2025-11-01 15:00:00', 'Stadio Friuli', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Udinese_vs_Atalanta', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Napoli', 'Como', '2025-11-01 18:00:00', 'Stadio Diego Armando Maradona', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Napoli_vs_Como', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Cremonese', 'Juventus', '2025-11-01 20:45:00', 'Stadio Giovanni Zini', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Cremonese_vs_Juventus', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Verona', 'Inter', '2025-11-02 12:30:00', 'Stadio Marcantonio Bentegodi', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Verona_vs_Inter', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Torino', 'Pisa', '2025-11-02 15:00:00', 'Stadio Olimpico Grande Torino', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Torino_vs_Pisa', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Fiorentina', 'Lecce', '2025-11-02 15:00:00', 'Stadio Artemio Franchi', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Fiorentina_vs_Lecce', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Parma', 'Bologna', '2025-11-02 18:00:00', 'Stadio Ennio Tardini', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Parma_vs_Bologna', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Milan', 'Roma', '2025-11-02 20:45:00', 'Stadio Giuseppe Meazza', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Milan_vs_Roma', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Sassuolo', 'Genoa', '2025-11-03 18:30:00', 'Mapei Stadium – Città del Tricolore', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Sassuolo_vs_Genoa', NOW(), NOW());`,
+    );
+    await queryRunner.query(
+      `INSERT INTO fixtures (home_team, away_team, match_date, stadium, week, result, home_score, away_score, status, external_api_id, created_at, updated_at) VALUES ('Lazio', 'Cagliari', '2025-11-03 20:45:00', 'Stadio Olimpico', 10, NULL, NULL, NULL, 'SCHEDULED', 'serie_a_2025_10_Lazio_vs_Cagliari', NOW(), NOW());`,
+    );
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-    }
+  public async down(queryRunner: QueryRunner): Promise<void> {}
 }

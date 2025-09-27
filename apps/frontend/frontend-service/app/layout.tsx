@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Roboto } from "next/font/google";
 import "./globals.css";
+import "./globals-height-responsive.css";
 import { AuthProvider } from "@/src/contexts/AuthContext";
 import { GameModeProvider } from "@/src/contexts/GameModeContext";
 

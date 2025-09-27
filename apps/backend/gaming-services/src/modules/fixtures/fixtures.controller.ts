@@ -102,5 +102,4 @@ export class FixturesController {
       message: 'All cache cleared successfully',
     };
   }
-
 }

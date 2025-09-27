@@ -42,14 +42,12 @@ export function GameHeader({
   currentFixtureIndex = 0,
 }: GameHeaderProps) {
   const headerRef = useRef<HTMLDivElement | null>(null);
-  const [headerHeight, setHeaderHeight] = useState<number>(160);
 
   // Measure header height and notify parent
   useEffect(() => {
     const measure = () => {
       if (headerRef.current) {
         const height = headerRef.current.getBoundingClientRect().height;
-        setHeaderHeight(height);
         onHeightChange?.(height);
       }
     };
@@ -149,7 +147,7 @@ export function GameHeader({
     <div
       ref={headerRef}
       className={`
-        w-full mx-0 mt-0 rounded-b-2xl rounded-t-none text-white p-6
+        w-full mx-0 mt-0 rounded-b-2xl rounded-t-none text-white p-6 game-header-responsive
         ${isSticky ? 'fixed left-0 right-0 top-0 z-40 pt-[max(env(safe-area-inset-top),8px)]' : 'mb-6'}
         ${className}
       `}
@@ -160,13 +158,13 @@ export function GameHeader({
       <div className="text-center">
         {/* Mode indicator */}
         {currentMode === 'test' && (
-          <div className="inline-block px-2 py-1 mb-2 text-xs bg-white/20 rounded-full">
+          <div className="inline-block px-2 py-1 mb-2 text-xs bg-white/20 rounded-full game-header-mode-responsive">
             {modeLabel}
           </div>
         )}
         
         {/* Week title */}
-        <h1 className="text-base md:text-lg mb-1 whitespace-nowrap">
+        <h1 className="text-base md:text-lg mb-1 whitespace-nowrap game-header-title-responsive">
           {weekDataError ? (
             <span className="text-red-200">
               Errore settimana: {weekDataError}
@@ -186,7 +184,7 @@ export function GameHeader({
         </h1>
         
         {/* Countdown timer */}
-        <CountdownTimer timeToMatch={timeToMatch} className="mb-4" />
+        <CountdownTimer timeToMatch={timeToMatch} className="mb-4 game-header-countdown-responsive" />
         
         {/* Progress bar */}
         <ProgressBar
@@ -196,7 +194,7 @@ export function GameHeader({
 
         {/* Reset Button for Testing (Live Mode) */}
         {currentMode === 'live' && onReset && (
-          <div className="mt-3 pt-3 border-t border-white/20">
+          <div className="mt-3 pt-3 border-t border-white/20 game-header-reset-responsive">
             <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
               <button
                 onClick={onReset}

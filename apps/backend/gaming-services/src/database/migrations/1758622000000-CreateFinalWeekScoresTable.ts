@@ -1,14 +1,18 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateFinalWeekScoresTable1758622000000 implements MigrationInterface {
-    name = 'CreateFinalWeekScoresTable1758622000000'
+export class CreateFinalWeekScoresTable1758622000000
+  implements MigrationInterface
+{
+  name = 'CreateFinalWeekScoresTable1758622000000';
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        // Create enum type for mode
-        await queryRunner.query(`CREATE TYPE "public"."final_week_scores_mode_enum" AS ENUM('live', 'test')`);
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    // Create enum type for mode
+    await queryRunner.query(
+      `CREATE TYPE "public"."final_week_scores_mode_enum" AS ENUM('live', 'test')`,
+    );
 
-        // Create the final_week_scores table
-        await queryRunner.query(`
+    // Create the final_week_scores table
+    await queryRunner.query(`
             CREATE TABLE "final_week_scores" (
                 "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
                 "userId" character varying(36) NOT NULL,
@@ -24,20 +28,28 @@ export class CreateFinalWeekScoresTable1758622000000 implements MigrationInterfa
             )
         `);
 
-        // Create indexes for better query performance
-        await queryRunner.query(`CREATE INDEX "IDX_1eb85fefd628d1ef5b37b18784" ON "final_week_scores" ("week", "mode")`);
-        await queryRunner.query(`CREATE INDEX "IDX_b23df5cbf40f4403d8f447e1ec" ON "final_week_scores" ("userId", "mode")`);
-    }
+    // Create indexes for better query performance
+    await queryRunner.query(
+      `CREATE INDEX "IDX_1eb85fefd628d1ef5b37b18784" ON "final_week_scores" ("week", "mode")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_b23df5cbf40f4403d8f447e1ec" ON "final_week_scores" ("userId", "mode")`,
+    );
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        // Drop indexes
-        await queryRunner.query(`DROP INDEX "public"."IDX_b23df5cbf40f4403d8f447e1ec"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_1eb85fefd628d1ef5b37b18784"`);
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    // Drop indexes
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_b23df5cbf40f4403d8f447e1ec"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "public"."IDX_1eb85fefd628d1ef5b37b18784"`,
+    );
 
-        // Drop table
-        await queryRunner.query(`DROP TABLE "final_week_scores"`);
+    // Drop table
+    await queryRunner.query(`DROP TABLE "final_week_scores"`);
 
-        // Drop enum type
-        await queryRunner.query(`DROP TYPE "public"."final_week_scores_mode_enum"`);
-    }
+    // Drop enum type
+    await queryRunner.query(`DROP TYPE "public"."final_week_scores_mode_enum"`);
+  }
 }

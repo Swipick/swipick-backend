@@ -35,11 +35,15 @@ export class LiveUpdatesScheduler {
       const activeMatches = await this.fixturesService.getActiveMatches();
 
       if (activeMatches.length === 0) {
-        this.logger.debug('No active matches in database - skipping API calls to save quota');
+        this.logger.debug(
+          'No active matches in database - skipping API calls to save quota',
+        );
         return;
       }
 
-      this.logger.debug(`Found ${activeMatches.length} active matches in DB - proceeding with API polling`);
+      this.logger.debug(
+        `Found ${activeMatches.length} active matches in DB - proceeding with API polling`,
+      );
 
       const liveMatches = await this.liveUpdatesService.processLiveMatches();
 
