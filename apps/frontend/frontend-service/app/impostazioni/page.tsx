@@ -18,6 +18,7 @@ export default function ImpostazioniPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [prossimamenteToast, setProssimamenteToast] = useState<string | null>(null);
   const [uploading, setUploading] = useState<boolean>(false);
   const [deleting, setDeleting] = useState<boolean>(false);
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
@@ -140,9 +141,9 @@ export default function ImpostazioniPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white pb-8 pt-[calc(env(safe-area-inset-top)+120px)]">
+    <div className="min-h-screen bg-white pb-8 pt-[calc(env(safe-area-inset-top)+180px)]">
       {/* Fixed header: centered bold title, bold back arrow */}
-      <div className="fixed top-10 left-0 right-0 bg-white">
+      <div className="fixed top-0  left-0 right-0 bg-white z-20 shadow-sm border-b border-gray-100">
         <div className="relative h-[125px] flex items-center justify-center px-4">
           <button
             aria-label="Indietro"
@@ -259,38 +260,46 @@ export default function ImpostazioniPage() {
           </div>
 
       {/* Partite */}
-          <div className="py-1.5 flex items-center justify-between">
+          <div className="py-1.5 flex items-center justify-between opacity-50">
             <div>
               <div className="text-gray-800">Partite</div>
               <div className="text-xs text-gray-500">Ti avvisiamo al 90°</div>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
+            <label className="relative inline-flex items-center cursor-pointer" onClick={() => {
+              setProssimamenteToast('prossimamente');
+              setTimeout(() => setProssimamenteToast(null), 1800);
+            }}>
               <input
                 type="checkbox"
-        checked={notifMatches}
-        onChange={(e) => optimisticUpdate({ matches: e.target.checked })}
+        checked={false}
+        onChange={() => {}}
                 className="sr-only peer"
+                disabled
               />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-purple-600 transition-colors"></div>
-              <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform peer-checked:translate-x-5"></div>
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer transition-colors"></div>
+              <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform"></div>
             </label>
           </div>
 
       {/* Gol */}
-          <div className="py-1.5 flex items-center justify-between">
+          <div className="py-1.5 flex items-center justify-between opacity-50">
             <div>
               <div className="text-gray-800">Gol</div>
               <div className="text-xs text-gray-500">Ad ogni marcatura sarai il primo a saperlo</div>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
+            <label className="relative inline-flex items-center cursor-pointer" onClick={() => {
+              setProssimamenteToast('prossimamente');
+              setTimeout(() => setProssimamenteToast(null), 1800);
+            }}>
               <input
                 type="checkbox"
-        checked={notifGoals}
-        onChange={(e) => optimisticUpdate({ goals: e.target.checked })}
+        checked={false}
+        onChange={() => {}}
                 className="sr-only peer"
+                disabled
               />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-purple-600 transition-colors"></div>
-              <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform peer-checked:translate-x-5"></div>
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer transition-colors"></div>
+              <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform"></div>
             </label>
           </div>
         </div>
@@ -308,6 +317,7 @@ export default function ImpostazioniPage() {
         </div>
       </div>
   {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+  {prossimamenteToast && <Toast message={prossimamenteToast} onClose={() => setProssimamenteToast(null)} />}
     </div>
   );
 }

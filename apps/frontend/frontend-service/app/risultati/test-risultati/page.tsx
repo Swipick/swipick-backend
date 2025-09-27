@@ -1245,7 +1245,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
           transition={{ duration: 0.22, ease: 'easeOut' }}
         >
           {/* Results List - 4-column layout matching original */}
-          <div className="flex-1 px-4 py-4">
+          <div className="flex-1 px-4 py-4 pb-24">
             <div className="space-y-3">
               {fixtures.map((fixture) => {
                 const fixtureId = String(fixture.id);
