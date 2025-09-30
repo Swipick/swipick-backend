@@ -1,17 +1,18 @@
 # Multi-stage build for Railway deployment
+# Railway builds from repo root, so paths are relative to /Users/ashm4/Projects/swipick-backend/
 FROM node:20-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
 WORKDIR /app
 
-# Copy the root package.json and package-lock.json
-COPY ../../../package*.json ./
-COPY ../../../turbo.json ./
+# Copy the root package.json and package-lock.json (from repo root)
+COPY package*.json ./
+COPY turbo.json ./
 
 # Copy workspace package.json files
-COPY ../../../packages/common/package*.json ./packages/common/
-COPY package*.json ./apps/backend/gaming-services/
+COPY packages/common/package*.json ./packages/common/
+COPY apps/backend/gaming-services/package*.json ./apps/backend/gaming-services/
 
 # Install dependencies
 RUN npm ci
@@ -22,12 +23,12 @@ WORKDIR /app
 
 # Copy all necessary files from root
 COPY --from=deps /app/node_modules ./node_modules
-COPY ../../../packages ./packages
-COPY ../../../turbo.json ./
-COPY ../../../package*.json ./
+COPY packages ./packages
+COPY turbo.json ./
+COPY package*.json ./
 
 # Copy gaming-services source
-COPY . ./apps/backend/gaming-services
+COPY apps/backend/gaming-services ./apps/backend/gaming-services
 
 # Build the common package first
 RUN npm run build --workspace=@swipick/common
@@ -51,7 +52,7 @@ COPY --from=builder /app/packages/common/package.json ./node_modules/@swipick/co
 COPY --from=deps /app/node_modules ./node_modules
 
 # Copy package.json for the start script
-COPY package*.json ./
+COPY --from=builder /app/apps/backend/gaming-services/package*.json ./
 
 USER nestjs
 
