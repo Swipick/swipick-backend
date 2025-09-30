@@ -85,6 +85,7 @@ async function bootstrap() {
     'https://www.swipick.com',
     'https://swipick-frontend.vercel.app',
     'https://swipick-frontend.up.railway.app',
+    'https://swipick-frontend-production.up.railway.app',
   ];
 
   app.enableCors({

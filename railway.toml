@@ -1,9 +1,8 @@
 [build]
 builder = "dockerfile"
-dockerfilePath = "Dockerfile.gaming-services"
-buildArgs = { CACHE_BUST = "v3_status_fix_20250930" }
+dockerfilePath = "Containerfile"
 
 [deploy]
-startCommand = "node dist/main"
+startCommand = "node dist/main.js"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 10
