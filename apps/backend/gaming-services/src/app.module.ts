@@ -66,6 +66,9 @@ export class AppModule {
       '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
     );
     console.log(
+      '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
+    );
+    console.log(
       '🚀🚀🚀 [GAMING_SERVICES_INIT] Timestamp:',
       new Date().toISOString(),
     );
@@ -85,6 +88,9 @@ export class AppModule {
       '🚀🚀🚀 [GAMING_SERVICES_INIT] Ready to receive /api/predictions requests',
     );
     console.log(
+      '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
+    );
+    console.log(
       '🚀🚀🚀 [GAMING_SERVICES_INIT] Ready to receive /api/final-week-scores requests',
     );
     console.log(
@@ -96,6 +102,9 @@ export class AppModule {
     );
     console.log(
       '🚀🚀🚀 [GAMING_SERVICES_INIT] - GET /api/final-week-scores/:userId',
+    );
+    console.log(
+      '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
     );
     console.log(
       '🚀🚀🚀 [GAMING_SERVICES_INIT] - DELETE /api/final-week-scores/:userId/week/:week',
