@@ -2,6 +2,9 @@
 # This Dockerfile must be at repo root and Railway must be configured to use it
 FROM node:20-alpine AS base
 
+# Cache busting - change this value to force rebuild
+ARG CACHE_BUST=v3_status_fix_20250930
+
 # Install dependencies only when needed
 FROM base AS deps
 WORKDIR /app

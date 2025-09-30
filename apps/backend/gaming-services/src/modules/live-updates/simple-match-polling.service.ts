@@ -51,19 +51,16 @@ export class SimpleMatchPollingService {
       '[SIMPLE_MATCH_POLLING_INIT] Timestamp: ' + new Date().toISOString(),
     );
     this.logger.log(
-      '[SIMPLE_MATCH_POLLING_INIT] Version: DYNAMIC_WEEK_DETECTION_V2_20250930',
+      '[SIMPLE_MATCH_POLLING_INIT] Version: V3_FIXED_STATUS_PATH_20250930_1200PM',
     );
     this.logger.log(
-      '[SIMPLE_MATCH_POLLING_INIT] Feature: 7-Day Window Scanning (Past + Future)',
+      '[SIMPLE_MATCH_POLLING_INIT] Fix: Status now reads from fixture.status.short',
     );
     this.logger.log(
-      '[SIMPLE_MATCH_POLLING_INIT] Feature: Automatic Week Detection',
+      '[SIMPLE_MATCH_POLLING_INIT] Feature: Smart backfill + checkpoint polling',
     );
     this.logger.log(
-      '[SIMPLE_MATCH_POLLING_INIT] Feature: Catches Missed Matches from Downtime',
-    );
-    this.logger.log(
-      '[SIMPLE_MATCH_POLLING_INIT] NO MORE HARDCODED WEEK 4 - DYNAMIC DETECTION ACTIVE!',
+      '[SIMPLE_MATCH_POLLING_INIT] Debug: Shows match status and scores in logs',
     );
     this.logger.log('='.repeat(80));
   }
@@ -79,6 +76,9 @@ export class SimpleMatchPollingService {
     if (process.env.DISABLE_LIVE_UPDATES === 'true') {
       return;
     }
+
+    // Log version on every run to confirm deployment
+    this.logger.log('📌 Running polling V3_FIXED_STATUS_PATH_20250930_1200PM');
 
     try {
       await this.resetDailyCounterIfNeeded();

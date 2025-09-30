@@ -1,6 +1,7 @@
 [build]
 builder = "dockerfile"
 dockerfilePath = "Dockerfile.gaming-services"
+buildArgs = { CACHE_BUST = "v3_status_fix_20250930" }
 
 [deploy]
 startCommand = "node dist/main"
