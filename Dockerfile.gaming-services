@@ -45,11 +45,15 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nestjs
 
+# Copy node_modules first (before overwriting specific packages)
+COPY --from=deps /app/node_modules ./node_modules
+
 # Copy the standalone output
 COPY --from=builder /app/apps/backend/gaming-services/dist ./dist
+
+# Override with built common package
 COPY --from=builder /app/packages/common/dist ./node_modules/@swipick/common/dist
 COPY --from=builder /app/packages/common/package.json ./node_modules/@swipick/common/
-COPY --from=deps /app/node_modules ./node_modules
 
 # Copy package.json for the start script
 COPY --from=builder /app/apps/backend/gaming-services/package*.json ./
