@@ -79,6 +79,7 @@ export class SimpleMatchPollingService {
 
   /**
    * Load recent and upcoming unfinished matches (dynamic week detection)
+   * VERSION: DYNAMIC_WEEK_DETECTION_V2_20250930
    */
   private async loadTodaysMatches() {
     try {
@@ -88,8 +89,8 @@ export class SimpleMatchPollingService {
       const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const sevenDaysAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-      this.logger.debug(
-        `Looking for unfinished matches between ${sevenDaysAgo.toISOString()} and ${sevenDaysAhead.toISOString()}`,
+      this.logger.log(
+        `🔍 DYNAMIC WEEK DETECTION V2 ACTIVE - Looking for unfinished matches between ${sevenDaysAgo.toISOString()} and ${sevenDaysAhead.toISOString()}`,
       );
 
       // Get all fixtures and filter for the date range
