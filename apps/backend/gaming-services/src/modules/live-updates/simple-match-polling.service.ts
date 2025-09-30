@@ -383,9 +383,9 @@ export class SimpleMatchPollingService {
   /**
    * Fetch and update match results for backfilling
    */
-  private async fetchAndUpdateMatchResults(fixture: any) {
+  private async fetchAndUpdateMatchResults(fixture: Fixture) {
     try {
-      this.incrementApiCalls();
+      this.recordApiCall();
 
       // Fetch match data from API using the date
       const matchDate = new Date(fixture.match_date)
@@ -404,15 +404,15 @@ export class SimpleMatchPollingService {
             fixture.away_team.includes(m.teams?.away?.name)),
       );
 
-      if (matchData && matchData.fixture?.status?.short === 'FT') {
+      if (matchData && matchData.status?.short === 'FT') {
         // Update the fixture with results
         await this.fixtureRepository.update(fixture.id, {
           status: 'FINISHED',
           home_score: matchData.goals?.home || 0,
           away_score: matchData.goals?.away || 0,
-          result: this.determineResult(
-            matchData.goals?.home,
-            matchData.goals?.away,
+          result: this.calculateResult(
+            matchData.goals?.home || 0,
+            matchData.goals?.away || 0,
           ),
           updated_at: new Date(),
         });
@@ -431,15 +431,6 @@ export class SimpleMatchPollingService {
         error,
       );
     }
-  }
-
-  /**
-   * Determine match result
-   */
-  private determineResult(homeScore: number, awayScore: number): string {
-    if (homeScore > awayScore) return 'HOME';
-    if (awayScore > homeScore) return 'AWAY';
-    return 'DRAW';
   }
 
   /**
