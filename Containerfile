@@ -27,6 +27,9 @@ COPY --chown=1001:1001 packages/common/package*.json ./packages/common/
 # Switch to non-root user for security
 USER 1001:1001
 
+# Set npm cache to a writable location
+ENV npm_config_cache=/tmp/.npm
+
 # Install dependencies with npm ci for faster, deterministic builds
 # Separate production and dev dependencies for better layer caching
 RUN npm ci --only=production && \
@@ -41,6 +44,7 @@ LABEL description="Swipick Backend BFF Service - Build Stage"
 
 # Install dev dependencies needed for building
 USER root
+ENV npm_config_cache=/tmp/.npm
 RUN npm ci && npm cache clean --force
 USER 1001:1001
 
