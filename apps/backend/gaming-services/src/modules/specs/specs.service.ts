@@ -59,12 +59,18 @@ export class SpecsService {
     });
 
     if (existingSpec) {
-      throw new ConflictException(
-        'User already has a prediction for this fixture',
-      );
+      // Allow updating the prediction if match hasn't started yet
+      console.log(`🔄 [SPECS_SERVICE] Updating existing prediction for user ${user_id} on fixture ${fixture_id}`);
+      existingSpec.choice = choice;
+      existingSpec.timestamp = new Date();
+
+      const savedSpec = await this.specRepository.save(existingSpec);
+
+      // Return response with match display
+      return this.mapSpecToResponse(savedSpec, fixture);
     }
 
-    // Create the prediction for live mode
+    // Create new prediction for live mode
     const spec = this.specRepository.create({
       user_id,
       fixture_id,
