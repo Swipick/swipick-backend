@@ -1,0 +1,8 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile.gaming-services"
+
+[deploy]
+startCommand = "node dist/main"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
