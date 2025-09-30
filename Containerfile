@@ -10,7 +10,14 @@ LABEL maintainer="Swipick Development Team"
 LABEL description="Swipick Backend BFF Service - Dependencies Stage"
 
 # Install dumb-init for proper signal handling in containers
-RUN apk add --no-cache dumb-init
+# Also install build dependencies for native modules like sharp
+RUN apk add --no-cache \
+    dumb-init \
+    python3 \
+    make \
+    g++ \
+    vips-dev \
+    pkgconfig
 
 # Create app directory and set ownership for rootless operation
 WORKDIR /app
@@ -72,7 +79,11 @@ LABEL description="Swipick Backend BFF Service - Production Runtime"
 LABEL version="1.0.0"
 
 # Install dumb-init and curl for health checks
-RUN apk add --no-cache dumb-init curl
+# Also install vips runtime libraries for sharp
+RUN apk add --no-cache \
+    dumb-init \
+    curl \
+    vips
 
 # Create non-root user and group for rootless operation
 RUN addgroup -g 1001 -S appgroup && \
