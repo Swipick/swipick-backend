@@ -43,14 +43,28 @@ export class SimpleMatchPollingService {
 
   private logServiceVersion() {
     this.logger.log('='.repeat(80));
-    this.logger.log('🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥');
+    this.logger.log(
+      '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
+    );
     this.logger.log('='.repeat(80));
-    this.logger.log('[SIMPLE_MATCH_POLLING_INIT] Timestamp: ' + new Date().toISOString());
-    this.logger.log('[SIMPLE_MATCH_POLLING_INIT] Version: DYNAMIC_WEEK_DETECTION_V2_20250930');
-    this.logger.log('[SIMPLE_MATCH_POLLING_INIT] Feature: 7-Day Window Scanning (Past + Future)');
-    this.logger.log('[SIMPLE_MATCH_POLLING_INIT] Feature: Automatic Week Detection');
-    this.logger.log('[SIMPLE_MATCH_POLLING_INIT] Feature: Catches Missed Matches from Downtime');
-    this.logger.log('[SIMPLE_MATCH_POLLING_INIT] NO MORE HARDCODED WEEK 4 - DYNAMIC DETECTION ACTIVE!');
+    this.logger.log(
+      '[SIMPLE_MATCH_POLLING_INIT] Timestamp: ' + new Date().toISOString(),
+    );
+    this.logger.log(
+      '[SIMPLE_MATCH_POLLING_INIT] Version: DYNAMIC_WEEK_DETECTION_V2_20250930',
+    );
+    this.logger.log(
+      '[SIMPLE_MATCH_POLLING_INIT] Feature: 7-Day Window Scanning (Past + Future)',
+    );
+    this.logger.log(
+      '[SIMPLE_MATCH_POLLING_INIT] Feature: Automatic Week Detection',
+    );
+    this.logger.log(
+      '[SIMPLE_MATCH_POLLING_INIT] Feature: Catches Missed Matches from Downtime',
+    );
+    this.logger.log(
+      '[SIMPLE_MATCH_POLLING_INIT] NO MORE HARDCODED WEEK 4 - DYNAMIC DETECTION ACTIVE!',
+    );
     this.logger.log('='.repeat(80));
   }
 
