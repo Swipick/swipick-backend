@@ -78,23 +78,44 @@ export class SimpleMatchPollingService {
   }
 
   /**
-   * Load today's matches (week 4 for testing)
+   * Load recent and upcoming unfinished matches (dynamic week detection)
    */
   private async loadTodaysMatches() {
     try {
-      // For now, hardcode week 4 since that's what we're testing
-      const weekFixtures = await this.fixturesService.getFixturesByWeek(4);
+      // Get all unfinished fixtures from the past 7 days to today + 7 days
+      // This ensures we catch matches that were missed due to downtime
+      const now = new Date();
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const sevenDaysAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-      // Filter to today's matches only
-      const today = new Date();
-      const todayStr = today.toISOString().split('T')[0];
+      this.logger.debug(
+        `Looking for unfinished matches between ${sevenDaysAgo.toISOString()} and ${sevenDaysAhead.toISOString()}`,
+      );
 
-      const todaysFixtures = weekFixtures.filter((fixture) => {
-        const fixtureDate = new Date(fixture.match_date)
-          .toISOString()
-          .split('T')[0];
-        return fixtureDate === todayStr && fixture.status !== 'FINISHED';
+      // Get all fixtures and filter for the date range
+      const allFixtures = await this.fixtureRepository.find({
+        where: {
+          status: 'SCHEDULED' as any, // Only SCHEDULED matches need checking
+        },
+        order: { match_date: 'ASC' },
       });
+
+      // Filter to matches in our date window
+      const todaysFixtures = allFixtures.filter((fixture) => {
+        const matchDate = new Date(fixture.match_date);
+        return (
+          matchDate >= sevenDaysAgo &&
+          matchDate <= sevenDaysAhead &&
+          fixture.status !== 'FINISHED'
+        );
+      });
+
+      if (todaysFixtures.length > 0) {
+        const weeks = [...new Set(todaysFixtures.map((f) => f.week))];
+        this.logger.log(
+          `🔍 Found ${todaysFixtures.length} unfinished fixtures across week(s): ${weeks.join(', ')}`,
+        );
+      }
 
       // Set up checkpoints for new matches
       for (const fixture of todaysFixtures) {
@@ -110,7 +131,7 @@ export class SimpleMatchPollingService {
           });
 
           this.logger.log(
-            `📌 Tracking match: ${fixture.home_team} vs ${fixture.away_team} (${fixture.match_date})`,
+            `📌 Tracking match Week ${fixture.week}: ${fixture.home_team} vs ${fixture.away_team} (${new Date(fixture.match_date).toISOString()})`,
           );
         }
       }
