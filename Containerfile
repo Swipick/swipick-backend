@@ -93,9 +93,9 @@ RUN addgroup -g 1001 -S appgroup && \
 WORKDIR /app
 RUN chown -R 1001:1001 /app
 
-# Copy production dependencies from dependencies stage
-COPY --from=dependencies --chown=1001:1001 /app/node_modules ./node_modules
-COPY --from=dependencies --chown=1001:1001 /app/package*.json ./
+# Copy node_modules from builder stage (has all dependencies properly installed)
+COPY --from=builder --chown=1001:1001 /app/node_modules ./node_modules
+COPY --from=builder --chown=1001:1001 /app/package*.json ./
 
 # Copy built application and common package
 COPY --from=builder --chown=1001:1001 /app/apps/backend/bff/dist ./dist
