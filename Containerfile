@@ -37,9 +37,9 @@ USER 1001:1001
 # Set npm cache to a writable location
 ENV npm_config_cache=/tmp/.npm
 
-# Install dependencies with npm ci for faster, deterministic builds
-# Separate production and dev dependencies for better layer caching
-RUN npm ci --only=production && \
+# Install dependencies for the entire workspace
+# This ensures all workspace dependencies including sharp are installed
+RUN npm ci && \
     npm cache clean --force
 
 # =============================================================================
