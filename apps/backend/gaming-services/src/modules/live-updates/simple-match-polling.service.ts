@@ -393,7 +393,18 @@ export class SimpleMatchPollingService {
         .split('T')[0];
       const matches = await this.apiFootballService.getDailyFixtures(matchDate);
 
-      // Find the specific match
+      this.logger.debug(
+        `API returned ${matches.length} matches for ${matchDate}. Looking for: ${fixture.home_team} vs ${fixture.away_team}`,
+      );
+
+      // Log all matches returned to help debug
+      matches.forEach((m, idx) => {
+        this.logger.debug(
+          `  Match ${idx + 1}: ${m.teams?.home?.name} vs ${m.teams?.away?.name} - Status: ${m.status?.short}`,
+        );
+      });
+
+      // Find the specific match with more flexible matching
       const matchData = matches.find(
         (m) =>
           (m.teams?.home?.name === fixture.home_team ||
@@ -404,25 +415,35 @@ export class SimpleMatchPollingService {
             fixture.away_team.includes(m.teams?.away?.name)),
       );
 
-      if (matchData && matchData.status?.short === 'FT') {
+      // Check both possible status locations (API structure might vary)
+      const status = matchData?.status?.short;
+
+      if (
+        matchData &&
+        (status === 'FT' || status === 'AET' || status === 'PEN')
+      ) {
         // Update the fixture with results
+        const homeScore = matchData.goals?.home ?? 0;
+        const awayScore = matchData.goals?.away ?? 0;
+
         await this.fixtureRepository.update(fixture.id, {
           status: 'FINISHED',
-          home_score: matchData.goals?.home || 0,
-          away_score: matchData.goals?.away || 0,
-          result: this.calculateResult(
-            matchData.goals?.home || 0,
-            matchData.goals?.away || 0,
-          ),
+          home_score: homeScore,
+          away_score: awayScore,
+          result: this.calculateResult(homeScore, awayScore),
           updated_at: new Date(),
         });
 
         this.logger.log(
-          `✅ BACKFILLED: ${fixture.home_team} vs ${fixture.away_team} - Final: ${matchData.goals?.home || 0}-${matchData.goals?.away || 0}`,
+          `✅ BACKFILLED: ${fixture.home_team} vs ${fixture.away_team} - Final: ${homeScore}-${awayScore}`,
         );
       } else if (!matchData) {
         this.logger.warn(
           `⚠️ Match not found in API: ${fixture.home_team} vs ${fixture.away_team} on ${matchDate}`,
+        );
+      } else {
+        this.logger.warn(
+          `⚠️ Match found but not finished. Status: ${status} for ${fixture.home_team} vs ${fixture.away_team}`,
         );
       }
     } catch (error) {
