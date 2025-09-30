@@ -26,7 +26,7 @@ export class SimpleMatchPollingService {
   private lastDailyReset = new Date();
 
   // Configuration
-  private readonly MAX_DAILY_CALLS = 50;
+  private readonly MAX_DAILY_CALLS = 500; // Pro plan allows 7500/day, using 500 for safety
   private readonly KICKOFF_BUFFER_MINUTES = 5;
   private readonly MATCH_DURATION_MINUTES = 105; // 90 + 15 injury time
 
@@ -82,20 +82,20 @@ export class SimpleMatchPollingService {
 
     try {
       await this.resetDailyCounterIfNeeded();
-      await this.loadTodaysMatches();
 
-      // SMART POLLING: Only process checkpoints if we have active matches
-      if (this.activeMatches.size === 0) {
+      // STEP 1: Backfill past matches with NULL scores (automatic catch-up)
+      await this.backfillPastMatches();
+
+      // STEP 2: Load and monitor upcoming matches (database only)
+      await this.loadUpcomingMatches();
+
+      // STEP 3: Process checkpoints for matches that need API calls now
+      if (this.activeMatches.size > 0) {
         this.logger.debug(
-          'No active matches - skipping API polling to save quota',
+          `Processing ${this.activeMatches.size} active match checkpoints`,
         );
-        return;
+        await this.processCheckpoints();
       }
-
-      this.logger.debug(
-        `Processing ${this.activeMatches.size} active match checkpoints`,
-      );
-      await this.processCheckpoints();
 
       this.logger.debug(
         `Polling cycle completed. API calls today: ${this.dailyApiCalls}/${this.MAX_DAILY_CALLS}`,
@@ -106,77 +106,103 @@ export class SimpleMatchPollingService {
   }
 
   /**
-   * Load recent and upcoming unfinished matches (dynamic week detection)
-   * VERSION: DYNAMIC_WEEK_DETECTION_V2_20250930
+   * STEP 1: Backfill past matches with NULL scores
+   * Runs every 5 minutes to catch any missed results
    */
-  private async loadTodaysMatches() {
+  private async backfillPastMatches() {
     try {
-      // Get all unfinished fixtures from the past 7 days to today + 7 days
-      // This ensures we catch matches that were missed due to downtime
       const now = new Date();
-      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const sevenDaysAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
 
-      this.logger.log(
-        `🔍 DYNAMIC WEEK DETECTION V2 ACTIVE - Looking for unfinished matches between ${sevenDaysAgo.toISOString()} and ${sevenDaysAhead.toISOString()}`,
-      );
+      // Find past matches with NULL scores that need updating
+      const pastMatchesNeedingUpdate = await this.fixtureRepository
+        .createQueryBuilder('fixture')
+        .where('fixture.match_date < :now', { now })
+        .andWhere('fixture.match_date > :tenDaysAgo', { tenDaysAgo })
+        .andWhere('(fixture.home_score IS NULL OR fixture.away_score IS NULL)')
+        .andWhere('fixture.status = :status', { status: 'SCHEDULED' })
+        .orderBy('fixture.match_date', 'ASC')
+        .limit(10) // Process max 10 at a time to avoid API overload
+        .getMany();
 
-      // Get all fixtures and filter for the date range
-      const allFixtures = await this.fixtureRepository.find({
-        where: {
-          status: 'SCHEDULED' as any, // Only SCHEDULED matches need checking
-        },
-        order: { match_date: 'ASC' },
-      });
-
-      // Filter to matches in our date window
-      const todaysFixtures = allFixtures.filter((fixture) => {
-        const matchDate = new Date(fixture.match_date);
-        return (
-          matchDate >= sevenDaysAgo &&
-          matchDate <= sevenDaysAhead &&
-          fixture.status !== 'FINISHED'
-        );
-      });
-
-      if (todaysFixtures.length > 0) {
-        const weeks = [...new Set(todaysFixtures.map((f) => f.week))];
+      if (pastMatchesNeedingUpdate.length > 0) {
         this.logger.log(
-          `🔍 Found ${todaysFixtures.length} unfinished fixtures across week(s): ${weeks.join(', ')}`,
+          `🔄 BACKFILL: Found ${pastMatchesNeedingUpdate.length} past matches needing score updates`,
+        );
+
+        for (const fixture of pastMatchesNeedingUpdate) {
+          if (!this.canMakeApiCall()) {
+            this.logger.warn('⚠️ Cannot backfill - API limit reached');
+            break;
+          }
+
+          this.logger.log(
+            `📊 Backfilling scores for: ${fixture.home_team} vs ${fixture.away_team} (${fixture.match_date})`,
+          );
+
+          // Fetch the match results from API
+          await this.fetchAndUpdateMatchResults(fixture);
+        }
+      }
+    } catch (error) {
+      this.logger.error('Backfill failed', error);
+    }
+  }
+
+  /**
+   * STEP 2: Load upcoming matches for monitoring
+   * Only tracks them in memory, no API calls unless at checkpoint
+   */
+  private async loadUpcomingMatches() {
+    try {
+      const now = new Date();
+      const tenDaysAhead = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
+
+      // Get upcoming matches from database (next 10 days)
+      const upcomingMatches = await this.fixtureRepository
+        .createQueryBuilder('fixture')
+        .where('fixture.match_date >= :now', { now })
+        .andWhere('fixture.match_date <= :tenDaysAhead', { tenDaysAhead })
+        .andWhere('fixture.status != :finished', { finished: 'FINISHED' })
+        .orderBy('fixture.match_date', 'ASC')
+        .limit(10)
+        .getMany();
+
+      if (upcomingMatches.length > 0) {
+        this.logger.debug(
+          `📅 Monitoring ${upcomingMatches.length} upcoming matches`,
         );
       }
 
-      // Set up checkpoints for new matches
-      for (const fixture of todaysFixtures) {
-        if (!this.activeMatches.has(fixture.id)) {
+      // Clear old matches from tracking
+      this.activeMatches.clear();
+
+      // Add upcoming matches to active monitoring
+      for (const fixture of upcomingMatches) {
+        const matchTime = new Date(fixture.match_date);
+        const timeDiff = matchTime.getTime() - now.getTime();
+        const minutesUntilMatch = timeDiff / (1000 * 60);
+
+        // Only actively track matches that are within checkpoint window
+        // (5 minutes before kickoff to 105 minutes after)
+        if (minutesUntilMatch <= this.KICKOFF_BUFFER_MINUTES + 105) {
           this.activeMatches.set(fixture.id, {
             id: fixture.id,
             homeTeam: fixture.home_team,
             awayTeam: fixture.away_team,
-            scheduledTime: new Date(fixture.match_date),
+            scheduledTime: matchTime,
             kickoffChecked: fixture.status === 'LIVE',
-            endChecked: fixture.status === 'FINISHED',
+            endChecked: false,
             status: fixture.status as any,
           });
 
-          this.logger.log(
-            `📌 Tracking match Week ${fixture.week}: ${fixture.home_team} vs ${fixture.away_team} (${new Date(fixture.match_date).toISOString()})`,
+          this.logger.debug(
+            `⏰ Active checkpoint: ${fixture.home_team} vs ${fixture.away_team} in ${Math.round(minutesUntilMatch)} minutes`,
           );
-        }
-      }
-
-      // Remove finished matches
-      for (const [matchId, checkpoint] of this.activeMatches) {
-        const fixture = todaysFixtures.find((f) => f.id === matchId);
-        if (!fixture || fixture.status === 'FINISHED') {
-          this.logger.log(
-            `✅ Removing completed match: ${checkpoint.homeTeam} vs ${checkpoint.awayTeam}`,
-          );
-          this.activeMatches.delete(matchId);
         }
       }
     } catch (error) {
-      this.logger.error("Failed to load today's matches", error);
+      this.logger.error('Failed to load upcoming matches', error);
     }
   }
 
@@ -352,6 +378,68 @@ export class SimpleMatchPollingService {
         error,
       );
     }
+  }
+
+  /**
+   * Fetch and update match results for backfilling
+   */
+  private async fetchAndUpdateMatchResults(fixture: any) {
+    try {
+      this.incrementApiCalls();
+
+      // Fetch match data from API using the date
+      const matchDate = new Date(fixture.match_date)
+        .toISOString()
+        .split('T')[0];
+      const matches = await this.apiFootballService.getDailyFixtures(matchDate);
+
+      // Find the specific match
+      const matchData = matches.find(
+        (m) =>
+          (m.teams?.home?.name === fixture.home_team ||
+            m.teams?.home?.name.includes(fixture.home_team) ||
+            fixture.home_team.includes(m.teams?.home?.name)) &&
+          (m.teams?.away?.name === fixture.away_team ||
+            m.teams?.away?.name.includes(fixture.away_team) ||
+            fixture.away_team.includes(m.teams?.away?.name)),
+      );
+
+      if (matchData && matchData.fixture?.status?.short === 'FT') {
+        // Update the fixture with results
+        await this.fixtureRepository.update(fixture.id, {
+          status: 'FINISHED',
+          home_score: matchData.goals?.home || 0,
+          away_score: matchData.goals?.away || 0,
+          result: this.determineResult(
+            matchData.goals?.home,
+            matchData.goals?.away,
+          ),
+          updated_at: new Date(),
+        });
+
+        this.logger.log(
+          `✅ BACKFILLED: ${fixture.home_team} vs ${fixture.away_team} - Final: ${matchData.goals?.home || 0}-${matchData.goals?.away || 0}`,
+        );
+      } else if (!matchData) {
+        this.logger.warn(
+          `⚠️ Match not found in API: ${fixture.home_team} vs ${fixture.away_team} on ${matchDate}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to backfill ${fixture.home_team} vs ${fixture.away_team}`,
+        error,
+      );
+    }
+  }
+
+  /**
+   * Determine match result
+   */
+  private determineResult(homeScore: number, awayScore: number): string {
+    if (homeScore > awayScore) return 'HOME';
+    if (awayScore > homeScore) return 'AWAY';
+    return 'DRAW';
   }
 
   /**
