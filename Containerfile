@@ -10,14 +10,7 @@ LABEL maintainer="Swipick Development Team"
 LABEL description="Swipick Backend BFF Service - Dependencies Stage"
 
 # Install dumb-init for proper signal handling in containers
-# Also install build dependencies for native modules like sharp
-RUN apk add --no-cache \
-    dumb-init \
-    python3 \
-    make \
-    g++ \
-    vips-dev \
-    pkgconfig
+RUN apk add --no-cache dumb-init
 
 # Create app directory and set ownership for rootless operation
 WORKDIR /app
@@ -34,12 +27,9 @@ COPY --chown=1001:1001 packages/common/package*.json ./packages/common/
 # Switch to non-root user for security
 USER 1001:1001
 
-# Set npm cache to a writable location
-ENV npm_config_cache=/tmp/.npm
-
-# Install dependencies for the entire workspace
-# This ensures all workspace dependencies including sharp are installed
-RUN npm ci && \
+# Install dependencies with npm ci for faster, deterministic builds
+# Separate production and dev dependencies for better layer caching
+RUN npm ci --only=production && \
     npm cache clean --force
 
 # =============================================================================
@@ -51,7 +41,6 @@ LABEL description="Swipick Backend BFF Service - Build Stage"
 
 # Install dev dependencies needed for building
 USER root
-ENV npm_config_cache=/tmp/.npm
 RUN npm ci && npm cache clean --force
 USER 1001:1001
 
@@ -79,11 +68,7 @@ LABEL description="Swipick Backend BFF Service - Production Runtime"
 LABEL version="1.0.0"
 
 # Install dumb-init and curl for health checks
-# Also install vips runtime libraries for sharp
-RUN apk add --no-cache \
-    dumb-init \
-    curl \
-    vips
+RUN apk add --no-cache dumb-init curl
 
 # Create non-root user and group for rootless operation
 RUN addgroup -g 1001 -S appgroup && \
@@ -93,9 +78,9 @@ RUN addgroup -g 1001 -S appgroup && \
 WORKDIR /app
 RUN chown -R 1001:1001 /app
 
-# Copy node_modules from builder stage (has all dependencies properly installed)
-COPY --from=builder --chown=1001:1001 /app/node_modules ./node_modules
-COPY --from=builder --chown=1001:1001 /app/package*.json ./
+# Copy production dependencies from dependencies stage
+COPY --from=dependencies --chown=1001:1001 /app/node_modules ./node_modules
+COPY --from=dependencies --chown=1001:1001 /app/package*.json ./
 
 # Copy built application and common package
 COPY --from=builder --chown=1001:1001 /app/apps/backend/bff/dist ./dist
