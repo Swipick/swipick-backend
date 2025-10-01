@@ -2,7 +2,7 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "dockerfile",
-    "dockerfilePath": "Dockerfile.gaming-services"
+    "dockerfilePath": "Containerfile"
   },
   "deploy": {
     "restartPolicyType": "on_failure",
