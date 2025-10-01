@@ -84,6 +84,7 @@ RUN chown -R 1001:1001 /app
 
 # Copy production dependencies from dependencies stage
 COPY --from=dependencies --chown=1001:1001 /app/node_modules ./node_modules
+COPY --from=dependencies --chown=1001:1001 /app/apps/backend/bff/node_modules ./apps/backend/bff/node_modules
 COPY --from=dependencies --chown=1001:1001 /app/package*.json ./
 
 # Copy built application and common package
