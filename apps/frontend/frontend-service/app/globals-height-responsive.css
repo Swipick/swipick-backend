@@ -1,5 +1,5 @@
 /* Default larger sizes for taller screens */
-@media (min-height: 891px) {
+@media (min-height: 661px) {
   .team-logo {
     width: 96px !important;
     height: 96px !important;
@@ -11,7 +11,7 @@
 }
 
 /* Height-responsive styles for screens 890px and below */
-@media (max-height: 890px) {
+@media (max-height: 660px) {
   .game-header-responsive {
     padding: 8px 16px !important;
     margin-bottom: 8px !important;
@@ -94,7 +94,7 @@
 }
 
 /* Even more aggressive for very short screens (868px and below) */
-@media (max-height: 868px) {
+@media (max-height: 762px) {
   .game-header-responsive {
     padding: 6px 12px !important;
     margin-bottom: 4px !important;
