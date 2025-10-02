@@ -46,9 +46,10 @@ export class FixturesController {
   async getNextFixtures(
     @Query('limit') limit?: number,
     @Query('from') fromDate?: string,
+    @Query('userId') userId?: string,
   ) {
     const lim = !limit || limit < 1 || limit > 20 ? 10 : limit;
-    return this.fixturesService.getNextRealFixtures(lim, fromDate);
+    return this.fixturesService.getNextRealFixtures(lim, fromDate, userId);
   }
 
   @Get('week/:weekNumber')
