@@ -36,6 +36,7 @@ type FixtureRow = {
   // Additional fields for live mode conversion
   date?: string;
   kickoff?: string;
+  match_date?: string | Date; // Database field (fixtures table)
   venue?: string;
   homeTeam?: string;
   awayTeam?: string;
@@ -426,27 +427,33 @@ function RisultatiPageContent() {
         const fixtures = Array.isArray(fixturesResp) ? fixturesResp : fixturesResp?.data ?? [];
 
         // Convert fixtures to MatchCard format for consistency
-        const mcResponse = fixtures.map((f: FixtureRow) => ({
-          week: selectedWeek,
-          fixtureId: String(f.id ?? f.fixture_id ?? f.fixtureId),
-          kickoff: {
-            iso: f.date || f.kickoff || new Date().toISOString(),
-            display: new Date(f.date || f.kickoff || new Date()).toLocaleDateString()
-          },
-          stadium: f.venue || null,
-          home: {
-            name: f.homeTeam || f.home_team || f.teams?.home?.name || 'Home Team',
-            logo: null,
-            winRateHome: null,
-            last5: []
-          },
-          away: {
-            name: f.awayTeam || f.away_team || f.teams?.away?.name || 'Away Team',
-            logo: null,
-            winRateAway: null,
-            last5: []
-          }
-        }));
+        const mcResponse = fixtures.map((f: FixtureRow) => {
+          // Ensure match_date is properly converted to ISO string
+          const matchDate = f.match_date || f.date || f.kickoff;
+          const isoDate = matchDate ? (matchDate instanceof Date ? matchDate.toISOString() : String(matchDate)) : new Date().toISOString();
+
+          return {
+            week: selectedWeek,
+            fixtureId: String(f.id ?? f.fixture_id ?? f.fixtureId),
+            kickoff: {
+              iso: isoDate,
+              display: new Date(isoDate).toLocaleDateString()
+            },
+            stadium: f.venue || null,
+            home: {
+              name: f.homeTeam || f.home_team || f.teams?.home?.name || 'Home Team',
+              logo: null,
+              winRateHome: null,
+              last5: []
+            },
+            away: {
+              name: f.awayTeam || f.away_team || f.teams?.away?.name || 'Away Team',
+              logo: null,
+              winRateAway: null,
+              last5: []
+            }
+          };
+        });
         const sorted = mcResponse.slice().sort((a, b) => new Date(a.kickoff.iso).getTime() - new Date(b.kickoff.iso).getTime());
         setWeekCards(sorted.slice(0, 10));
         if (DEBUG_RISULTATI) {
