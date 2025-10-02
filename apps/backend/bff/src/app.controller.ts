@@ -229,6 +229,19 @@ export class AppController {
     );
   }
 
+  @Delete('api/predictions/user/:userId')
+  async deleteUserPredictions(
+    @Param('userId') userId: string,
+    @Req() req: Request,
+  ) {
+    const queryString = req.url.split('?')[1] || '';
+    this.logger.log(
+      `Deleting predictions for user ${userId}${queryString ? `?${queryString}` : ''}`,
+    );
+    const endpoint = `/api/predictions/user/${userId}${queryString ? `?${queryString}` : ''}`;
+    return this.appService.forwardToGamingServices(endpoint, 'DELETE');
+  }
+
   @Delete('api/test-mode/reset/:userId')
   async resetTestData(@Param('userId') userId: string) {
     this.logger.log(`Resetting test data for user ${userId}`);
