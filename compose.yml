@@ -14,7 +14,7 @@ services:
       - PORT=9000
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
-      - GAMING_SERVICES_URL=http://gaming-services:3000
+      - GAMING_SERVICES_URL=http://gaming-service:3000
     depends_on:
       - gaming-services
     networks:
