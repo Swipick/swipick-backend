@@ -302,8 +302,18 @@ export class SpecsService {
   }
 
   /** Delete all live predictions for a user (hard delete) */
-  async deleteUserPredictions(userId: string): Promise<number> {
-    const res = await this.specRepository.delete({ user_id: userId });
+  async deleteUserPredictions(userId: string, mode?: 'live' | 'test', week?: number): Promise<number> {
+    const whereConditions: any = { user_id: userId };
+
+    if (mode) {
+      whereConditions.mode = mode;
+    }
+
+    if (week !== undefined) {
+      whereConditions.week = week;
+    }
+
+    const res = await this.specRepository.delete(whereConditions);
     return res.affected || 0;
   }
 }

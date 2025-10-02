@@ -280,18 +280,21 @@ export class SpecsController {
   }
 
   /**
-   * Purge all live predictions for a user
-   * DELETE /api/predictions/user/:userId
+   * Purge predictions for a user (optionally filtered by mode and/or week)
+   * DELETE /api/predictions/user/:userId?mode=live&week=6
    */
   @Delete('user/:userId')
   async deleteUserPredictions(
     @Param('userId') userId: string,
+    @Query('mode') mode?: 'live' | 'test',
+    @Query('week') week?: string,
   ): Promise<{ success: boolean; deleted: number; message: string }> {
-    const deleted = await this.specsService.deleteUserPredictions(userId);
+    const weekNum = week ? parseInt(week, 10) : undefined;
+    const deleted = await this.specsService.deleteUserPredictions(userId, mode, weekNum);
     return {
       success: true,
       deleted,
-      message: `Deleted ${deleted} predictions for user ${userId}`,
+      message: `Deleted ${deleted} predictions for user ${userId}${mode ? ` (mode: ${mode})` : ''}${weekNum ? ` (week: ${weekNum})` : ''}`,
     };
   }
 }

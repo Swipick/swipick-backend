@@ -664,7 +664,14 @@ function RisultatiPageContent() {
             });
           } catch {}
         }
-        setToast('Non puoi rivelare risultati di partite non ancora iniziate.');
+
+        // Shake the button
+        if (anchorEl) {
+          anchorEl.classList.add('animate-shake');
+          setTimeout(() => anchorEl.classList.remove('animate-shake'), 500);
+        }
+
+        setToast('La partita non è ancora iniziata');
         return;
       }
     }
@@ -911,7 +918,17 @@ function RisultatiPageContent() {
                         {/* Col 3: Status button (centered) */}
             <div className="flex items-center justify-center ml-1.5">
                           <button
-                            onClick={isPreviousWeek ? undefined : (e) => onReveal(m.fixtureId, e.currentTarget)}
+                            onClick={isPreviousWeek ? undefined : (e) => {
+                              const kickoffTime = new Date(m.kickoff.iso);
+                              const now = new Date();
+                              if (kickoffTime > now) {
+                                e.currentTarget.classList.add('animate-shake');
+                                setTimeout(() => e.currentTarget.classList.remove('animate-shake'), 500);
+                                setToast('La partita non è ancora iniziata');
+                                return;
+                              }
+                              onReveal(m.fixtureId, e.currentTarget);
+                            }}
                             disabled={isRevealed}
                             className={`min-w-[72px] px-2 py-2 rounded-md text-[11px] leading-tight text-center font-medium ${statusColor} ${isRevealed ? 'opacity-100 cursor-default' : 'hover:bg-opacity-100'}`}
                           >
