@@ -638,7 +638,7 @@ function RisultatiPageContent() {
   // Share handler (defined after meter so it can reference it safely)
   const handleShare = useCallback(async () => {
     const title = `Giornata ${selectedWeek} — Swipick`;
-    const text = `Ho rivelato ${meter.revealed}/10: ${meter.correct} corrette (${meter.percent}%).`;
+    const text = `Ho indovinato il ${meter.percent}% della ${selectedWeek} giornata. Sono nel 10% dei migliori.`;
     const url = typeof window !== 'undefined' ? window.location.href : undefined;
     try {
       const n: NavigatorWebShare | undefined = typeof navigator !== 'undefined' ? (navigator as NavigatorWebShare) : undefined;
