@@ -289,12 +289,22 @@ export class SpecsController {
     @Query('mode') mode?: 'live' | 'test',
     @Query('week') week?: string,
   ): Promise<{ success: boolean; deleted: number; message: string }> {
+    console.log('🗑️ [SPECS_CONTROLLER] DELETE request received');
+    console.log('🗑️ [SPECS_CONTROLLER] Path params:', { userId });
+    console.log('🗑️ [SPECS_CONTROLLER] Query params:', { mode, week });
+
     const weekNum = week ? parseInt(week, 10) : undefined;
+    console.log('🗑️ [SPECS_CONTROLLER] Parsed week number:', weekNum);
+
     const deleted = await this.specsService.deleteUserPredictions(userId, mode, weekNum);
-    return {
+
+    const response = {
       success: true,
       deleted,
       message: `Deleted ${deleted} predictions for user ${userId}${mode ? ` (mode: ${mode})` : ''}${weekNum ? ` (week: ${weekNum})` : ''}`,
     };
+
+    console.log('🗑️ [SPECS_CONTROLLER] Response:', response);
+    return response;
   }
 }

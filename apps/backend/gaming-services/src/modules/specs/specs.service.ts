@@ -303,6 +303,9 @@ export class SpecsService {
 
   /** Delete all live predictions for a user (hard delete) */
   async deleteUserPredictions(userId: string, mode?: 'live' | 'test', week?: number): Promise<number> {
+    console.log('🗑️ [DELETE_PREDICTIONS] Delete request received');
+    console.log('🗑️ [DELETE_PREDICTIONS] Parameters:', { userId, mode, week });
+
     const whereConditions: any = { user_id: userId };
 
     if (mode) {
@@ -313,7 +316,29 @@ export class SpecsService {
       whereConditions.week = week;
     }
 
+    console.log('🗑️ [DELETE_PREDICTIONS] Where conditions:', whereConditions);
+
+    // Check what exists before delete
+    const existingSpecs = await this.specRepository.find({ where: whereConditions });
+    console.log('🗑️ [DELETE_PREDICTIONS] Found existing specs:', existingSpecs.length);
+    if (existingSpecs.length > 0) {
+      console.log('🗑️ [DELETE_PREDICTIONS] Sample spec to delete:', {
+        id: existingSpecs[0].id,
+        user_id: existingSpecs[0].user_id,
+        fixture_id: existingSpecs[0].fixture_id,
+        choice: existingSpecs[0].choice,
+        week: existingSpecs[0].week,
+        mode: existingSpecs[0].mode,
+      });
+    }
+
     const res = await this.specRepository.delete(whereConditions);
+    console.log('🗑️ [DELETE_PREDICTIONS] Delete result:', {
+      affected: res.affected,
+      raw: res.raw,
+    });
+    console.log('🗑️ [DELETE_PREDICTIONS] Delete operation complete');
+
     return res.affected || 0;
   }
 }

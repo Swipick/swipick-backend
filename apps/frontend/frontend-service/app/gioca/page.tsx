@@ -149,8 +149,42 @@ function GiocaPageContent() {
   const cardRotate = useTransform(cardX, [-320, 0, 320], [-10, 0, 10]);
 
   // Summary screen handlers (defined after motion values are available)
-  const handlePlayAgain = useCallback(() => {
+  const handlePlayAgain = useCallback(async () => {
+    console.log('🔄 [RESET_BUTTON] Button clicked!');
+    console.log('🔄 [RESET_BUTTON] Current state:', {
+      userKey,
+      selectedWeek,
+      currentMode,
+      predictionsCount,
+    });
+
+    // Delete predictions from database
+    if (userKey && selectedWeek) {
+      try {
+        console.log('🔄 [RESET_BUTTON] Calling API to delete predictions...');
+        console.log('🔄 [RESET_BUTTON] Delete params:', {
+          userId: userKey,
+          mode: currentMode,
+          week: selectedWeek,
+        });
+
+        const { apiClient } = await import('@/lib/api-client');
+        const result = await apiClient.deletePredictions(userKey, currentMode, selectedWeek);
+
+        console.log('🔄 [RESET_BUTTON] API delete response:', result);
+        console.log('🔄 [RESET_BUTTON] Predictions deleted from database for week', selectedWeek);
+      } catch (error) {
+        console.error('🔄 [RESET_BUTTON] Failed to delete predictions from database:', error);
+      }
+    } else {
+      console.log('🔄 [RESET_BUTTON] Skipping database delete - missing userKey or selectedWeek:', {
+        userKey,
+        selectedWeek,
+      });
+    }
+
     // Reset all game state
+    console.log('🔄 [RESET_BUTTON] Resetting local game state...');
     resetPredictions();
     setCurrentFixtureIndex(0);
     setShowSummaryScreen(false);
@@ -166,7 +200,8 @@ function GiocaPageContent() {
     setIsInSkippedMode(false);
     setIsTransitioningToSkipped(false);
     setPreviewCardOpacity(1);
-  }, [resetPredictions, cardX, cardY, cardOpacity]);
+    console.log('🔄 [RESET_BUTTON] Reset complete!');
+  }, [resetPredictions, cardX, cardY, cardOpacity, userKey, selectedWeek, currentMode, predictionsCount]);
 
   const handleViewResults = useCallback(() => {
     setShowSummaryScreen(false);
