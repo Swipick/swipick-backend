@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Resend } from 'resend';
+import * as nodemailer from 'nodemailer';
+import { Transporter } from 'nodemailer';
 
 export interface EmailTemplate {
   to: string;
@@ -12,27 +13,43 @@ export interface EmailTemplate {
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private resend: Resend | null = null;
+  private transporter: Transporter | null = null;
 
   constructor(private configService: ConfigService) {
-    const apiKey = this.configService.get<string>('RESEND_API_KEY');
+    const smtpHost = this.configService.get<string>('SMTP_HOST');
+    const smtpPort = this.configService.get<number>('SMTP_PORT');
+    const smtpUser = this.configService.get<string>('SMTP_USER');
+    const smtpPassword = this.configService.get<string>('SMTP_PASSWORD');
+    const smtpSecure = this.configService.get<boolean>('SMTP_SECURE');
 
-    this.logger.log(`🔧 Initializing EmailService...`);
-    this.logger.log(`🔑 API Key exists: ${!!apiKey}`);
-    this.logger.log(`🔑 API Key length: ${apiKey ? apiKey.length : 0}`);
+    this.logger.log(`🔧 Initializing EmailService with Aruba SMTP...`);
+    this.logger.log(`🔑 SMTP Host: ${smtpHost}`);
+    this.logger.log(`🔑 SMTP Port: ${smtpPort}`);
+    this.logger.log(`🔑 SMTP User: ${smtpUser}`);
+    this.logger.log(`🔑 SMTP Secure: ${smtpSecure}`);
 
-    if (!apiKey) {
+    if (!smtpHost || !smtpPort || !smtpUser || !smtpPassword) {
       this.logger.error(
-        '❌ RESEND_API_KEY not found. Email service will not function.',
+        '❌ SMTP configuration incomplete. Email service will not function.',
       );
       return;
     }
 
     try {
-      this.resend = new Resend(apiKey);
-      this.logger.log('✅ Email service initialized with Resend successfully');
+      this.transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        auth: {
+          user: smtpUser,
+          pass: smtpPassword,
+        },
+      });
+      this.logger.log(
+        '✅ Email service initialized with Aruba SMTP successfully',
+      );
     } catch (error) {
-      this.logger.error('❌ Failed to initialize Resend:', error);
+      this.logger.error('❌ Failed to initialize SMTP transport:', error);
     }
   }
 
@@ -47,15 +64,17 @@ export class EmailService {
     this.logger.log(`📧 Attempting to send verification email to: ${email}`);
 
     try {
-      if (!this.resend) {
-        const error = new Error('Resend not initialized - missing API key');
-        this.logger.error('❌ Resend service not available:', error);
+      if (!this.transporter) {
+        const error = new Error(
+          'SMTP transport not initialized - missing configuration',
+        );
+        this.logger.error('❌ SMTP service not available:', error);
         throw error;
       }
 
       const fromEmail = this.configService.get<string>(
-        'RESEND_FROM_EMAIL',
-        'Swipick <onboarding@resend.dev>',
+        'SMTP_FROM_EMAIL',
+        'Swipick <noreply@swipick.com>',
       );
 
       this.logger.log(`📤 From email: ${fromEmail}`);
@@ -68,7 +87,7 @@ export class EmailService {
 
       this.logger.log(`📝 Email template generated for: ${name}`);
 
-      const result = await this.resend.emails.send({
+      const result = await this.transporter.sendMail({
         from: fromEmail,
         to: email,
         subject: 'Verifica il tuo account Swipick',
@@ -77,9 +96,9 @@ export class EmailService {
       });
 
       this.logger.log(
-        `✅ Verification email sent successfully to ${email}. ID: ${result.data?.id}`,
+        `✅ Verification email sent successfully to ${email}. Message ID: ${result.messageId}`,
       );
-      this.logger.log(`📊 Resend response:`, JSON.stringify(result, null, 2));
+      this.logger.log(`📊 SMTP response:`, JSON.stringify(result, null, 2));
     } catch (error) {
       this.logger.error(
         `❌ Failed to send verification email to ${email}`,
@@ -99,13 +118,15 @@ export class EmailService {
     resetLink: string,
   ): Promise<void> {
     try {
-      if (!this.resend) {
-        throw new Error('Resend not initialized - missing API key');
+      if (!this.transporter) {
+        throw new Error(
+          'SMTP transport not initialized - missing configuration',
+        );
       }
 
       const fromEmail = this.configService.get<string>(
-        'RESEND_FROM_EMAIL',
-        'noreply@swipick.com',
+        'SMTP_FROM_EMAIL',
+        'Swipick <noreply@swipick.com>',
       );
 
       const emailTemplate = this.generatePasswordResetEmailTemplate(
@@ -113,7 +134,7 @@ export class EmailService {
         resetLink,
       );
 
-      const result = await this.resend.emails.send({
+      const result = await this.transporter.sendMail({
         from: fromEmail,
         to: email,
         subject: 'Reset della password - Swipick',
@@ -122,7 +143,7 @@ export class EmailService {
       });
 
       this.logger.log(
-        `Password reset email sent successfully to ${email}. ID: ${result.data?.id}`,
+        `Password reset email sent successfully to ${email}. Message ID: ${result.messageId}`,
       );
     } catch (error) {
       this.logger.error(
