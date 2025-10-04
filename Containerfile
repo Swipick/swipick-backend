@@ -27,6 +27,9 @@ COPY --chown=1001:1001 packages/common/package*.json ./packages/common/
 # Switch to non-root user for security
 USER 1001:1001
 
+# Set npm cache directory to a location owned by the user
+ENV npm_config_cache=/app/.npm
+
 # Install dependencies with npm ci for faster, deterministic builds
 # Separate production and dev dependencies for better layer caching
 RUN npm ci --only=production && \
@@ -41,6 +44,7 @@ LABEL description="Swipick Backend BFF Service - Build Stage"
 
 # Install dev dependencies needed for building
 USER root
+ENV npm_config_cache=/app/.npm
 RUN npm ci && npm cache clean --force
 USER 1001:1001
 
@@ -81,6 +85,9 @@ RUN chown -R 1001:1001 /app
 # Copy production dependencies from dependencies stage
 COPY --from=dependencies --chown=1001:1001 /app/node_modules ./node_modules
 COPY --from=dependencies --chown=1001:1001 /app/package*.json ./
+
+# Copy workspace-specific node_modules (contains sharp and other BFF dependencies)
+COPY --from=dependencies --chown=1001:1001 /app/apps/backend/bff/node_modules ./node_modules
 
 # Copy built application and common package
 COPY --from=builder --chown=1001:1001 /app/apps/backend/bff/dist ./dist

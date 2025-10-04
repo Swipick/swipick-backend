@@ -384,6 +384,17 @@ class ApiClient {
     const qs = userId ? `?userId=${encodeURIComponent(userId)}` : '';
     return this.request(`/test-mode/match-cards/week/${week}${qs}`);
   }
+
+  // Delete user predictions (optionally filtered by mode and/or week)
+  async deletePredictions(userId: string, mode?: 'live' | 'test', week?: number) {
+    const params = new URLSearchParams();
+    if (mode) params.set('mode', mode);
+    if (week) params.set('week', String(week));
+    const qs = params.toString();
+    return this.request(`/predictions/user/${userId}${qs ? `?${qs}` : ''}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 // Export singleton instance

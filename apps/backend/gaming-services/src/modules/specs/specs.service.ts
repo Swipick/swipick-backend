@@ -59,12 +59,18 @@ export class SpecsService {
     });
 
     if (existingSpec) {
-      throw new ConflictException(
-        'User already has a prediction for this fixture',
-      );
+      // Allow updating the prediction if match hasn't started yet
+      console.log(`🔄 [SPECS_SERVICE] Updating existing prediction for user ${user_id} on fixture ${fixture_id}`);
+      existingSpec.choice = choice;
+      existingSpec.timestamp = new Date();
+
+      const savedSpec = await this.specRepository.save(existingSpec);
+
+      // Return response with match display
+      return this.mapSpecToResponse(savedSpec, fixture);
     }
 
-    // Create the prediction for live mode
+    // Create new prediction for live mode
     const spec = this.specRepository.create({
       user_id,
       fixture_id,
@@ -296,8 +302,43 @@ export class SpecsService {
   }
 
   /** Delete all live predictions for a user (hard delete) */
-  async deleteUserPredictions(userId: string): Promise<number> {
-    const res = await this.specRepository.delete({ user_id: userId });
+  async deleteUserPredictions(userId: string, mode?: 'live' | 'test', week?: number): Promise<number> {
+    console.log('🗑️ [DELETE_PREDICTIONS] Delete request received');
+    console.log('🗑️ [DELETE_PREDICTIONS] Parameters:', { userId, mode, week });
+
+    const whereConditions: any = { user_id: userId };
+
+    if (mode) {
+      whereConditions.mode = mode;
+    }
+
+    if (week !== undefined) {
+      whereConditions.week = week;
+    }
+
+    console.log('🗑️ [DELETE_PREDICTIONS] Where conditions:', whereConditions);
+
+    // Check what exists before delete
+    const existingSpecs = await this.specRepository.find({ where: whereConditions });
+    console.log('🗑️ [DELETE_PREDICTIONS] Found existing specs:', existingSpecs.length);
+    if (existingSpecs.length > 0) {
+      console.log('🗑️ [DELETE_PREDICTIONS] Sample spec to delete:', {
+        id: existingSpecs[0].id,
+        user_id: existingSpecs[0].user_id,
+        fixture_id: existingSpecs[0].fixture_id,
+        choice: existingSpecs[0].choice,
+        week: existingSpecs[0].week,
+        mode: existingSpecs[0].mode,
+      });
+    }
+
+    const res = await this.specRepository.delete(whereConditions);
+    console.log('🗑️ [DELETE_PREDICTIONS] Delete result:', {
+      affected: res.affected,
+      raw: res.raw,
+    });
+    console.log('🗑️ [DELETE_PREDICTIONS] Delete operation complete');
+
     return res.affected || 0;
   }
 }

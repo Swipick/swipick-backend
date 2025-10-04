@@ -36,6 +36,7 @@ type FixtureRow = {
   // Additional fields for live mode conversion
   date?: string;
   kickoff?: string;
+  match_date?: string | Date; // Database field (fixtures table)
   venue?: string;
   homeTeam?: string;
   awayTeam?: string;
@@ -426,27 +427,33 @@ function RisultatiPageContent() {
         const fixtures = Array.isArray(fixturesResp) ? fixturesResp : fixturesResp?.data ?? [];
 
         // Convert fixtures to MatchCard format for consistency
-        const mcResponse = fixtures.map((f: FixtureRow) => ({
-          week: selectedWeek,
-          fixtureId: String(f.id ?? f.fixture_id ?? f.fixtureId),
-          kickoff: {
-            iso: f.date || f.kickoff || new Date().toISOString(),
-            display: new Date(f.date || f.kickoff || new Date()).toLocaleDateString()
-          },
-          stadium: f.venue || null,
-          home: {
-            name: f.homeTeam || f.home_team || f.teams?.home?.name || 'Home Team',
-            logo: null,
-            winRateHome: null,
-            last5: []
-          },
-          away: {
-            name: f.awayTeam || f.away_team || f.teams?.away?.name || 'Away Team',
-            logo: null,
-            winRateAway: null,
-            last5: []
-          }
-        }));
+        const mcResponse = fixtures.map((f: FixtureRow) => {
+          // Ensure match_date is properly converted to ISO string
+          const matchDate = f.match_date || f.date || f.kickoff;
+          const isoDate = matchDate ? (matchDate instanceof Date ? matchDate.toISOString() : String(matchDate)) : new Date().toISOString();
+
+          return {
+            week: selectedWeek,
+            fixtureId: String(f.id ?? f.fixture_id ?? f.fixtureId),
+            kickoff: {
+              iso: isoDate,
+              display: new Date(isoDate).toLocaleDateString()
+            },
+            stadium: f.venue || null,
+            home: {
+              name: f.homeTeam || f.home_team || f.teams?.home?.name || 'Home Team',
+              logo: null,
+              winRateHome: null,
+              last5: []
+            },
+            away: {
+              name: f.awayTeam || f.away_team || f.teams?.away?.name || 'Away Team',
+              logo: null,
+              winRateAway: null,
+              last5: []
+            }
+          };
+        });
         const sorted = mcResponse.slice().sort((a, b) => new Date(a.kickoff.iso).getTime() - new Date(b.kickoff.iso).getTime());
         setWeekCards(sorted.slice(0, 10));
         if (DEBUG_RISULTATI) {
@@ -631,7 +638,7 @@ function RisultatiPageContent() {
   // Share handler (defined after meter so it can reference it safely)
   const handleShare = useCallback(async () => {
     const title = `Giornata ${selectedWeek} — Swipick`;
-    const text = `Ho rivelato ${meter.revealed}/10: ${meter.correct} corrette (${meter.percent}%).`;
+    const text = `Ho indovinato il ${meter.percent}% della ${selectedWeek} giornata. Sono nel 10% dei migliori.`;
     const url = typeof window !== 'undefined' ? window.location.href : undefined;
     try {
       const n: NavigatorWebShare | undefined = typeof navigator !== 'undefined' ? (navigator as NavigatorWebShare) : undefined;
@@ -664,7 +671,14 @@ function RisultatiPageContent() {
             });
           } catch {}
         }
-        setToast('Non puoi rivelare risultati di partite non ancora iniziate.');
+
+        // Shake the button
+        if (anchorEl) {
+          anchorEl.classList.add('animate-shake');
+          setTimeout(() => anchorEl.classList.remove('animate-shake'), 500);
+        }
+
+        setToast('La partita non è ancora iniziata');
         return;
       }
     }
@@ -911,7 +925,17 @@ function RisultatiPageContent() {
                         {/* Col 3: Status button (centered) */}
             <div className="flex items-center justify-center ml-1.5">
                           <button
-                            onClick={isPreviousWeek ? undefined : (e) => onReveal(m.fixtureId, e.currentTarget)}
+                            onClick={isPreviousWeek ? undefined : (e) => {
+                              const kickoffTime = new Date(m.kickoff.iso);
+                              const now = new Date();
+                              if (kickoffTime > now) {
+                                e.currentTarget.classList.add('animate-shake');
+                                setTimeout(() => e.currentTarget.classList.remove('animate-shake'), 500);
+                                setToast('La partita non è ancora iniziata');
+                                return;
+                              }
+                              onReveal(m.fixtureId, e.currentTarget);
+                            }}
                             disabled={isRevealed}
                             className={`min-w-[72px] px-2 py-2 rounded-md text-[11px] leading-tight text-center font-medium ${statusColor} ${isRevealed ? 'opacity-100 cursor-default' : 'hover:bg-opacity-100'}`}
                           >

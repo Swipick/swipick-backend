@@ -77,9 +77,35 @@ async function bootstrap() {
   );
 
   // CORS configuration
+  const corsOrigins = [
+    'http://localhost:3000',
+    'http://localhost:4000',
+    'http://localhost:4200',
+    'https://swipick.com',
+    'https://www.swipick.com',
+    'https://swipick-frontend.vercel.app',
+    'https://swipick-frontend.up.railway.app',
+    'https://swipick-frontend-production.up.railway.app',
+  ];
+
   app.enableCors({
-    origin: nodeEnv === 'production' ? false : true,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, Postman, etc.)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // Check if origin is in allowed list
+      if (corsOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        logger.warn(`CORS blocked request from origin: ${origin}`);
+        callback(null, false);
+      }
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   });
 
   // Global prefix

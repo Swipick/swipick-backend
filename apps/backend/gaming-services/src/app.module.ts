@@ -63,6 +63,10 @@ export class AppModule {
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] ='.repeat(30));
     console.log(
       '🚀🚀🚀 [GAMING_SERVICES_INIT] *** GAMING SERVICES APP MODULE INITIALIZED ***',
+      '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
+    );
+    console.log(
+      '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
     );
     console.log(
       '🚀🚀🚀 [GAMING_SERVICES_INIT] Timestamp:',
@@ -73,12 +77,18 @@ export class AppModule {
     );
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] Build timestamp:', Date.now());
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] SpecsModule loaded: YES');
+    console.log(
+      '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
+    );
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] TestModeModule loaded: YES');
     console.log(
       '🚀🚀🚀 [GAMING_SERVICES_INIT] FinalWeekScoresModule loaded: YES',
     );
     console.log(
       '🚀🚀🚀 [GAMING_SERVICES_INIT] Ready to receive /api/predictions requests',
+    );
+    console.log(
+      '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
     );
     console.log(
       '🚀🚀🚀 [GAMING_SERVICES_INIT] Ready to receive /api/final-week-scores requests',
@@ -94,7 +104,13 @@ export class AppModule {
       '🚀🚀🚀 [GAMING_SERVICES_INIT] - GET /api/final-week-scores/:userId',
     );
     console.log(
+      '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
+    );
+    console.log(
       '🚀🚀🚀 [GAMING_SERVICES_INIT] - DELETE /api/final-week-scores/:userId/week/:week',
+    );
+    console.log(
+      '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
     );
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] ='.repeat(30));
   }
