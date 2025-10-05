@@ -77,15 +77,15 @@ async healthCheck()
 ## API Budget Management
 
 ### Daily Limits
-- **Maximum API Calls**: 50 per day
+- **Maximum API Calls**: 500 per day
 - **Efficiency Target**: ~2 calls per match
-- **Typical Usage**: 10 matches = ~20 calls (40% of quota)
+- **Typical Usage**: 10 matches = ~20 calls (4% of quota)
 
 ### Budget Status Levels
-- **HEALTHY**: < 50% quota used (< 25 calls)
-- **MODERATE**: 50-80% quota used (25-40 calls)
-- **HIGH**: 80-95% quota used (40-47 calls)
-- **CRITICAL**: > 95% quota used (> 47 calls)
+- **HEALTHY**: < 50% quota used (< 250 calls)
+- **MODERATE**: 50-80% quota used (250-400 calls)
+- **HIGH**: 80-95% quota used (400-475 calls)
+- **CRITICAL**: > 95% quota used (> 475 calls)
 
 ### Budget Protection
 - **Circuit Breaker**: Blocks API calls after 5 consecutive failures
@@ -228,7 +228,7 @@ NODE_ENV=development
 - **Database Impact**: Minimal (only updates on status changes)
 
 ### Scalability
-- **Concurrent Matches**: Up to 25 matches per day (within 50-call budget)
+- **Concurrent Matches**: Up to 250 matches per day (within 500-call budget)
 - **Peak Load**: 10 Serie A matches = 20 API calls
 - **Off-peak**: Zero API calls when no checkpoints due
 
@@ -267,6 +267,6 @@ This intelligent polling system provides efficient live match monitoring with:
 - **Smart Timing**: Checkpoints at kickoff+5min and final whistle+105min
 - **Robust Fallbacks**: Multi-layer caching and graceful degradation
 - **Real-time Updates**: WebSocket broadcasting to connected clients
-- **Budget Awareness**: Stays well within 50-call daily limits
+- **Budget Awareness**: Stays well within 500-call daily limits
 
 The system balances timeliness with efficiency, ensuring accurate match data while respecting external API constraints.
