@@ -65,9 +65,44 @@ export default function LoginPage() {
           console.log('🔵 [LoginPage] Was expecting redirect, checking auth state...');
 
           const auth = getAuth();
-          onAuthStateChanged(auth, async (user) => {
+
+          // Wait a bit for auth to stabilize after redirect
+          console.log('🔵 [LoginPage] Waiting 1.5s for auth to stabilize...');
+          await new Promise(resolve => setTimeout(resolve, 1500));
+
+          // Check current user first
+          const currentUser = auth.currentUser;
+          console.log('🔵 [LoginPage] Current user after wait:', currentUser?.email || 'none');
+
+          if (currentUser) {
+            console.log('🔵 [LoginPage] Found current user immediately:', currentUser.email);
+
+            // Clear flags
+            sessionStorage.removeItem('swipick:googleRedirectPending');
+            sessionStorage.removeItem('swipick:googleRedirectTime');
+
+            // Sync and redirect
+            const token = await currentUser.getIdToken();
+            try {
+              await apiClient.syncGoogleUser(token);
+            } catch (e) {
+              console.error('🔵 [LoginPage] Sync failed:', e);
+            }
+
+            window.location.href = '/mode-selection';
+            return;
+          }
+
+          // Listen for auth state changes
+          console.log('🔵 [LoginPage] Setting up auth state listener...');
+          let handled = false;
+
+          const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (handled) return;
+
             if (user) {
-              console.log('🔵 [LoginPage] Found authenticated user:', user.email);
+              handled = true;
+              console.log('🔵 [LoginPage] Found authenticated user via listener:', user.email);
 
               // Clear flags
               sessionStorage.removeItem('swipick:googleRedirectPending');
@@ -82,10 +117,21 @@ export default function LoginPage() {
               }
 
               window.location.href = '/mode-selection';
+              unsubscribe();
             } else {
-              console.log('🔵 [LoginPage] No authenticated user found');
+              console.log('🔵 [LoginPage] No authenticated user in auth state change');
             }
           });
+
+          // Clean up after 5 seconds
+          setTimeout(() => {
+            if (!handled) {
+              console.log('🔵 [LoginPage] Auth check timed out, cleaning up');
+              sessionStorage.removeItem('swipick:googleRedirectPending');
+              sessionStorage.removeItem('swipick:googleRedirectTime');
+              unsubscribe();
+            }
+          }, 5000);
         }
       } catch (error) {
         console.log('🔵 [LoginPage] Error checking redirect:', error);

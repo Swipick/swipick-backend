@@ -20,9 +20,23 @@ const app: FirebaseApp | null = isBrowser
 // Initialize Firebase Authentication (browser only); provide a typed placeholder on server
 export const auth: Auth = (app ? getAuth(app) : (undefined as unknown as Auth));
 
+// Set persistence for auth (helps with redirect flow)
+if (isBrowser && auth) {
+  import('firebase/auth').then(({ setPersistence, browserLocalPersistence }) => {
+    setPersistence(auth, browserLocalPersistence).catch(error => {
+      console.error('Error setting persistence:', error);
+    });
+  });
+}
+
 // Configure Google Auth Provider
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope('email');
 googleProvider.addScope('profile');
+
+// Set custom parameters for Google OAuth
+googleProvider.setCustomParameters({
+  prompt: 'select_account' // Always show account selector
+});
 
 export default app;

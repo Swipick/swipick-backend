@@ -95,7 +95,7 @@ export const signInWithGoogle = async (): Promise<GoogleAuthResult> => {
 export const getGoogleRedirectResult = async (): Promise<GoogleAuthResult> => {
   console.log('🟣 [googleAuth] getGoogleRedirectResult() called');
   try {
-    const { getRedirectResult } = await import('firebase/auth');
+    const { getRedirectResult, getAuth } = await import('firebase/auth');
     console.log('🟣 [googleAuth] Calling getRedirectResult...');
     const result = await getRedirectResult(auth);
     console.log('🟣 [googleAuth] getRedirectResult returned:', result ? 'result found' : 'no result');
@@ -109,11 +109,26 @@ export const getGoogleRedirectResult = async (): Promise<GoogleAuthResult> => {
       };
     }
 
-    console.log('🟣 [googleAuth] No redirect result (user did not come from redirect)');
+    // Check current auth state as fallback
+    console.log('🟣 [googleAuth] No redirect result, checking current auth state...');
+    const currentAuth = getAuth();
+    const currentUser = currentAuth.currentUser;
+
+    if (currentUser) {
+      console.log('🟣 [googleAuth] Found current user:', currentUser.email);
+      return {
+        success: true,
+        user: currentUser,
+        credential: null,
+      };
+    }
+
+    console.log('🟣 [googleAuth] No redirect result and no current user');
     return { success: false };
   } catch (error: unknown) {
     const authError = error as { code?: string; message?: string };
     console.error('🔴 [googleAuth] getRedirectResult error:', authError);
+    console.error('🔴 [googleAuth] Error details:', { code: authError.code, message: authError.message });
     return {
       success: false,
       error: authError.message || 'Redirect result error',
