@@ -15,6 +15,48 @@ export default function LoginPage() {
   const router = useRouter();
   const { firebaseUser, loading } = useAuthContext();
 
+  // Handle Google redirect result on mount
+  useEffect(() => {
+    const checkGoogleRedirect = async () => {
+      console.log('🔵 [LoginPage] Checking for Google redirect result...');
+      try {
+        // Import the Google auth functions and API client
+        const { getGoogleRedirectResult } = await import('../../services/googleAuth');
+        const { apiClient } = await import('@/lib/api-client');
+
+        // Check for redirect result
+        const result = await getGoogleRedirectResult();
+        console.log('🔵 [LoginPage] Google redirect result:', result);
+
+        if (result && result.success && result.user) {
+          console.log('🔵 [LoginPage] Google auth successful, user:', result.user.email);
+
+          // Get the ID token for backend sync
+          const accessToken = await result.user.getIdToken();
+
+          // Sync with backend
+          try {
+            console.log('🔵 [LoginPage] Syncing user to backend...');
+            await apiClient.syncGoogleUser(accessToken);
+            console.log('🔵 [LoginPage] Backend sync successful');
+          } catch (error) {
+            console.error('🔵 [LoginPage] Backend sync failed:', error);
+            // Continue anyway - user is authenticated
+          }
+
+          // Immediate redirect
+          console.log('🔵 [LoginPage] Redirecting to /mode-selection');
+          window.location.href = '/mode-selection';
+        }
+      } catch (error) {
+        console.log('🔵 [LoginPage] No Google redirect result or error:', error);
+      }
+    };
+
+    // Run on mount
+    checkGoogleRedirect();
+  }, []);
+
   // Redirect authenticated users to mode-selection
   useEffect(() => {
     if (!loading && firebaseUser && firebaseUser.emailVerified) {
