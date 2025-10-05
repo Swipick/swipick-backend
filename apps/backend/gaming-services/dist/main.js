@@ -220251,6 +220251,23 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
         try {
             const now = new Date();
             const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
+            this.logger.log(`🔍 [BACKFILL_QUERY] Searching for past matches with NULL scores...`);
+            this.logger.log(`🔍 [BACKFILL_QUERY] Date range: ${tenDaysAgo.toISOString()} to ${now.toISOString()}`);
+            const allPastMatchesWithNullScores = await this.fixtureRepository
+                .createQueryBuilder('fixture')
+                .where('fixture.match_date < :now', { now })
+                .andWhere('fixture.match_date > :tenDaysAgo', { tenDaysAgo })
+                .andWhere('(fixture.home_score IS NULL OR fixture.away_score IS NULL)')
+                .orderBy('fixture.match_date', 'ASC')
+                .limit(20)
+                .getMany();
+            this.logger.log(`🔍 [BACKFILL_QUERY] Found ${allPastMatchesWithNullScores.length} past matches with NULL scores (any status)`);
+            if (allPastMatchesWithNullScores.length > 0) {
+                this.logger.log(`🔍 [BACKFILL_QUERY] Match details:`);
+                allPastMatchesWithNullScores.forEach((m, idx) => {
+                    this.logger.log(`🔍 [BACKFILL_QUERY] ${idx + 1}. ${m.home_team} vs ${m.away_team} - Status: ${m.status}, Date: ${m.match_date}, HomeScore: ${m.home_score}, AwayScore: ${m.away_score}`);
+                });
+            }
             const pastMatchesNeedingUpdate = await this.fixtureRepository
                 .createQueryBuilder('fixture')
                 .where('fixture.match_date < :now', { now })
@@ -220260,6 +220277,7 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
                 .orderBy('fixture.match_date', 'ASC')
                 .limit(10)
                 .getMany();
+            this.logger.log(`🔍 [BACKFILL_QUERY] Found ${pastMatchesNeedingUpdate.length} past matches with status=SCHEDULED that need backfill`);
             if (pastMatchesNeedingUpdate.length > 0) {
                 this.logger.log(`🔄 BACKFILL: Found ${pastMatchesNeedingUpdate.length} past matches needing score updates`);
                 for (const fixture of pastMatchesNeedingUpdate) {

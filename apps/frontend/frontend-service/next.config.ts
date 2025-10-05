@@ -30,6 +30,21 @@ const nextConfig: NextConfig = {
   staticPageGenerationTimeout: 60,
   // Configure output for better container compatibility
   output: 'standalone',
+
+  // Configure security headers for Google OAuth popup
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin-allow-popups',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
