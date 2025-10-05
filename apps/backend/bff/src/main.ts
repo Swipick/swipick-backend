@@ -20,6 +20,8 @@ async function bootstrap() {
 
   // CORS configuration - Production ready with explicit origin setting
   const defaultOrigins = [
+    'https://swipick.com',
+    'https://www.swipick.com',
     'https://swipick-frontend-production.up.railway.app',
     'https://frontend-service-production.up.railway.app',
     'https://swipick-backend-production.up.railway.app',

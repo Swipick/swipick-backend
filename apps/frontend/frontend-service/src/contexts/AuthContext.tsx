@@ -271,6 +271,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             displayName: res.user.displayName ?? undefined,
             photoURL: res.user.photoURL ?? undefined,
           });
+          // Redirect to mode-selection after successful mobile Google sign-in
+          window.location.href = '/mode-selection';
         }
       } catch (e) {
         // Non-fatal; ignore when no redirect result
