@@ -296,7 +296,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return;
         }
 
+        // Check if we're coming back from Google redirect
+        const currentPath = window.location.pathname;
+        addLog(`🟠 [AuthContext] Current path: ${currentPath}`);
+
+        // Clear the handled flag if we're on login page (allows re-checking)
         const handledKey = 'swipick:googleRedirectHandled';
+        if (currentPath === '/login') {
+          sessionStorage.removeItem(handledKey);
+          addLog('🟠 [AuthContext] Cleared redirect handled flag for login page');
+        }
+
         const alreadyHandled = sessionStorage.getItem(handledKey);
         addLog(`🟠 [AuthContext] Redirect already handled? ${alreadyHandled}`);
 
@@ -340,16 +350,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             photoURL: res.user.photoURL ?? undefined,
           });
 
-          // Check if we're on the login page and redirect immediately
-          const currentPath = window.location.pathname;
-          addLog(`🟠 [AuthContext] Current path: ${currentPath}`);
+          // Always redirect after successful Google auth (Google users are always email verified)
+          addLog(`🟠 [AuthContext] Checking redirect - path: ${currentPath}, emailVerified: ${res.user.emailVerified}`);
 
-          if (currentPath === '/login' && res.user.emailVerified) {
-            addLog('🟠 [AuthContext] User on login page with verified email, redirecting to /mode-selection');
-            // Use window.location for immediate redirect to ensure state changes take effect
-            window.location.href = '/mode-selection';
+          if (res.user.emailVerified) {
+            addLog('🟠 [AuthContext] Google user authenticated with verified email, redirecting to /mode-selection');
+            // Use setTimeout to ensure state is set before redirect
+            setTimeout(() => {
+              window.location.href = '/mode-selection';
+            }, 100);
           } else {
-            addLog('🟠 [AuthContext] User state set, page will handle redirect');
+            addLog('🟠 [AuthContext] User email not verified, not redirecting');
           }
         } else {
           addLog('🟠 [AuthContext] No redirect result to process');
