@@ -333,9 +333,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             photoURL: res.user.photoURL ?? undefined,
           });
 
-          // Redirect to mode-selection after successful mobile Google sign-in
-          addLog('🟠 [AuthContext] Redirecting to /mode-selection');
-          window.location.href = '/mode-selection';
+          // Page component (LoginPage) will handle redirect after state is set
+          addLog('🟠 [AuthContext] User state set, page will handle redirect');
         } else {
           addLog('🟠 [AuthContext] No redirect result to process');
         }

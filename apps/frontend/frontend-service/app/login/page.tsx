@@ -15,11 +15,12 @@ export default function LoginPage() {
   const router = useRouter();
   const { firebaseUser, loading } = useAuthContext();
 
-  // Don't automatically redirect authenticated users - let them choose
-  // They might want to login with a different account
+  // Redirect authenticated users to mode-selection
   useEffect(() => {
-    // We remove the automatic redirect to allow users to access login page
-    // even when already authenticated
+    if (!loading && firebaseUser && firebaseUser.emailVerified) {
+      console.log('🔵 [LoginPage] User authenticated, redirecting to mode-selection');
+      router.push('/mode-selection');
+    }
   }, [firebaseUser, loading, router]);
 
   // Show loading state while checking authentication

@@ -50,10 +50,17 @@ async function bootstrap() {
     new Date().toISOString(),
   );
   console.log(
-    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Version: LIVE_MODE_FIXES_COMPLETE',
+    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Version: BACKFILL_DETAILED_LOGGING_V1',
   );
   console.log(
-    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Contains all fixes: Firebase UID validation, fixtureId handling, comprehensive logging',
+    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Contains: Enhanced backfill logging with 🔍 prefix for debugging',
+  );
+  console.log(
+    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Feature: Shows API responses, team name matching, DB updates',
+  );
+  console.log(
+    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Deployed at:',
+    new Date().toISOString(),
   );
   console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] ='.repeat(35));
 
