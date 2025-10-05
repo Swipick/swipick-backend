@@ -37,12 +37,14 @@ RequestLoggingInterceptor = __decorate([
 ], RequestLoggingInterceptor);
 async function bootstrap() {
     const logger = new common_2.Logger('Bootstrap');
-    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] ='.repeat(35));
-    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] *** GAMING SERVICES STARTING UP ***');
-    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] Timestamp:', new Date().toISOString());
-    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] Version: LIVE_MODE_FIXES_COMPLETE');
-    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] Contains all fixes: Firebase UID validation, fixtureId handling, comprehensive logging');
-    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] ='.repeat(35));
+    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] ='.repeat(5));
+    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] *** STARTING UP WITH NEW LOGS OCT 5TH ***');
+    console.log('🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 5TH] Timestamp:', new Date().toISOString());
+    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] Version: BACKFILL_DETAILED_LOGGING_V1');
+    console.log('🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 5TH] Contains: Enhanced backfill logging with 🔍 prefix for debugging');
+    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] Feature: Shows API responses, team name matching, DB updates');
+    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] Deployed at:', new Date().toISOString());
+    console.log('🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 5TH] ='.repeat(35));
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     const configService = app.get(config_1.ConfigService);
     const port = configService.get('PORT', 3000);
