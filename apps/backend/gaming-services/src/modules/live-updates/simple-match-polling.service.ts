@@ -385,16 +385,28 @@ export class SimpleMatchPollingService {
    */
   private async fetchAndUpdateMatchResults(fixture: Fixture) {
     try {
+      this.logger.log(
+        `🔍 [BACKFILL_START] Processing: ${fixture.home_team} vs ${fixture.away_team}`,
+      );
+      this.logger.log(
+        `🔍 [BACKFILL_START] Fixture ID: ${fixture.id}, Date: ${fixture.match_date}, Current Status: ${fixture.status}, Home Score: ${fixture.home_score}, Away Score: ${fixture.away_score}`,
+      );
+
       this.recordApiCall();
 
       // Fetch match data from API using the date
       const matchDate = new Date(fixture.match_date)
         .toISOString()
         .split('T')[0];
+
+      this.logger.log(
+        `🔍 [BACKFILL_API_CALL] Fetching fixtures for date: ${matchDate}`,
+      );
+
       const matches = await this.apiFootballService.getDailyFixtures(matchDate);
 
-      this.logger.debug(
-        `API returned ${matches.length} matches for ${matchDate}. Looking for: ${fixture.home_team} vs ${fixture.away_team}`,
+      this.logger.log(
+        `🔍 [BACKFILL_API_RESPONSE] API returned ${matches.length} matches for ${matchDate}. Looking for: ${fixture.home_team} vs ${fixture.away_team}`,
       );
 
       // Log all matches returned to help debug
@@ -406,12 +418,16 @@ export class SimpleMatchPollingService {
         const homeScore = m.goals?.home;
         const awayScore = m.goals?.away;
 
-        this.logger.debug(
-          `  Match ${idx + 1}: ${homeTeam} vs ${awayTeam} - Status: ${status}, Score: ${homeScore}-${awayScore}`,
+        this.logger.log(
+          `🔍 [BACKFILL_API_MATCH_${idx + 1}] ${homeTeam} vs ${awayTeam} - Status: ${status}, Score: ${homeScore}-${awayScore}`,
         );
       });
 
       // Find the specific match with more flexible matching
+      this.logger.log(
+        `🔍 [BACKFILL_MATCHING] Attempting to find match in API response...`,
+      );
+
       const matchData = matches.find(
         (m) =>
           (m.teams?.home?.name === fixture.home_team ||
@@ -422,42 +438,63 @@ export class SimpleMatchPollingService {
             fixture.away_team.includes(m.teams?.away?.name)),
       );
 
+      if (!matchData) {
+        this.logger.warn(
+          `⚠️ [BACKFILL_NO_MATCH] Match not found in API response!`,
+        );
+        this.logger.warn(
+          `⚠️ [BACKFILL_NO_MATCH] Searching for: ${fixture.home_team} vs ${fixture.away_team}`,
+        );
+        this.logger.warn(
+          `⚠️ [BACKFILL_NO_MATCH] Database has home_team='${fixture.home_team}' away_team='${fixture.away_team}'`,
+        );
+        return;
+      }
+
       // API response has status at fixture.status.short
       const status = (matchData as any)?.fixture?.status?.short;
+      const homeScore = matchData.goals?.home;
+      const awayScore = matchData.goals?.away;
 
-      if (
-        matchData &&
-        (status === 'FT' || status === 'AET' || status === 'PEN')
-      ) {
+      this.logger.log(
+        `🔍 [BACKFILL_MATCH_FOUND] Match found in API! Home: ${matchData.teams?.home?.name}, Away: ${matchData.teams?.away?.name}, Status: ${status}, Score: ${homeScore}-${awayScore}`,
+      );
+
+      if (status === 'FT' || status === 'AET' || status === 'PEN') {
+        this.logger.log(
+          `🔍 [BACKFILL_UPDATE_START] Match is finished (${status}). Updating database...`,
+        );
+
         // Update the fixture with results
-        const homeScore = matchData.goals?.home ?? 0;
-        const awayScore = matchData.goals?.away ?? 0;
+        const finalHomeScore = homeScore ?? 0;
+        const finalAwayScore = awayScore ?? 0;
 
-        await this.fixtureRepository.update(fixture.id, {
+        const updateResult = await this.fixtureRepository.update(fixture.id, {
           status: 'FINISHED',
-          home_score: homeScore,
-          away_score: awayScore,
-          result: this.calculateResult(homeScore, awayScore),
+          home_score: finalHomeScore,
+          away_score: finalAwayScore,
+          result: this.calculateResult(finalHomeScore, finalAwayScore),
           updated_at: new Date(),
         });
 
         this.logger.log(
-          `✅ BACKFILLED: ${fixture.home_team} vs ${fixture.away_team} - Final: ${homeScore}-${awayScore}`,
+          `🔍 [BACKFILL_UPDATE_RESULT] Database update result: ${JSON.stringify(updateResult)}`,
         );
-      } else if (!matchData) {
-        this.logger.warn(
-          `⚠️ Match not found in API: ${fixture.home_team} vs ${fixture.away_team} on ${matchDate}`,
+
+        this.logger.log(
+          `✅ [BACKFILL_SUCCESS] ${fixture.home_team} vs ${fixture.away_team} - Final: ${finalHomeScore}-${finalAwayScore}`,
         );
       } else {
         this.logger.warn(
-          `⚠️ Match found but not finished. Status: ${status} for ${fixture.home_team} vs ${fixture.away_team}`,
+          `⚠️ [BACKFILL_NOT_FINISHED] Match found but status is '${status}' (not FT/AET/PEN) for ${fixture.home_team} vs ${fixture.away_team}`,
         );
       }
     } catch (error) {
       this.logger.error(
-        `Failed to backfill ${fixture.home_team} vs ${fixture.away_team}`,
+        `❌ [BACKFILL_ERROR] Failed to backfill ${fixture.home_team} vs ${fixture.away_team}`,
         error,
       );
+      this.logger.error(`❌ [BACKFILL_ERROR] Error stack: ${error.stack}`);
     }
   }
 

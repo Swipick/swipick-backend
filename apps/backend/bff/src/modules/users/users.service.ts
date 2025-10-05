@@ -176,35 +176,51 @@ export class UsersService {
       const decodedToken = await this.firebaseConfig.verifyIdToken(
         googleSyncDto.firebaseIdToken,
       );
-      this.logger.log(`🟢 [UsersService] Token verified - Firebase UID: ${decodedToken.uid}`);
+      this.logger.log(
+        `🟢 [UsersService] Token verified - Firebase UID: ${decodedToken.uid}`,
+      );
 
       const googleUserData = this.extractGoogleUserData(decodedToken);
-      this.logger.log(`🟢 [UsersService] Extracted user data - Email: ${googleUserData.email}, Name: ${googleUserData.displayName}`);
+      this.logger.log(
+        `🟢 [UsersService] Extracted user data - Email: ${googleUserData.email}, Name: ${googleUserData.name}`,
+      );
 
       // Check if user already exists
-      this.logger.log(`🟢 [UsersService] Checking if user exists with Firebase UID: ${googleUserData.uid}`);
+      this.logger.log(
+        `🟢 [UsersService] Checking if user exists with Firebase UID: ${googleUserData.uid}`,
+      );
       let user = await this.userRepository.findOne({
         where: { firebaseUid: googleUserData.uid },
       });
 
       if (user) {
         // Update existing user's last login
-        this.logger.log(`🟢 [UsersService] Existing user found - ID: ${user.id}, Email: ${user.email}`);
+        this.logger.log(
+          `🟢 [UsersService] Existing user found - ID: ${user.id}, Email: ${user.email}`,
+        );
         user.updatedAt = new Date();
         await this.userRepository.save(user);
-        this.logger.log(`🟢 [UsersService] Existing Google user login successful: ${user.id}`);
+        this.logger.log(
+          `🟢 [UsersService] Existing Google user login successful: ${user.id}`,
+        );
       } else {
         // Create new Google user
-        this.logger.log('🟢 [UsersService] User not found, creating new Google user...');
+        this.logger.log(
+          '🟢 [UsersService] User not found, creating new Google user...',
+        );
         user = await this.createGoogleUser(googleUserData);
-        this.logger.log(`🟢 [UsersService] New Google user created: ${user.id}`);
+        this.logger.log(
+          `🟢 [UsersService] New Google user created: ${user.id}`,
+        );
       }
 
       this.logger.log('🟢 [UsersService] Transforming user to response DTO');
       return this.transformToResponse(user);
     } catch (error) {
       this.logger.error('🔴 [UsersService] Failed to sync Google user', error);
-      this.logger.error(`🔴 [UsersService] Error details: ${error.message}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`🔴 [UsersService] Error details: ${errorMessage}`);
       throw new BadRequestException(
         'Errore durante la sincronizzazione con Google',
       );
