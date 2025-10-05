@@ -18,11 +18,18 @@ export default function LoginPage() {
   // Handle Google redirect result on mount
   useEffect(() => {
     const checkGoogleRedirect = async () => {
-      console.log('🔵 [LoginPage] Checking for Google redirect result...');
+      console.log('🔵 [LoginPage] Checking for Google redirect...');
+
+      // Check if we were expecting a redirect
+      const redirectPending = sessionStorage.getItem('swipick:googleRedirectPending');
+      console.log('🔵 [LoginPage] Redirect pending flag:', redirectPending);
+
+      // Always check for redirect result, but log differently
       try {
         // Import the Google auth functions and API client
         const { getGoogleRedirectResult } = await import('../../services/googleAuth');
         const { apiClient } = await import('@/lib/api-client');
+        const { getAuth, onAuthStateChanged } = await import('firebase/auth');
 
         // Check for redirect result
         const result = await getGoogleRedirectResult();
@@ -30,6 +37,10 @@ export default function LoginPage() {
 
         if (result && result.success && result.user) {
           console.log('🔵 [LoginPage] Google auth successful, user:', result.user.email);
+
+          // Clear the pending flag
+          sessionStorage.removeItem('swipick:googleRedirectPending');
+          sessionStorage.removeItem('swipick:googleRedirectTime');
 
           // Get the ID token for backend sync
           const accessToken = await result.user.getIdToken();
@@ -41,15 +52,43 @@ export default function LoginPage() {
             console.log('🔵 [LoginPage] Backend sync successful');
           } catch (error) {
             console.error('🔵 [LoginPage] Backend sync failed:', error);
-            // Continue anyway - user is authenticated
           }
 
           // Immediate redirect
           console.log('🔵 [LoginPage] Redirecting to /mode-selection');
           window.location.href = '/mode-selection';
+          return;
+        }
+
+        // If we were expecting a redirect but got no result, check auth state
+        if (redirectPending === 'true') {
+          console.log('🔵 [LoginPage] Was expecting redirect, checking auth state...');
+
+          const auth = getAuth();
+          onAuthStateChanged(auth, async (user) => {
+            if (user) {
+              console.log('🔵 [LoginPage] Found authenticated user:', user.email);
+
+              // Clear flags
+              sessionStorage.removeItem('swipick:googleRedirectPending');
+              sessionStorage.removeItem('swipick:googleRedirectTime');
+
+              // Sync and redirect
+              const token = await user.getIdToken();
+              try {
+                await apiClient.syncGoogleUser(token);
+              } catch (e) {
+                console.error('🔵 [LoginPage] Sync failed:', e);
+              }
+
+              window.location.href = '/mode-selection';
+            } else {
+              console.log('🔵 [LoginPage] No authenticated user found');
+            }
+          });
         }
       } catch (error) {
-        console.log('🔵 [LoginPage] No Google redirect result or error:', error);
+        console.log('🔵 [LoginPage] Error checking redirect:', error);
       }
     };
 

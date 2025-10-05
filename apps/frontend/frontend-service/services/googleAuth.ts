@@ -25,6 +25,12 @@ export const signInWithGoogle = async (): Promise<GoogleAuthResult> => {
 
     if (isMobile && !isLocalDev) {
       console.log('🟣 [googleAuth] Mobile detected - using redirect flow');
+
+      // Set a flag to indicate we're expecting a redirect
+      sessionStorage.setItem('swipick:googleRedirectPending', 'true');
+      sessionStorage.setItem('swipick:googleRedirectTime', Date.now().toString());
+      console.log('🟣 [googleAuth] Set redirect pending flag in sessionStorage');
+
       console.log('🟣 [googleAuth] Calling signInWithRedirect...');
       await signInWithRedirect(auth, googleProvider);
       console.log('🟣 [googleAuth] signInWithRedirect called (will redirect now)');
