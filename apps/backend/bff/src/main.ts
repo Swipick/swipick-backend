@@ -101,8 +101,11 @@ async function bootstrap() {
   // Add explicit middleware to handle CORS headers for debugging
   app.use((req, res, next) => {
     const origin = req.headers.origin;
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(userAgent);
+
     console.log(
-      `🔍 Request Origin: ${origin}, Method: ${req.method}, URL: ${req.url}`,
+      `🔍 Request: ${req.method} ${req.url} | Origin: ${origin} | Mobile: ${isMobile}`,
     );
 
     if (req.method === 'OPTIONS') {
@@ -110,9 +113,18 @@ async function bootstrap() {
         method: req.method,
         origin: origin,
         url: req.url,
-        headers: req.headers,
+        userAgent: userAgent.substring(0, 100),
       });
     }
+
+    // Log Google sync requests specifically
+    if (req.url.includes('/sync-google')) {
+      console.log(`🟣 [CORS Middleware] Google sync request detected!`);
+      console.log(`🟣 [CORS Middleware] User-Agent: ${userAgent}`);
+      console.log(`🟣 [CORS Middleware] Origin: ${origin}`);
+      console.log(`🟣 [CORS Middleware] Method: ${req.method}`);
+    }
+
     next();
   });
 

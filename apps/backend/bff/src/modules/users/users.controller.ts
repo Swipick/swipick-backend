@@ -71,9 +71,13 @@ export class UsersController {
     data: UserResponseDto;
     message: string;
   }> {
-    this.logger.log('Google OAuth sync attempt');
+    this.logger.log('🔵 [UsersController] Google OAuth sync attempt');
+    this.logger.log(`🔵 [UsersController] Firebase token received (length: ${googleSyncDto.firebaseIdToken?.length || 0})`);
 
     const user = await this.usersService.syncGoogleUser(googleSyncDto);
+
+    this.logger.log(`🔵 [UsersController] Google sync successful - User ID: ${user.id}, Email: ${user.email}`);
+    this.logger.log(`🔵 [UsersController] Needs profile completion: ${user.needsProfileCompletion}`);
 
     return {
       success: true,

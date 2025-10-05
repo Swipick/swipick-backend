@@ -205,14 +205,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * Sign in with Google
    */
   const signInWithGoogle = async (): Promise<FirebaseUser> => {
+    console.log('🟢 [AuthContext] signInWithGoogle() called');
     try {
       setLoading(true);
       setError(null);
-      
+
+      console.log('🟢 [AuthContext] Importing googleAuth service...');
       const { signInWithGoogle: googleSignIn, getAuthErrorMessage } = await import('../../services/googleAuth');
+
+      console.log('🟢 [AuthContext] Calling googleSignIn()...');
       const result = await googleSignIn();
-      
+      console.log('🟢 [AuthContext] googleSignIn() result:', result);
+
       if (result.success && result.user) {
+        console.log('🟢 [AuthContext] Sign-in successful, creating firebaseUser object');
         const firebaseUser = {
           uid: result.user.uid,
           email: result.user.email,
@@ -221,26 +227,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           displayName: result.user.displayName,
           photoURL: result.user.photoURL,
         };
+        console.log('🟢 [AuthContext] Firebase user created:', { uid: firebaseUser.uid, email: firebaseUser.email });
+
         // Sync user to BFF so UUID exists before pages query by Firebase UID
         try {
+          console.log('🟢 [AuthContext] Syncing user to backend...');
           await apiClient.syncGoogleUser(firebaseUser.accessToken);
+          console.log('🟢 [AuthContext] Backend sync successful');
         } catch (e) {
           // Surface friendly error but keep Firebase state
           const msg = e instanceof Error ? e.message : 'Errore di sincronizzazione utente';
-          console.warn('[auth] sync-google failed:', msg);
+          console.warn('🟡 [AuthContext] sync-google failed:', msg);
         }
         setFirebaseUser(firebaseUser);
+        console.log('🟢 [AuthContext] FirebaseUser state set, returning user');
         return firebaseUser;
       } else if (result.error) {
+        console.error('🔴 [AuthContext] Sign-in error from googleAuth:', result.error);
         const friendlyMessage = getAuthErrorMessage(result.code || '');
         throw new Error(friendlyMessage);
       } else {
+        console.error('🔴 [AuthContext] Sign-in failed with no error or user');
         throw new Error('Google sign-in failed');
       }
     } catch (error) {
+      console.error('🔴 [AuthContext] Exception in signInWithGoogle:', error);
       setError(error instanceof Error ? error.message : 'Errore durante l\'accesso con Google');
       throw error;
     } finally {
+      console.log('🟢 [AuthContext] Setting loading to false');
       setLoading(false);
     }
   };  /**
@@ -248,21 +263,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Handle Google redirect result (mobile or popup fallback)
   useEffect(() => {
     const run = async () => {
+      console.log('🟠 [AuthContext] Redirect handler useEffect running');
       try {
-        if (typeof window === 'undefined') return;
+        if (typeof window === 'undefined') {
+          console.log('🟠 [AuthContext] Window undefined, skipping redirect check');
+          return;
+        }
+
         const handledKey = 'swipick:googleRedirectHandled';
-        if (sessionStorage.getItem(handledKey)) return;
+        const alreadyHandled = sessionStorage.getItem(handledKey);
+        console.log('🟠 [AuthContext] Redirect already handled?', alreadyHandled);
+
+        if (alreadyHandled) {
+          console.log('🟠 [AuthContext] Redirect already handled, skipping');
+          return;
+        }
+
+        console.log('🟠 [AuthContext] Importing getGoogleRedirectResult...');
         const { getGoogleRedirectResult } = await import('../../services/googleAuth');
+
+        console.log('🟠 [AuthContext] Calling getGoogleRedirectResult...');
         const res = await getGoogleRedirectResult();
+        console.log('🟠 [AuthContext] getGoogleRedirectResult returned:', res);
+
         // Mark handled regardless to avoid re-running every navigation
         sessionStorage.setItem(handledKey, '1');
+        console.log('🟠 [AuthContext] Marked redirect as handled');
+
         if (res && res.success && res.user) {
+          console.log('🟠 [AuthContext] Redirect result has user, processing...');
           const accessToken = await res.user.getIdToken();
+          console.log('🟠 [AuthContext] Got access token');
+
           try {
+            console.log('🟠 [AuthContext] Syncing user to backend...');
             await apiClient.syncGoogleUser(accessToken);
+            console.log('🟠 [AuthContext] Backend sync successful');
           } catch (e) {
-            console.warn('[auth] sync-google (redirect) failed:', e);
+            console.warn('🟡 [AuthContext] sync-google (redirect) failed:', e);
           }
+
+          console.log('🟠 [AuthContext] Setting Firebase user state');
           setFirebaseUser({
             uid: res.user.uid,
             email: res.user.email,
@@ -271,10 +312,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             displayName: res.user.displayName ?? undefined,
             photoURL: res.user.photoURL ?? undefined,
           });
+
           // Redirect to mode-selection after successful mobile Google sign-in
+          console.log('🟠 [AuthContext] Redirecting to /mode-selection');
           window.location.href = '/mode-selection';
+        } else {
+          console.log('🟠 [AuthContext] No redirect result to process');
         }
       } catch (e) {
+        console.error('🔴 [AuthContext] Error in redirect handler:', e);
         // Non-fatal; ignore when no redirect result
       }
     };

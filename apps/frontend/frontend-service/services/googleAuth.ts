@@ -10,21 +10,32 @@ export interface GoogleAuthResult {
 }
 
 export const signInWithGoogle = async (): Promise<GoogleAuthResult> => {
+  console.log('🟣 [googleAuth] signInWithGoogle() called');
   try {
     // Prefer popup on localhost to avoid Firebase Hosting redirect handler 404s during dev
     const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
     const isLocalDev = hostname === 'localhost' || hostname === '127.0.0.1';
-    
+    console.log('🟣 [googleAuth] Hostname:', hostname, 'isLocalDev:', isLocalDev);
+
     // Prefer redirect on real mobile devices in non-local environments (iOS/Android)
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
     const isMobile = /iPhone|iPad|iPod|Android/i.test(ua);
+    console.log('🟣 [googleAuth] User Agent:', ua);
+    console.log('🟣 [googleAuth] Is Mobile:', isMobile);
+
     if (isMobile && !isLocalDev) {
+      console.log('🟣 [googleAuth] Mobile detected - using redirect flow');
+      console.log('🟣 [googleAuth] Calling signInWithRedirect...');
       await signInWithRedirect(auth, googleProvider);
+      console.log('🟣 [googleAuth] signInWithRedirect called (will redirect now)');
       return { success: true };
     }
 
     // Desktop: try popup first
+    console.log('🟣 [googleAuth] Desktop detected - using popup flow');
+    console.log('🟣 [googleAuth] Calling signInWithPopup...');
     const result = await signInWithPopup(auth, googleProvider);
+    console.log('🟣 [googleAuth] signInWithPopup successful, user:', result.user?.email);
     return {
       success: true,
       user: result.user,
@@ -32,29 +43,33 @@ export const signInWithGoogle = async (): Promise<GoogleAuthResult> => {
     };
   } catch (error: unknown) {
     const authError = error as { code?: string; message?: string };
-    console.error('Google sign-in error:', authError);
-    
+    console.error('🔴 [googleAuth] Google sign-in error:', authError);
+
     // Handle specific error cases
     if (
       authError.code === 'auth/popup-blocked' ||
       authError.code === 'auth/operation-not-supported-in-this-environment' ||
       authError.code === 'auth/blocked-by-user-agent'
     ) {
+      console.log('🟡 [googleAuth] Popup blocked, attempting redirect fallback');
       // Fallback to redirect method only when not in local dev (to avoid /__/firebase/init.json 404)
       try {
         const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
         const isLocalDev = hostname === 'localhost' || hostname === '127.0.0.1';
         if (isLocalDev) {
+          console.error('🔴 [googleAuth] In local dev, cannot use redirect');
           return {
             success: false,
             error: 'Popup bloccato. In sviluppo locale abilita i popup o usa un browser diverso.',
             code: authError.code,
           };
         }
+        console.log('🟡 [googleAuth] Calling signInWithRedirect as fallback...');
         await signInWithRedirect(auth, googleProvider);
         return { success: true };
       } catch (redirectError: unknown) {
         const redirectAuthError = redirectError as { code?: string; message?: string };
+        console.error('🔴 [googleAuth] Redirect fallback failed:', redirectAuthError);
         return {
           success: false,
           error: redirectAuthError.message || 'Redirect error',
@@ -62,7 +77,7 @@ export const signInWithGoogle = async (): Promise<GoogleAuthResult> => {
         };
       }
     }
-    
+
     return {
       success: false,
       error: authError.message || 'Unknown error',
@@ -72,21 +87,27 @@ export const signInWithGoogle = async (): Promise<GoogleAuthResult> => {
 };
 
 export const getGoogleRedirectResult = async (): Promise<GoogleAuthResult> => {
+  console.log('🟣 [googleAuth] getGoogleRedirectResult() called');
   try {
     const { getRedirectResult } = await import('firebase/auth');
+    console.log('🟣 [googleAuth] Calling getRedirectResult...');
     const result = await getRedirectResult(auth);
-    
+    console.log('🟣 [googleAuth] getRedirectResult returned:', result ? 'result found' : 'no result');
+
     if (result) {
+      console.log('🟣 [googleAuth] Redirect result successful, user:', result.user?.email);
       return {
         success: true,
         user: result.user,
         credential: GoogleAuthProvider.credentialFromResult(result),
       };
     }
-    
+
+    console.log('🟣 [googleAuth] No redirect result (user did not come from redirect)');
     return { success: false };
   } catch (error: unknown) {
     const authError = error as { code?: string; message?: string };
+    console.error('🔴 [googleAuth] getRedirectResult error:', authError);
     return {
       success: false,
       error: authError.message || 'Redirect result error',

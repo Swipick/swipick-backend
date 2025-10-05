@@ -35,15 +35,25 @@ const LoginForm: React.FC = () => {
   };
 
   const handleGoogleSignIn = async () => {
+    console.log('🔵 [LoginForm] Google sign-in button clicked');
+    console.log('🔵 [LoginForm] User agent:', navigator.userAgent);
+    console.log('🔵 [LoginForm] Is mobile:', /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+    console.log('🔵 [LoginForm] Current URL:', window.location.href);
+
     try {
       setGoogleLoading(true);
-      await signInWithGoogle();
+      console.log('🔵 [LoginForm] Calling signInWithGoogle()...');
+      const result = await signInWithGoogle();
+      console.log('🔵 [LoginForm] signInWithGoogle() returned:', result);
+
       // On success, user will be redirected by AuthContext or parent component
+      console.log('🔵 [LoginForm] Pushing to /mode-selection');
       router.push('/mode-selection');
     } catch (error) {
-      console.error('Google sign-in failed:', error);
+      console.error('🔴 [LoginForm] Google sign-in failed:', error);
       // Error is handled by AuthContext
     } finally {
+      console.log('🔵 [LoginForm] Setting googleLoading to false');
       setGoogleLoading(false);
     }
   };
