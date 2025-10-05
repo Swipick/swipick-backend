@@ -204,7 +204,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   /**
    * Sign in with Google
    */
-  const signInWithGoogle = async (): Promise<FirebaseUser> => {
+  const signInWithGoogle = async (): Promise<FirebaseUser | null> => {
     console.log('🟢 [AuthContext] signInWithGoogle() called');
     try {
       setLoading(true);
@@ -216,6 +216,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('🟢 [AuthContext] Calling googleSignIn()...');
       const result = await googleSignIn();
       console.log('🟢 [AuthContext] googleSignIn() result:', result);
+
+      // Handle redirect flow (mobile) - returns success but no user
+      if (result.success && !result.user) {
+        console.log('🟢 [AuthContext] Redirect flow initiated, user will be redirected to Google');
+        // Return null to indicate redirect flow is in progress
+        return null;
+      }
 
       if (result.success && result.user) {
         console.log('🟢 [AuthContext] Sign-in successful, creating firebaseUser object');

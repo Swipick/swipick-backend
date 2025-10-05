@@ -32,7 +32,7 @@ export interface AuthContextType {
   logout: () => Promise<void>;
   
   // Google authentication methods
-  signInWithGoogle: () => Promise<FirebaseUser>;
+  signInWithGoogle: () => Promise<FirebaseUser | null>;
   
   // Email link authentication methods
   sendSignInLinkToEmail: (email: string) => Promise<void>;
