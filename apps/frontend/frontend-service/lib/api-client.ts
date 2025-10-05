@@ -168,10 +168,21 @@ class ApiClient {
   }
 
   async syncGoogleUser(firebaseIdToken: string) {
-    return this.request('/users/sync-google', {
-      method: 'POST',
-      body: JSON.stringify({ firebaseIdToken }),
-    });
+    console.log('🔷 [API Client] syncGoogleUser called');
+    console.log('🔷 [API Client] Token length:', firebaseIdToken?.length || 0);
+    console.log('🔷 [API Client] Token preview:', firebaseIdToken?.substring(0, 50) + '...');
+
+    try {
+      const result = await this.request('/users/sync-google', {
+        method: 'POST',
+        body: JSON.stringify({ firebaseIdToken }),
+      });
+      console.log('🔷 [API Client] syncGoogleUser success:', result);
+      return result;
+    } catch (error) {
+      console.error('🔷 [API Client] syncGoogleUser failed:', error);
+      throw error;
+    }
   }
 
   async completeProfile(userId: string, profileData: { nickname: string }) {

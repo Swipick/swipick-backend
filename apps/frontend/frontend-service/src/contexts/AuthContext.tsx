@@ -263,47 +263,67 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Handle Google redirect result (mobile or popup fallback)
   useEffect(() => {
     const run = async () => {
-      console.log('🟠 [AuthContext] Redirect handler useEffect running');
+      const logKey = 'swipick:redirectLogs';
+      const addLog = (msg: string) => {
+        console.log(msg);
+        const logs = JSON.parse(localStorage.getItem(logKey) || '[]');
+        logs.push(`${new Date().toISOString()} - ${msg}`);
+        localStorage.setItem(logKey, JSON.stringify(logs.slice(-50))); // Keep last 50 logs
+      };
+
+      // Expose logs to console for debugging
+      if (typeof window !== 'undefined') {
+        (window as any).viewSwipickLogs = () => {
+          const logs = JSON.parse(localStorage.getItem(logKey) || '[]');
+          console.log('=== SWIPICK REDIRECT LOGS ===');
+          logs.forEach((log: string) => console.log(log));
+          console.log('=== END LOGS ===');
+          return logs;
+        };
+      }
+
+      addLog('🟠 [AuthContext] Redirect handler useEffect running');
       try {
         if (typeof window === 'undefined') {
-          console.log('🟠 [AuthContext] Window undefined, skipping redirect check');
+          addLog('🟠 [AuthContext] Window undefined, skipping redirect check');
           return;
         }
 
         const handledKey = 'swipick:googleRedirectHandled';
         const alreadyHandled = sessionStorage.getItem(handledKey);
-        console.log('🟠 [AuthContext] Redirect already handled?', alreadyHandled);
+        addLog(`🟠 [AuthContext] Redirect already handled? ${alreadyHandled}`);
 
         if (alreadyHandled) {
-          console.log('🟠 [AuthContext] Redirect already handled, skipping');
+          addLog('🟠 [AuthContext] Redirect already handled, skipping');
           return;
         }
 
-        console.log('🟠 [AuthContext] Importing getGoogleRedirectResult...');
+        addLog('🟠 [AuthContext] Importing getGoogleRedirectResult...');
         const { getGoogleRedirectResult } = await import('../../services/googleAuth');
 
-        console.log('🟠 [AuthContext] Calling getGoogleRedirectResult...');
+        addLog('🟠 [AuthContext] Calling getGoogleRedirectResult...');
         const res = await getGoogleRedirectResult();
-        console.log('🟠 [AuthContext] getGoogleRedirectResult returned:', res);
+        addLog(`🟠 [AuthContext] getRedirectResult returned: ${JSON.stringify({ success: res?.success, hasUser: !!res?.user })}`);
 
         // Mark handled regardless to avoid re-running every navigation
         sessionStorage.setItem(handledKey, '1');
-        console.log('🟠 [AuthContext] Marked redirect as handled');
+        addLog('🟠 [AuthContext] Marked redirect as handled');
 
         if (res && res.success && res.user) {
-          console.log('🟠 [AuthContext] Redirect result has user, processing...');
+          addLog(`🟠 [AuthContext] Redirect result has user: ${res.user.email}`);
           const accessToken = await res.user.getIdToken();
-          console.log('🟠 [AuthContext] Got access token');
+          addLog('🟠 [AuthContext] Got access token');
 
           try {
-            console.log('🟠 [AuthContext] Syncing user to backend...');
+            addLog('🟠 [AuthContext] Syncing user to backend...');
             await apiClient.syncGoogleUser(accessToken);
-            console.log('🟠 [AuthContext] Backend sync successful');
+            addLog('🟠 [AuthContext] Backend sync successful');
           } catch (e) {
-            console.warn('🟡 [AuthContext] sync-google (redirect) failed:', e);
+            const err = e instanceof Error ? e.message : String(e);
+            addLog(`🔴 [AuthContext] sync-google (redirect) failed: ${err}`);
           }
 
-          console.log('🟠 [AuthContext] Setting Firebase user state');
+          addLog('🟠 [AuthContext] Setting Firebase user state');
           setFirebaseUser({
             uid: res.user.uid,
             email: res.user.email,
@@ -314,13 +334,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           });
 
           // Redirect to mode-selection after successful mobile Google sign-in
-          console.log('🟠 [AuthContext] Redirecting to /mode-selection');
+          addLog('🟠 [AuthContext] Redirecting to /mode-selection');
           window.location.href = '/mode-selection';
         } else {
-          console.log('🟠 [AuthContext] No redirect result to process');
+          addLog('🟠 [AuthContext] No redirect result to process');
         }
       } catch (e) {
-        console.error('🔴 [AuthContext] Error in redirect handler:', e);
+        const err = e instanceof Error ? e.message : String(e);
+        addLog(`🔴 [AuthContext] Error in redirect handler: ${err}`);
         // Non-fatal; ignore when no redirect result
       }
     };

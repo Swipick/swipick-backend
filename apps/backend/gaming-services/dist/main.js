@@ -53,9 +53,32 @@ async function bootstrap() {
         forbidNonWhitelisted: true,
         transform: true,
     }));
+    const corsOrigins = [
+        'http://localhost:3000',
+        'http://localhost:4000',
+        'http://localhost:4200',
+        'https://swipick.com',
+        'https://www.swipick.com',
+        'https://swipick-frontend.vercel.app',
+        'https://swipick-frontend.up.railway.app',
+        'https://swipick-frontend-production.up.railway.app',
+    ];
     app.enableCors({
-        origin: nodeEnv === 'production' ? false : true,
+        origin: (origin, callback) => {
+            if (!origin) {
+                return callback(null, true);
+            }
+            if (corsOrigins.includes(origin)) {
+                callback(null, true);
+            }
+            else {
+                logger.warn(`CORS blocked request from origin: ${origin}`);
+                callback(null, false);
+            }
+        },
         credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     });
     app.setGlobalPrefix('api');
     await app.listen(port);
@@ -218076,9 +218099,9 @@ let FixturesController = class FixturesController {
         const daysToFetch = days || 7;
         return this.fixturesService.getUpcomingSerieAFixtures(daysToFetch);
     }
-    async getNextFixtures(limit, fromDate) {
+    async getNextFixtures(limit, fromDate, userId) {
         const lim = !limit || limit < 1 || limit > 20 ? 10 : limit;
-        return this.fixturesService.getNextRealFixtures(lim, fromDate);
+        return this.fixturesService.getNextRealFixtures(lim, fromDate, userId);
     }
     async getFixturesByWeek(weekNumber) {
         return this.fixturesService.getFixturesByWeek(weekNumber);
@@ -218144,8 +218167,9 @@ __decorate([
     (0, common_1.Get)('next'),
     __param(0, (0, common_1.Query)('limit')),
     __param(1, (0, common_1.Query)('from')),
+    __param(2, (0, common_1.Query)('userId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, String]),
+    __metadata("design:paramtypes", [Number, String, String]),
     __metadata("design:returntype", Promise)
 ], FixturesController.prototype, "getNextFixtures", null);
 __decorate([
@@ -218430,7 +218454,7 @@ let FixturesService = FixturesService_1 = class FixturesService {
             return this.getSerieAMockData();
         }
     }
-    async getNextRealFixtures(limit = 10, fromDate) {
+    async getNextRealFixtures(limit = 10, fromDate, userId) {
         try {
             const start = fromDate ? new Date(fromDate) : new Date();
             const qb = this.fixtureRepository
@@ -218441,6 +218465,10 @@ let FixturesService = FixturesService_1 = class FixturesService {
             })
                 .orderBy('fx.match_date', 'ASC')
                 .limit(limit);
+            if (userId) {
+                qb.leftJoin('specs', 'spec', 'spec.fixture_id = fx.id AND spec.user_id = :userId AND spec.mode = :mode', { userId, mode: 'live' })
+                    .andWhere('spec.id IS NULL');
+            }
             const entities = await qb.getMany();
             if (entities.length === 0) {
                 const recent = await this.fixtureRepository
@@ -220192,17 +220220,17 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
         this.logger.log('🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥');
         this.logger.log('='.repeat(80));
         this.logger.log('[SIMPLE_MATCH_POLLING_INIT] Timestamp: ' + new Date().toISOString());
-        this.logger.log('[SIMPLE_MATCH_POLLING_INIT] Version: DYNAMIC_WEEK_DETECTION_V2_20250930');
-        this.logger.log('[SIMPLE_MATCH_POLLING_INIT] Feature: 7-Day Window Scanning (Past + Future)');
-        this.logger.log('[SIMPLE_MATCH_POLLING_INIT] Feature: Automatic Week Detection');
-        this.logger.log('[SIMPLE_MATCH_POLLING_INIT] Feature: Catches Missed Matches from Downtime');
-        this.logger.log('[SIMPLE_MATCH_POLLING_INIT] NO MORE HARDCODED WEEK 4 - DYNAMIC DETECTION ACTIVE!');
+        this.logger.log('[SIMPLE_MATCH_POLLING_INIT] Version: V3_FIXED_STATUS_PATH_20250930_1200PM');
+        this.logger.log('[SIMPLE_MATCH_POLLING_INIT] Fix: Status now reads from fixture.status.short');
+        this.logger.log('[SIMPLE_MATCH_POLLING_INIT] Feature: Smart backfill + checkpoint polling');
+        this.logger.log('[SIMPLE_MATCH_POLLING_INIT] Debug: Shows match status and scores in logs');
         this.logger.log('='.repeat(80));
     }
     async checkMatchCheckpoints() {
         if (process.env.DISABLE_LIVE_UPDATES === 'true') {
             return;
         }
+        this.logger.log('📌 Running polling V3_FIXED_STATUS_PATH_20250930_1200PM');
         try {
             await this.resetDailyCounterIfNeeded();
             await this.backfillPastMatches();
@@ -220378,33 +220406,61 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
     }
     async fetchAndUpdateMatchResults(fixture) {
         try {
+            this.logger.log(`🔍 [BACKFILL_START] Processing: ${fixture.home_team} vs ${fixture.away_team}`);
+            this.logger.log(`🔍 [BACKFILL_START] Fixture ID: ${fixture.id}, Date: ${fixture.match_date}, Current Status: ${fixture.status}, Home Score: ${fixture.home_score}, Away Score: ${fixture.away_score}`);
             this.recordApiCall();
             const matchDate = new Date(fixture.match_date)
                 .toISOString()
                 .split('T')[0];
+            this.logger.log(`🔍 [BACKFILL_API_CALL] Fetching fixtures for date: ${matchDate}`);
             const matches = await this.apiFootballService.getDailyFixtures(matchDate);
+            this.logger.log(`🔍 [BACKFILL_API_RESPONSE] API returned ${matches.length} matches for ${matchDate}. Looking for: ${fixture.home_team} vs ${fixture.away_team}`);
+            matches.forEach((m, idx) => {
+                const status = m.fixture?.status?.short || 'NO_STATUS';
+                const homeTeam = m.teams?.home?.name || 'Unknown';
+                const awayTeam = m.teams?.away?.name || 'Unknown';
+                const homeScore = m.goals?.home;
+                const awayScore = m.goals?.away;
+                this.logger.log(`🔍 [BACKFILL_API_MATCH_${idx + 1}] ${homeTeam} vs ${awayTeam} - Status: ${status}, Score: ${homeScore}-${awayScore}`);
+            });
+            this.logger.log(`🔍 [BACKFILL_MATCHING] Attempting to find match in API response...`);
             const matchData = matches.find((m) => (m.teams?.home?.name === fixture.home_team ||
                 m.teams?.home?.name.includes(fixture.home_team) ||
                 fixture.home_team.includes(m.teams?.home?.name)) &&
                 (m.teams?.away?.name === fixture.away_team ||
                     m.teams?.away?.name.includes(fixture.away_team) ||
                     fixture.away_team.includes(m.teams?.away?.name)));
-            if (matchData && matchData.status?.short === 'FT') {
-                await this.fixtureRepository.update(fixture.id, {
+            if (!matchData) {
+                this.logger.warn(`⚠️ [BACKFILL_NO_MATCH] Match not found in API response!`);
+                this.logger.warn(`⚠️ [BACKFILL_NO_MATCH] Searching for: ${fixture.home_team} vs ${fixture.away_team}`);
+                this.logger.warn(`⚠️ [BACKFILL_NO_MATCH] Database has home_team='${fixture.home_team}' away_team='${fixture.away_team}'`);
+                return;
+            }
+            const status = matchData?.fixture?.status?.short;
+            const homeScore = matchData.goals?.home;
+            const awayScore = matchData.goals?.away;
+            this.logger.log(`🔍 [BACKFILL_MATCH_FOUND] Match found in API! Home: ${matchData.teams?.home?.name}, Away: ${matchData.teams?.away?.name}, Status: ${status}, Score: ${homeScore}-${awayScore}`);
+            if (status === 'FT' || status === 'AET' || status === 'PEN') {
+                this.logger.log(`🔍 [BACKFILL_UPDATE_START] Match is finished (${status}). Updating database...`);
+                const finalHomeScore = homeScore ?? 0;
+                const finalAwayScore = awayScore ?? 0;
+                const updateResult = await this.fixtureRepository.update(fixture.id, {
                     status: 'FINISHED',
-                    home_score: matchData.goals?.home || 0,
-                    away_score: matchData.goals?.away || 0,
-                    result: this.calculateResult(matchData.goals?.home || 0, matchData.goals?.away || 0),
+                    home_score: finalHomeScore,
+                    away_score: finalAwayScore,
+                    result: this.calculateResult(finalHomeScore, finalAwayScore),
                     updated_at: new Date(),
                 });
-                this.logger.log(`✅ BACKFILLED: ${fixture.home_team} vs ${fixture.away_team} - Final: ${matchData.goals?.home || 0}-${matchData.goals?.away || 0}`);
+                this.logger.log(`🔍 [BACKFILL_UPDATE_RESULT] Database update result: ${JSON.stringify(updateResult)}`);
+                this.logger.log(`✅ [BACKFILL_SUCCESS] ${fixture.home_team} vs ${fixture.away_team} - Final: ${finalHomeScore}-${finalAwayScore}`);
             }
-            else if (!matchData) {
-                this.logger.warn(`⚠️ Match not found in API: ${fixture.home_team} vs ${fixture.away_team} on ${matchDate}`);
+            else {
+                this.logger.warn(`⚠️ [BACKFILL_NOT_FINISHED] Match found but status is '${status}' (not FT/AET/PEN) for ${fixture.home_team} vs ${fixture.away_team}`);
             }
         }
         catch (error) {
-            this.logger.error(`Failed to backfill ${fixture.home_team} vs ${fixture.away_team}`, error);
+            this.logger.error(`❌ [BACKFILL_ERROR] Failed to backfill ${fixture.home_team} vs ${fixture.away_team}`, error);
+            this.logger.error(`❌ [BACKFILL_ERROR] Error stack: ${error.stack}`);
         }
     }
     async updateFixtureStatus(fixtureId, status) {
@@ -221428,13 +221484,20 @@ let SpecsController = class SpecsController {
         const summaryMode = mode || 'live';
         return this.specsService.getUserSummary(userId, summaryMode);
     }
-    async deleteUserPredictions(userId) {
-        const deleted = await this.specsService.deleteUserPredictions(userId);
-        return {
+    async deleteUserPredictions(userId, mode, week) {
+        console.log('🗑️ [SPECS_CONTROLLER] DELETE request received');
+        console.log('🗑️ [SPECS_CONTROLLER] Path params:', { userId });
+        console.log('🗑️ [SPECS_CONTROLLER] Query params:', { mode, week });
+        const weekNum = week ? parseInt(week, 10) : undefined;
+        console.log('🗑️ [SPECS_CONTROLLER] Parsed week number:', weekNum);
+        const deleted = await this.specsService.deleteUserPredictions(userId, mode, weekNum);
+        const response = {
             success: true,
             deleted,
-            message: `Deleted ${deleted} predictions for user ${userId}`,
+            message: `Deleted ${deleted} predictions for user ${userId}${mode ? ` (mode: ${mode})` : ''}${weekNum ? ` (week: ${weekNum})` : ''}`,
         };
+        console.log('🗑️ [SPECS_CONTROLLER] Response:', response);
+        return response;
     }
 };
 exports.SpecsController = SpecsController;
@@ -221465,8 +221528,10 @@ __decorate([
 __decorate([
     (0, common_1.Delete)('user/:userId'),
     __param(0, (0, common_1.Param)('userId')),
+    __param(1, (0, common_1.Query)('mode')),
+    __param(2, (0, common_1.Query)('week')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", typeof (_g = typeof Promise !== "undefined" && Promise) === "function" ? _g : Object)
 ], SpecsController.prototype, "deleteUserPredictions", null);
 exports.SpecsController = SpecsController = __decorate([
@@ -221526,7 +221591,11 @@ let SpecsService = class SpecsService {
             where: { user_id, fixture_id, mode: 'live' },
         });
         if (existingSpec) {
-            throw new common_1.ConflictException('User already has a prediction for this fixture');
+            console.log(`🔄 [SPECS_SERVICE] Updating existing prediction for user ${user_id} on fixture ${fixture_id}`);
+            existingSpec.choice = choice;
+            existingSpec.timestamp = new Date();
+            const savedSpec = await this.specRepository.save(existingSpec);
+            return this.mapSpecToResponse(savedSpec, fixture);
         }
         const spec = this.specRepository.create({
             user_id,
@@ -221696,8 +221765,35 @@ let SpecsService = class SpecsService {
             choice_display: spec.getChoiceDisplay(),
         };
     }
-    async deleteUserPredictions(userId) {
-        const res = await this.specRepository.delete({ user_id: userId });
+    async deleteUserPredictions(userId, mode, week) {
+        console.log('🗑️ [DELETE_PREDICTIONS] Delete request received');
+        console.log('🗑️ [DELETE_PREDICTIONS] Parameters:', { userId, mode, week });
+        const whereConditions = { user_id: userId };
+        if (mode) {
+            whereConditions.mode = mode;
+        }
+        if (week !== undefined) {
+            whereConditions.week = week;
+        }
+        console.log('🗑️ [DELETE_PREDICTIONS] Where conditions:', whereConditions);
+        const existingSpecs = await this.specRepository.find({ where: whereConditions });
+        console.log('🗑️ [DELETE_PREDICTIONS] Found existing specs:', existingSpecs.length);
+        if (existingSpecs.length > 0) {
+            console.log('🗑️ [DELETE_PREDICTIONS] Sample spec to delete:', {
+                id: existingSpecs[0].id,
+                user_id: existingSpecs[0].user_id,
+                fixture_id: existingSpecs[0].fixture_id,
+                choice: existingSpecs[0].choice,
+                week: existingSpecs[0].week,
+                mode: existingSpecs[0].mode,
+            });
+        }
+        const res = await this.specRepository.delete(whereConditions);
+        console.log('🗑️ [DELETE_PREDICTIONS] Delete result:', {
+            affected: res.affected,
+            raw: res.raw,
+        });
+        console.log('🗑️ [DELETE_PREDICTIONS] Delete operation complete');
         return res.affected || 0;
     }
 };
