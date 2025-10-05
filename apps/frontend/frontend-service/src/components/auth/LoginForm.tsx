@@ -47,18 +47,12 @@ const LoginForm: React.FC = () => {
       const result = await signInWithGoogle();
       console.log('🔵 [LoginForm] signInWithGoogle() returned:', result);
 
-      // Only redirect if we have a user (popup flow)
-      // For redirect flow, null is returned and user will be redirected by Google
+      // Popup always returns a user immediately
       if (result) {
-        console.log('🔵 [LoginForm] Popup flow completed with user, redirecting to /mode-selection');
+        console.log('🔵 [LoginForm] Google sign-in successful, redirecting to /mode-selection');
         router.push('/mode-selection');
-        setGoogleLoading(false);
-      } else {
-        console.log('🔵 [LoginForm] Redirect flow initiated, waiting for return from Google...');
-        // Keep loading state true for redirect flow - it will be reset when user returns
-        // Don't set loading to false here as the redirect is happening
-        return;
       }
+      setGoogleLoading(false);
     } catch (error) {
       console.error('🔴 [LoginForm] Google sign-in failed:', error);
       // Error is handled by AuthContext

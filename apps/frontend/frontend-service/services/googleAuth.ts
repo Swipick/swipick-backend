@@ -12,36 +12,25 @@ export interface GoogleAuthResult {
 export const signInWithGoogle = async (): Promise<GoogleAuthResult> => {
   console.log('🟣 [googleAuth] signInWithGoogle() called');
   try {
-    // Prefer popup on localhost to avoid Firebase Hosting redirect handler 404s during dev
     const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
-    const isLocalDev = hostname === 'localhost' || hostname === '127.0.0.1';
-    console.log('🟣 [googleAuth] Hostname:', hostname, 'isLocalDev:', isLocalDev);
-
-    // Prefer redirect on real mobile devices in non-local environments (iOS/Android)
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
     const isMobile = /iPhone|iPad|iPod|Android/i.test(ua);
+
+    console.log('🟣 [googleAuth] Hostname:', hostname);
     console.log('🟣 [googleAuth] User Agent:', ua);
     console.log('🟣 [googleAuth] Is Mobile:', isMobile);
 
-    if (isMobile && !isLocalDev) {
-      console.log('🟣 [googleAuth] Mobile detected - using redirect flow');
+    // Clear any stale redirect flags from previous attempts
+    sessionStorage.removeItem('swipick:googleRedirectPending');
+    sessionStorage.removeItem('swipick:googleRedirectTime');
 
-      // Set a flag to indicate we're expecting a redirect
-      sessionStorage.setItem('swipick:googleRedirectPending', 'true');
-      sessionStorage.setItem('swipick:googleRedirectTime', Date.now().toString());
-      console.log('🟣 [googleAuth] Set redirect pending flag in sessionStorage');
-
-      console.log('🟣 [googleAuth] Calling signInWithRedirect...');
-      await signInWithRedirect(auth, googleProvider);
-      console.log('🟣 [googleAuth] signInWithRedirect called (will redirect now)');
-      return { success: true };
-    }
-
-    // Desktop: try popup first
-    console.log('🟣 [googleAuth] Desktop detected - using popup flow');
+    // Use popup for ALL devices - same flow that works on desktop
+    console.log('🟣 [googleAuth] Using popup flow (same as desktop)');
     console.log('🟣 [googleAuth] Calling signInWithPopup...');
+
     const result = await signInWithPopup(auth, googleProvider);
     console.log('🟣 [googleAuth] signInWithPopup successful, user:', result.user?.email);
+
     return {
       success: true,
       user: result.user,
@@ -51,37 +40,14 @@ export const signInWithGoogle = async (): Promise<GoogleAuthResult> => {
     const authError = error as { code?: string; message?: string };
     console.error('🔴 [googleAuth] Google sign-in error:', authError);
 
-    // Handle specific error cases
-    if (
-      authError.code === 'auth/popup-blocked' ||
-      authError.code === 'auth/operation-not-supported-in-this-environment' ||
-      authError.code === 'auth/blocked-by-user-agent'
-    ) {
-      console.log('🟡 [googleAuth] Popup blocked, attempting redirect fallback');
-      // Fallback to redirect method only when not in local dev (to avoid /__/firebase/init.json 404)
-      try {
-        const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
-        const isLocalDev = hostname === 'localhost' || hostname === '127.0.0.1';
-        if (isLocalDev) {
-          console.error('🔴 [googleAuth] In local dev, cannot use redirect');
-          return {
-            success: false,
-            error: 'Popup bloccato. In sviluppo locale abilita i popup o usa un browser diverso.',
-            code: authError.code,
-          };
-        }
-        console.log('🟡 [googleAuth] Calling signInWithRedirect as fallback...');
-        await signInWithRedirect(auth, googleProvider);
-        return { success: true };
-      } catch (redirectError: unknown) {
-        const redirectAuthError = redirectError as { code?: string; message?: string };
-        console.error('🔴 [googleAuth] Redirect fallback failed:', redirectAuthError);
-        return {
-          success: false,
-          error: redirectAuthError.message || 'Redirect error',
-          code: redirectAuthError.code,
-        };
-      }
+    // Handle popup blocked error
+    if (authError.code === 'auth/popup-blocked') {
+      console.error('🔴 [googleAuth] Popup was blocked by the browser');
+      return {
+        success: false,
+        error: 'Il popup è stato bloccato. Abilita i popup per questo sito e riprova.',
+        code: authError.code,
+      };
     }
 
     return {
