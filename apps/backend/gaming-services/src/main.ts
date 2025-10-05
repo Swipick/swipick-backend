@@ -41,19 +41,19 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   // SANITY CHECK: Verify Gaming Services startup
-  console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] ='.repeat(35));
+  console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] ='.repeat(5));
   console.log(
-    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] *** GAMING SERVICES STARTING UP ***',
+    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] *** STARTING UP WITH NEW LOGS OCT 5TH ***',
   );
   console.log(
-    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Timestamp:',
+    '🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 5TH] Timestamp:',
     new Date().toISOString(),
   );
   console.log(
     '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Version: BACKFILL_DETAILED_LOGGING_V1',
   );
   console.log(
-    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Contains: Enhanced backfill logging with 🔍 prefix for debugging',
+    '🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 5TH] Contains: Enhanced backfill logging with 🔍 prefix for debugging',
   );
   console.log(
     '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Feature: Shows API responses, team name matching, DB updates',
@@ -62,7 +62,7 @@ async function bootstrap() {
     '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Deployed at:',
     new Date().toISOString(),
   );
-  console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] ='.repeat(35));
+  console.log('🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 5TH] ='.repeat(35));
 
   const app = await NestFactory.create(AppModule);
 
