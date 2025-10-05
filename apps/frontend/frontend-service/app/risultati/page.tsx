@@ -655,34 +655,7 @@ function RisultatiPageContent() {
   }, [selectedWeek, meter]);
 
   const onReveal = async (fixtureId: string, anchorEl?: HTMLElement) => {
-    // Guard: in Live Mode, prevent revealing future matches
-    const match = weekCards.find(m => m.fixtureId === fixtureId);
-    if (match) {
-      const kickoffTime = new Date(match.kickoff.iso);
-      const now = new Date();
-      if (kickoffTime > now) {
-        if (DEBUG_RISULTATI) {
-          try {
-            console.warn('[risultati] reveal blocked - future match', {
-              fixtureId,
-              kickoff: match.kickoff.iso,
-              now: now.toISOString(),
-              reason: 'match not started yet'
-            });
-          } catch {}
-        }
-
-        // Shake the button
-        if (anchorEl) {
-          anchorEl.classList.add('animate-shake');
-          setTimeout(() => anchorEl.classList.remove('animate-shake'), 500);
-        }
-
-        setToast('La partita non è ancora iniziata');
-        return;
-      }
-    }
-
+    // Reveal allowed - the check has already been done in the button onClick handler
     if (DEBUG_RISULTATI) { try { console.log('[risultati] reveal allowed', { week: selectedWeek, fixtureId }); } catch {} }
     if (DEBUG_RISULTATI) {
       try {
@@ -865,15 +838,25 @@ function RisultatiPageContent() {
                   // Auto-reveal previous weeks (weeks before current live week)
                   const currentLiveWeek = liveWeekData?.currentWeek || 4; // Default to 4 if not loaded
                   const isPreviousWeek = selectedWeek < currentLiveWeek;
-                  const isRevealed = !!revealed[m.fixtureId] || isPreviousWeek;
+
+                  // Check if we have actual score data (not ND) - this means match has finished
+                  const homeScoreData = pred?.homeScore ?? scoreFallback?.homeScore;
+                  const awayScoreData = pred?.awayScore ?? scoreFallback?.awayScore;
+                  const matchHasFinished = homeScoreData != null && awayScoreData != null;
+
+                  // Only allow reveal if match has finished with valid scores
+                  const canBeRevealed = matchHasFinished;
+                  const isRevealed = (!!revealed[m.fixtureId] && canBeRevealed) || (isPreviousWeek && canBeRevealed);
+
                   const statusLabel = isRevealed ? 'FINE PARTITA' : 'MOSTRA RISULTATO';
                   const statusColor = isRevealed ? 'bg-gray-200 text-gray-700' : 'bg-indigo-500 bg-opacity-90 text-white';
+
                   if (isRevealed && !pred && !scoreFallback && fixtureScoresLoaded) {
                     // Minimal diagnostic to help trace missing scores in prod without spamming (only after scores loaded)
                     console.warn('No score data found for fixture', fid, 'in week', selectedWeek);
                   }
-                  const homeVal = isRevealed ? (pred?.homeScore ?? scoreFallback?.homeScore) : undefined;
-                  const awayVal = isRevealed ? (pred?.awayScore ?? scoreFallback?.awayScore) : undefined;
+                  const homeVal = isRevealed ? homeScoreData : undefined;
+                  const awayVal = isRevealed ? awayScoreData : undefined;
                   if (DEBUG_RISULTATI && isRevealed && homeVal == null && awayVal == null) {
                     try { console.debug('[risultati] revealed but no scores', { fid, week: selectedWeek }); } catch {}
                   }
@@ -926,12 +909,15 @@ function RisultatiPageContent() {
             <div className="flex items-center justify-center ml-1.5">
                           <button
                             onClick={isPreviousWeek ? undefined : (e) => {
-                              const kickoffTime = new Date(m.kickoff.iso);
-                              const now = new Date();
-                              if (kickoffTime > now) {
-                                e.currentTarget.classList.add('animate-shake');
-                                setTimeout(() => e.currentTarget.classList.remove('animate-shake'), 500);
-                                setToast('La partita non è ancora iniziata');
+                              // Only allow click if match has finished (has valid scores)
+                              if (!matchHasFinished) {
+                                const target = e.currentTarget as HTMLButtonElement;
+                                // Apply inline animation for guaranteed shake effect
+                                target.style.animation = 'shake 0.5s ease-in-out';
+                                setTimeout(() => {
+                                  target.style.animation = '';
+                                }, 500);
+                                setToast('Il risultato non è ancora disponibile');
                                 return;
                               }
                               onReveal(m.fixtureId, e.currentTarget);

@@ -333,8 +333,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             photoURL: res.user.photoURL ?? undefined,
           });
 
-          // Page component (LoginPage) will handle redirect after state is set
-          addLog('🟠 [AuthContext] User state set, page will handle redirect');
+          // Check if we're on the login page and redirect immediately
+          const currentPath = window.location.pathname;
+          addLog(`🟠 [AuthContext] Current path: ${currentPath}`);
+
+          if (currentPath === '/login' && res.user.emailVerified) {
+            addLog('🟠 [AuthContext] User on login page with verified email, redirecting to /mode-selection');
+            // Use window.location for immediate redirect to ensure state changes take effect
+            window.location.href = '/mode-selection';
+          } else {
+            addLog('🟠 [AuthContext] User state set, page will handle redirect');
+          }
         } else {
           addLog('🟠 [AuthContext] No redirect result to process');
         }
