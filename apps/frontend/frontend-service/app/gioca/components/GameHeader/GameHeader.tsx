@@ -66,8 +66,8 @@ export function GameHeader({
     try {
       if (navigator.share) {
         await navigator.share({
-          title: 'Swipick - Football Predictions',
-          text: 'Check out my football predictions on Swipick!',
+      title: 'Swipick - Previsioni Calcio',
+        text: 'Ho fatto su Swipick le mie previsioni per la prossima giornata di calcio. Puoi battermi? https://swipick-frontend-production.up.railway.app/registro',
           url: window.location.origin,
         });
       } else {
@@ -231,10 +231,10 @@ export function GameHeader({
                 }`}
                 onClick={handleShare}
                 disabled={shareLoading}
-                title="Condividi previsione"
+                title="Sfida i tuoi amici"
               >
                 <MdOutlineIosShare className="w-4 h-4" />
-                Condividi previsione
+                Sfida i tuoi amici
               </button>
             </div>
           </div>

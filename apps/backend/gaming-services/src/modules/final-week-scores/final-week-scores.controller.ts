@@ -92,4 +92,38 @@ export class FinalWeekScoresController {
       mode,
     );
   }
+
+  @Get(':userId/week/:week/percentile')
+  async getUserPercentile(
+    @Param('userId') userId: string,
+    @Param('week') week: string,
+    @Query('mode') mode: 'live' | 'test' = 'live',
+  ): Promise<{
+    percentile: number;
+    totalPlayers: number;
+    betterThanPercent: number;
+  }> {
+    const weekNumber = parseInt(week, 10);
+    if (isNaN(weekNumber) || weekNumber < 1 || weekNumber > 38) {
+      throw new Error('Week must be a number between 1 and 38');
+    }
+    return this.finalWeekScoresService.getUserPercentile(
+      userId,
+      weekNumber,
+      mode,
+    );
+  }
+
+  @Get(':userId/statistics')
+  async getUserStatistics(
+    @Param('userId') userId: string,
+    @Query('mode') mode: 'live' | 'test' = 'live',
+  ): Promise<{
+    averageScore: number;
+    bestScore: number;
+    weeksPlayed: number;
+    bestWeek: number | null;
+  }> {
+    return this.finalWeekScoresService.getUserStatistics(userId, mode);
+  }
 }

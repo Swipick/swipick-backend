@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -14,6 +15,8 @@ import {
 
 @Injectable()
 export class FinalWeekScoresService {
+  private readonly logger = new Logger(FinalWeekScoresService.name);
+
   constructor(
     @InjectRepository(FinalWeekScore)
     private readonly finalWeekScoreRepository: Repository<FinalWeekScore>,
@@ -155,6 +158,139 @@ export class FinalWeekScoresService {
       isComplete: finalWeekScore.isComplete(),
       gradeDisplay: finalWeekScore.getGradeDisplay(),
       scoreSummary: finalWeekScore.getScoreSummary(),
+    };
+  }
+
+  async getUserPercentile(
+    userId: string,
+    week: number,
+    mode: 'live' | 'test' = 'live',
+  ): Promise<{
+    percentile: number;
+    totalPlayers: number;
+    betterThanPercent: number;
+  }> {
+    this.logger.log(
+      `📊 [PERCENTILE] Calculating percentile for user ${userId}, week ${week}, mode: ${mode}`,
+    );
+
+    // Get all scores for this week
+    const tableName =
+      mode === 'test' ? 'test_final_week_scores' : 'final_week_scores';
+    const allScores = await this.finalWeekScoreRepository.query(
+      `SELECT user_id, percent FROM ${tableName} WHERE week = $1 AND percent IS NOT NULL ORDER BY percent DESC`,
+      [week],
+    );
+
+    if (allScores.length === 0) {
+      this.logger.log(`📊 [PERCENTILE] No scores found for week ${week}`);
+      return {
+        percentile: 0,
+        totalPlayers: 0,
+        betterThanPercent: 0,
+      };
+    }
+
+    // Find user's position
+    const userIndex = allScores.findIndex((score) => score.user_id === userId);
+
+    if (userIndex === -1) {
+      this.logger.log(
+        `📊 [PERCENTILE] User ${userId} has no score for week ${week}`,
+      );
+      return {
+        percentile: 0,
+        totalPlayers: allScores.length,
+        betterThanPercent: 0,
+      };
+    }
+
+    const userScore = allScores[userIndex].percent;
+    const totalPlayers = allScores.length;
+
+    // Calculate how many players the user is better than
+    const playersBehind = totalPlayers - userIndex - 1;
+    const betterThanPercent = Math.round((playersBehind / totalPlayers) * 100);
+
+    // Calculate percentile (which percentile group they're in)
+    // Top 10%, 25%, 50%, etc.
+    let percentile: number;
+    const position = ((userIndex + 1) / totalPlayers) * 100;
+
+    if (position <= 10) {
+      percentile = 10;
+    } else if (position <= 25) {
+      percentile = 25;
+    } else if (position <= 50) {
+      percentile = 50;
+    } else if (position <= 75) {
+      percentile = 75;
+    } else {
+      percentile = 100;
+    }
+
+    this.logger.log(
+      `📊 [PERCENTILE] User ${userId} - Score: ${userScore}%, Rank: ${userIndex + 1}/${totalPlayers}, ` +
+        `Better than ${betterThanPercent}% of players, In top ${percentile}%`,
+    );
+
+    return {
+      percentile,
+      totalPlayers,
+      betterThanPercent,
+    };
+  }
+
+  async getUserStatistics(
+    userId: string,
+    mode: 'live' | 'test' = 'live',
+  ): Promise<{
+    averageScore: number;
+    bestScore: number;
+    weeksPlayed: number;
+    bestWeek: number | null;
+  }> {
+    this.logger.log(
+      `📊 [STATISTICS] Calculating statistics for user ${userId}, mode: ${mode}`,
+    );
+
+    const tableName =
+      mode === 'test' ? 'test_final_week_scores' : 'final_week_scores';
+
+    // Get all user's scores
+    const userScores = await this.finalWeekScoreRepository.query(
+      `SELECT week, percent FROM ${tableName} WHERE user_id = $1 AND percent IS NOT NULL ORDER BY percent DESC`,
+      [userId],
+    );
+
+    if (userScores.length === 0) {
+      this.logger.log(`📊 [STATISTICS] No scores found for user ${userId}`);
+      return {
+        averageScore: 0,
+        bestScore: 0,
+        weeksPlayed: 0,
+        bestWeek: null,
+      };
+    }
+
+    // Calculate statistics
+    const scores = userScores.map((s) => s.percent);
+    const averageScore = Math.round(
+      scores.reduce((sum, score) => sum + score, 0) / scores.length,
+    );
+    const bestScore = scores[0]; // Already sorted DESC
+    const bestWeek = userScores[0].week;
+    const weeksPlayed = scores.length;
+
+    this.logger.log(
+      `📊 [STATISTICS] User ${userId} - Average: ${averageScore}%, Best: ${bestScore}% (Week ${bestWeek}), Played: ${weeksPlayed} weeks`,
+    );
+
+    return {
+      averageScore,
+      bestScore,
+      weeksPlayed,
+      bestWeek,
     };
   }
 }

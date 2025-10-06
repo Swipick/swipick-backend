@@ -152,6 +152,7 @@ function RisultatiPageContent() {
   // Track the most recently revealed fixture and where to fire confetti
   const [recentlyRevealed, setRecentlyRevealed] = useState<{ id: string; origin?: { x: number; y: number } } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [percentileData, setPercentileData] = useState<{ percentile: number; totalPlayers: number; betterThanPercent: number } | null>(null);
 
   // Fire indigo/white confetti burst (non-blocking), optionally anchored to a viewport origin
   const fireConfetti = useCallback((origin?: { x: number; y: number }) => {
@@ -635,11 +636,52 @@ function RisultatiPageContent() {
     return { revealed: revealedCount, correct: correctCount, percent };
   }, [weekCards, revealed, predByFixture]);
 
+  // Fetch percentile data when user and week are available
+  useEffect(() => {
+    const fetchPercentile = async () => {
+      if (!userId || !selectedWeek) {
+        setPercentileData(null);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'}/api/final-week-scores/${userId}/week/${selectedWeek}/percentile?mode=live`,
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          setPercentileData(data);
+        } else {
+          console.error('Failed to fetch percentile data:', response.status);
+          setPercentileData(null);
+        }
+      } catch (error) {
+        console.error('Error fetching percentile:', error);
+        setPercentileData(null);
+      }
+    };
+
+    fetchPercentile();
+  }, [userId, selectedWeek]);
+
   // Share handler (defined after meter so it can reference it safely)
   const handleShare = useCallback(async () => {
     const title = `Giornata ${selectedWeek} — Swipick`;
-    const text = `Ho indovinato il ${meter.percent}% della ${selectedWeek} giornata. Sono nel 10% dei migliori.`;
-    const url = typeof window !== 'undefined' ? window.location.href : undefined;
+
+    // Build share text with dynamic percentile
+    let shareText = `Ho indovinato il ${meter.percent}% delle partite della ${selectedWeek}ª giornata.`;
+
+    if (percentileData && percentileData.totalPlayers > 0 && percentileData.percentile > 0) {
+      shareText += ` Sono nel ${percentileData.percentile}% dei migliori.`;
+    }
+
+    // Add challenge
+    shareText += `\nE tu?`;
+
+    const text = shareText;
+    // Use the specific risultati URL with live mode
+    const url = `https://swipick-frontend-production.up.railway.app/risultati?mode=live`;
     try {
       const n: NavigatorWebShare | undefined = typeof navigator !== 'undefined' ? (navigator as NavigatorWebShare) : undefined;
       if (n && typeof n.share === 'function') {
@@ -652,7 +694,7 @@ function RisultatiPageContent() {
       setShareToast('Condivisione non supportata su questo dispositivo');
       setTimeout(() => setShareToast(null), 2200);
     }
-  }, [selectedWeek, meter]);
+  }, [selectedWeek, meter, percentileData]);
 
   const onReveal = async (fixtureId: string, anchorEl?: HTMLElement) => {
     // Reveal allowed - the check has already been done in the button onClick handler

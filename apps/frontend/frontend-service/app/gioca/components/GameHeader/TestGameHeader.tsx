@@ -212,8 +212,8 @@ export function TestGameHeader({
     setShareLoading(true);
     try {
       const shareData = {
-        title: 'Swipick - Football Predictions',
-        text: 'Check out my test mode football predictions on Swipick!',
+        title: 'Swipick - Previsioni Calcio',
+        text: 'Ho fatto su Swipick le mie previsioni per la prossima giornata di calcio. Puoi battermi? https://swipick-frontend-production.up.railway.app/registro',
         url: window.location.origin,
       };
 
@@ -221,7 +221,8 @@ export function TestGameHeader({
         await navigator.share(shareData);
       } else {
         // Fallback: copy to clipboard
-        await navigator.clipboard.writeText(window.location.origin);
+        const shareText = `Ho fatto su Swipick le mie previsioni per la prossima giornata di calcio. Puoi battermi?https://swipick-frontend-production.up.railway.app/registro\n${window.location.origin}`;
+        await navigator.clipboard.writeText(shareText);
         // Could show a toast notification here if available
       }
     } catch (error) {
@@ -345,14 +346,14 @@ export function TestGameHeader({
               onClick={handleShare}
               disabled={shareLoading}
               className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-100 disabled:bg-gray-200 rounded-lg transition-colors text-sm font-medium text-purple-700"
-              title="Condividi previsione"
+              title="Sfida i tuoi amici"
             >
               {shareLoading ? (
                 <div className="w-4 h-4 border-2 border-purple-300 border-t-purple-700 rounded-full animate-spin" />
               ) : (
                 <MdOutlineIosShare className="w-4 h-4 text-purple-700" />
               )}
-              Condividi previsione
+              Sfida i tuoi amici
             </button>
           </div>
         )}

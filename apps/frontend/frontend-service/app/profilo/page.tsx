@@ -197,22 +197,22 @@ export default function ProfiloPage() {
   // Share CTA
   const onShare = useCallback(async () => {
     try {
-      const title = `Profilo Swipick di ${displayName}`;
-      const text = `Punteggio medio ${kpi.average} su ${kpi.weeksPlayed} giornate.`;
+      const title = `Swipick`;
+      const text = `Il mio punteggio medio su Swipick è ${kpi.average}% su ${kpi.weeksPlayed} giornate, il mio risultato migliore è ${kpi.best}%. Sai fare meglio?`;
       const url = typeof window !== 'undefined' ? window.location.origin : undefined;
       const nav: NavigatorWebShare | undefined = typeof navigator !== 'undefined' ? (navigator as NavigatorWebShare) : undefined;
       if (nav && typeof nav.share === 'function') {
         await nav.share({ title, text, url });
       } else if (nav?.clipboard?.writeText) {
-        await nav.clipboard.writeText(`${title}\n${text}\n${url ?? ''}`.trim());
+        await nav.clipboard.writeText(`${text}\n${url ?? ''}`.trim());
         alert('Link copiato negli appunti');
       } else {
-        alert(`${title}\n${text}`);
+        alert(`${text}`);
       }
     } catch {
       // ignore
     }
-  }, [displayName, kpi]);
+  }, [kpi]);
 
   // Fetch stored avatar (base64) after we know the userId
   useEffect(() => {
