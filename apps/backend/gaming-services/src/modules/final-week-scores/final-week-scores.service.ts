@@ -182,7 +182,7 @@ export class FinalWeekScoresService {
       this.logger.log(`📊 [PERCENTILE] Querying table: ${tableName}`);
 
       const allScores = await this.finalWeekScoreRepository.query(
-        `SELECT user_id, percent FROM ${tableName} WHERE week = $1 AND percent IS NOT NULL ORDER BY percent DESC`,
+        `SELECT "userId" as user_id, percent FROM ${tableName} WHERE week = $1 AND percent IS NOT NULL ORDER BY percent DESC`,
         [week],
       );
 
@@ -277,7 +277,7 @@ export class FinalWeekScoresService {
 
       // Get all user's scores
       const userScores = await this.finalWeekScoreRepository.query(
-        `SELECT week, percent FROM ${tableName} WHERE user_id = $1 AND percent IS NOT NULL ORDER BY percent DESC`,
+        `SELECT week, percent FROM ${tableName} WHERE "userId" = $1 AND percent IS NOT NULL ORDER BY percent DESC`,
         [userId],
       );
 
