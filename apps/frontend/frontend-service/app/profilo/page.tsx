@@ -163,8 +163,8 @@ export default function ProfiloPage() {
       setEmail(u.email || firebaseUser.email || '');
       setAvatarUrl(u.googleProfileUrl || firebaseUser.photoURL || null);
 
-      // Fetch live summary only
-      const liveResp = await apiClient.getUserSummary(u.id, 'live');
+      // Fetch live summary using Firebase UID (specs table uses firebase_uid as user_id)
+      const liveResp = await apiClient.getUserSummary(firebaseUser.uid, 'live');
       if (DEBUG_PROFILO) {
         try {
           console.log('[profilo] raw live summary', liveResp);

@@ -135,8 +135,11 @@ function RisultatiPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'week' | 'overview' | 'history'>('week');
 
-  // Per-game reveal state (Test Mode)
-  const [selectedWeek, setSelectedWeek] = useState<number>(1);
+  // Use reliable live week detection for live mode (same as GameHeader)
+  const { liveWeekData } = useLiveWeek({ mode: 'live' });
+
+  // Per-game reveal state (Test Mode) - initialize with live week to avoid loading wrong week initially
+  const [selectedWeek, setSelectedWeek] = useState<number>(liveWeekData?.currentWeek || 7);
   const [userId, setUserId] = useState<string | null>(null);
   const [weekCards, setWeekCards] = useState<MatchCard[]>([]);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
@@ -145,9 +148,6 @@ function RisultatiPageContent() {
   const [nextWeekRange, setNextWeekRange] = useState<{ from: string; to: string } | null>(null);
   const [navDir, setNavDir] = useState<1 | -1 | 0>(0);
   const [pendingWeekForUrl, setPendingWeekForUrl] = useState<number | null>(null);
-
-  // Use reliable live week detection for live mode (same as GameHeader)
-  const { liveWeekData } = useLiveWeek({ mode: 'live' });
   const [fixtureScores, setFixtureScores] = useState<Map<string, { homeScore: number | null; awayScore: number | null; actual?: Choice }>>(new Map());
   // Track the most recently revealed fixture and where to fire confetti
   const [recentlyRevealed, setRecentlyRevealed] = useState<{ id: string; origin?: { x: number; y: number } } | null>(null);
@@ -411,7 +411,7 @@ function RisultatiPageContent() {
     try {
       const ids = Object.entries(revealed)
         .filter(([, v]) => v)
-        .map(([k]) => Number(k));
+        .map(([k]) => k); // Keep as strings (fixture IDs are UUIDs)
       localStorage.setItem(revealKey, JSON.stringify(ids));
     } catch {}
   }, [revealed, revealKey, allowRevealThisWeek]);
@@ -420,6 +420,9 @@ function RisultatiPageContent() {
 
   // Fetch week match-cards for Live Mode
   useEffect(() => {
+    // Clear weekCards immediately when week changes to prevent showing stale dates
+    setWeekCards([]);
+
     const run = async () => {
       try {
         // For live mode, use fixtures table as single source of truth
