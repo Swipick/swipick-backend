@@ -988,12 +988,21 @@ function RisultatiPageContent() {
                           {(['1','X','2'] as Choice[]).map((c) => {
                             const chosen = pred?.prediction === c;
                             const actual = pred?.actual ?? scoreFallback?.actual;
-                            const correct = actual === c && isRevealed;
-                            const classes = correct
-                              ? 'bg-[#ccffb3] text-[#2a8000]'
-                              : chosen && isRevealed
-                                ? 'bg-[#ffb3b3] text-[#cc0000]'
-                                : 'bg-gray-100 text-gray-700';
+                            // Only show green if user actually chose this AND it's correct
+                            const correct = chosen && actual === c && isRevealed;
+                            // Only show red if user chose this AND it's wrong
+                            const wrong = chosen && actual !== c && actual != null && isRevealed;
+
+                            // Determine styling
+                            let classes = 'bg-gray-100 text-gray-700'; // Default: not chosen
+                            if (correct) {
+                              classes = 'bg-[#ccffb3] text-[#2a8000]'; // Green: correct prediction
+                            } else if (wrong) {
+                              classes = 'bg-[#ffb3b3] text-[#cc0000]'; // Red: wrong prediction
+                            } else if (chosen && !isRevealed) {
+                              classes = 'bg-indigo-100 text-indigo-700 ring-2 ring-indigo-400'; // Blue: chosen but not revealed
+                            }
+
                             return (
                               <div key={c} className={`w-8 h-8 rounded-md flex items-center justify-center text-sm font-semibold ${classes}`}>{c}</div>
                             );
