@@ -62,36 +62,20 @@ export class AppModule {
     // SANITY CHECK: Verify deployment of updated Gaming Services
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] ='.repeat(30));
     console.log(
-      '🚀🚀🚀 [GAMING_SERVICES_INIT] *** GAMING SERVICES APP MODULE INITIALIZED ***',
-      '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
-    );
-    console.log(
-      '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] *** GAMING SERVICES APP MODULE INITIALIZED OCT 6TH ***',
     );
     console.log(
       '🚀🚀🚀 [GAMING_SERVICES_INIT] Timestamp:',
       new Date().toISOString(),
     );
     console.log(
-      '🚀🚀🚀 [GAMING_SERVICES_INIT] Version: FINAL_WEEK_SCORES_PRODUCTION_DEPLOYMENT_V4_FORCE_REDEPLOY',
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] Version: PERCENTILE_RANKINGS_OCT_6TH_V1',
     );
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] Build timestamp:', Date.now());
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] SpecsModule loaded: YES');
-    console.log(
-      '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
-    );
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] TestModeModule loaded: YES');
     console.log(
       '🚀🚀🚀 [GAMING_SERVICES_INIT] FinalWeekScoresModule loaded: YES',
-    );
-    console.log(
-      '🚀🚀🚀 [GAMING_SERVICES_INIT] Ready to receive /api/predictions requests',
-    );
-    console.log(
-      '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
-    );
-    console.log(
-      '🚀🚀🚀 [GAMING_SERVICES_INIT] Ready to receive /api/final-week-scores requests',
     );
     console.log(
       '🚀🚀🚀 [GAMING_SERVICES_INIT] FinalWeekScoresController endpoints:',
@@ -104,13 +88,16 @@ export class AppModule {
       '🚀🚀🚀 [GAMING_SERVICES_INIT] - GET /api/final-week-scores/:userId',
     );
     console.log(
-      '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
-    );
-    console.log(
       '🚀🚀🚀 [GAMING_SERVICES_INIT] - DELETE /api/final-week-scores/:userId/week/:week',
     );
     console.log(
-      '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥',
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] *** NEW PERCENTILE ENDPOINTS OCT 6TH ***',
+    );
+    console.log(
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] - GET /api/final-week-scores/:userId/week/:week/percentile',
+    );
+    console.log(
+      '🚀🚀🚀 [GAMING_SERVICES_INIT] - GET /api/final-week-scores/:userId/statistics',
     );
     console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] ='.repeat(30));
   }

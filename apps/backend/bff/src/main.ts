@@ -3,6 +3,14 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  // DEPLOYMENT VERIFICATION LOGS
+  console.log('🎯'.repeat(20));
+  console.log('🎯 [BFF_STARTUP] DEPLOYMENT VERIFICATION OCT 6TH');
+  console.log('🎯 [BFF_STARTUP] Version: PERCENTILE_ENDPOINTS_V1');
+  console.log('🎯 [BFF_STARTUP] Timestamp:', new Date().toISOString());
+  console.log('🎯 [BFF_STARTUP] Features: Proxying percentile and statistics endpoints');
+  console.log('🎯'.repeat(20));
+
   const app = await NestFactory.create(AppModule);
 
   // Global validation pipe
