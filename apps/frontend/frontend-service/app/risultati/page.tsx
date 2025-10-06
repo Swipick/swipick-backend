@@ -645,8 +645,9 @@ function RisultatiPageContent() {
       }
 
       try {
+        const bffUrl = process.env.NEXT_PUBLIC_BFF_API_URL || 'http://localhost:9000/api';
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'}/api/final-week-scores/${userId}/week/${selectedWeek}/percentile?mode=live`,
+          `${bffUrl}/final-week-scores/${userId}/week/${selectedWeek}/percentile?mode=live`,
         );
 
         if (response.ok) {

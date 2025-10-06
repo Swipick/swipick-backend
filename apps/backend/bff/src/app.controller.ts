@@ -350,4 +350,27 @@ export class AppController {
     const endpoint = `/api/final-week-scores/${userId}/week/${week}${queryString ? `?${queryString}` : ''}`;
     return this.appService.forwardToGamingServices(endpoint, 'DELETE');
   }
+
+  @Get('api/final-week-scores/:userId/week/:week/percentile')
+  async getUserPercentile(
+    @Param('userId') userId: string,
+    @Param('week') week: string,
+    @Req() req: Request,
+  ) {
+    const queryString = req.url.split('?')[1] || '';
+    this.logger.log(`Getting percentile for user ${userId}, Week ${week}`);
+    const endpoint = `/api/final-week-scores/${userId}/week/${week}/percentile${queryString ? `?${queryString}` : ''}`;
+    return this.appService.forwardToGamingServices(endpoint);
+  }
+
+  @Get('api/final-week-scores/:userId/statistics')
+  async getUserStatistics(
+    @Param('userId') userId: string,
+    @Req() req: Request,
+  ) {
+    const queryString = req.url.split('?')[1] || '';
+    this.logger.log(`Getting statistics for user ${userId}`);
+    const endpoint = `/api/final-week-scores/${userId}/statistics${queryString ? `?${queryString}` : ''}`;
+    return this.appService.forwardToGamingServices(endpoint);
+  }
 }
