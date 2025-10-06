@@ -246,9 +246,8 @@ function RisultatiPageContent() {
     setError(null);
     
     try {
-      // Get user profile to get the backend user ID
-      const userResponse = await apiClient.getUserByFirebaseUid(firebaseUser.uid);
-      const userId = userResponse.data.id;
+      // Use Firebase UID for specs/predictions (specs table uses firebase_uid as user_id)
+      const userId = firebaseUser.uid;
 
       // Fetch live mode summary
       const summaryResponse = await apiClient.getUserSummary(userId, 'live').catch(() => null);
@@ -900,7 +899,8 @@ function RisultatiPageContent() {
 
                   // Only allow reveal if match has finished with valid scores
                   const canBeRevealed = matchHasFinished;
-                  const isRevealed = (!!revealed[m.fixtureId] && canBeRevealed) || (isPreviousWeek && canBeRevealed);
+                  // Only reveal if user has explicitly clicked the button (removed auto-reveal for previous weeks)
+                  const isRevealed = !!revealed[m.fixtureId] && canBeRevealed;
 
                   const statusLabel = isRevealed ? 'FINE PARTITA' : 'MOSTRA RISULTATO';
                   const statusColor = isRevealed ? 'bg-gray-200 text-gray-700' : 'bg-indigo-500 bg-opacity-90 text-white';
@@ -962,7 +962,7 @@ function RisultatiPageContent() {
                         {/* Col 3: Status button (centered) */}
             <div className="flex items-center justify-center ml-1.5">
                           <button
-                            onClick={isPreviousWeek ? undefined : (e) => {
+                            onClick={(e) => {
                               // Only allow click if match has finished (has valid scores)
                               if (!matchHasFinished) {
                                 const target = e.currentTarget as HTMLButtonElement;
