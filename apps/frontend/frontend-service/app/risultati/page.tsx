@@ -598,15 +598,26 @@ function RisultatiPageContent() {
     const map = new Map<string, { prediction: Choice | null; actual?: Choice; isCorrect?: boolean; homeScore?: number | null; awayScore?: number | null }>();
     if (!weeklyStats) return map;
     for (const p of weeklyStats.predictions || []) {
+      // Backend returns snake_case (choice, result) for live mode
+      // and camelCase (userChoice, actualResult) for test mode
+      type PredictionResponse = Record<string, unknown> & TestWeeklyPrediction;
+      const pr = p as PredictionResponse;
+      const choiceField = pr.choice || pr.userChoice;
+      const resultField = pr.result || pr.actualResult;
+
       const actual = ((): Choice | undefined => {
-        const v = (p.actualResult || '').toUpperCase();
+        const v = (resultField || '').toString().toUpperCase();
         return v === '1' || v === 'X' || v === '2' ? (v as Choice) : undefined;
       })();
       const pred = ((): Choice | null => {
-        const v = (p.userChoice || '').toUpperCase();
+        const v = (choiceField || '').toString().toUpperCase();
         return v === '1' || v === 'X' || v === '2' ? (v as Choice) : null;
       })();
-      map.set(p.fixtureId, { prediction: pred, actual, isCorrect: p.isCorrect, homeScore: p.homeScore, awayScore: p.awayScore });
+
+      // Backend returns fixture_id for live mode, fixtureId for test mode
+      const fixtureId = (pr.fixture_id as string) || pr.fixtureId;
+
+      map.set(fixtureId, { prediction: pred, actual, isCorrect: (pr.is_correct as boolean | undefined) ?? pr.isCorrect, homeScore: pr.homeScore, awayScore: pr.awayScore });
     }
     return map;
   }, [weeklyStats]);
