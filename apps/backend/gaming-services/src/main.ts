@@ -62,7 +62,9 @@ async function bootstrap() {
     '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Deployed at:',
     new Date().toISOString(),
   );
-  console.log('🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 6TH - FORCE REBUILD] ='.repeat(35));
+  console.log(
+    '🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 6TH - FORCE REBUILD] ='.repeat(35),
+  );
 
   const app = await NestFactory.create(AppModule);
 
