@@ -38,13 +38,13 @@ RequestLoggingInterceptor = __decorate([
 async function bootstrap() {
     const logger = new common_2.Logger('Bootstrap');
     console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] ='.repeat(5));
-    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] *** STARTING UP WITH NEW LOGS OCT 5TH ***');
-    console.log('🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 5TH] Timestamp:', new Date().toISOString());
-    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] Version: BACKFILL_DETAILED_LOGGING_V1');
-    console.log('🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 5TH] Contains: Enhanced backfill logging with 🔍 prefix for debugging');
-    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] Feature: Shows API responses, team name matching, DB updates');
+    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] *** STARTING UP WITH NEW LOGS OCT 6TH ***');
+    console.log('🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 6TH] Timestamp:', new Date().toISOString());
+    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] Version: PERCENTILE_RANKING_V1');
+    console.log('🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 6TH] Contains: Percentile ranking endpoints and user statistics');
+    console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] Feature: getUserPercentile and getUserStatistics endpoints added');
     console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] Deployed at:', new Date().toISOString());
-    console.log('🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 5TH] ='.repeat(35));
+    console.log('🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 6TH] ='.repeat(35));
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     const configService = app.get(config_1.ConfigService);
     const port = configService.get('PORT', 3000);
@@ -100471,25 +100471,21 @@ const final_week_scores_module_1 = __webpack_require__(2018);
 let AppModule = class AppModule {
     constructor() {
         console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] ='.repeat(30));
-        console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] *** GAMING SERVICES APP MODULE INITIALIZED ***', '🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥');
-        console.log('🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥');
+        console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] *** GAMING SERVICES APP MODULE INITIALIZED OCT 6TH ***');
         console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] Timestamp:', new Date().toISOString());
-        console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] Version: FINAL_WEEK_SCORES_PRODUCTION_DEPLOYMENT_V4_FORCE_REDEPLOY');
+        console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] Version: PERCENTILE_RANKINGS_OCT_6TH_V1');
         console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] Build timestamp:', Date.now());
         console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] SpecsModule loaded: YES');
-        console.log('🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥');
         console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] TestModeModule loaded: YES');
         console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] FinalWeekScoresModule loaded: YES');
-        console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] Ready to receive /api/predictions requests');
-        console.log('🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥');
-        console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] Ready to receive /api/final-week-scores requests');
         console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] FinalWeekScoresController endpoints:');
         console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] - POST /api/final-week-scores');
         console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] - GET /api/final-week-scores/:userId/week/:week');
         console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] - GET /api/final-week-scores/:userId');
-        console.log('🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥');
         console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] - DELETE /api/final-week-scores/:userId/week/:week');
-        console.log('🔥🔥🔥 [SIMPLE_MATCH_POLLING_INIT] SERVICE INITIALIZED 🔥🔥🔥');
+        console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] *** NEW PERCENTILE ENDPOINTS OCT 6TH ***');
+        console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] - GET /api/final-week-scores/:userId/week/:week/percentile');
+        console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] - GET /api/final-week-scores/:userId/statistics');
         console.log('🚀🚀🚀 [GAMING_SERVICES_INIT] ='.repeat(30));
     }
 };
@@ -218995,7 +218991,7 @@ let ApiRateLimitService = ApiRateLimitService_1 = class ApiRateLimitService {
     constructor(configService) {
         this.configService = configService;
         this.logger = new common_1.Logger(ApiRateLimitService_1.name);
-        this.MAX_DAILY_CALLS = 50;
+        this.MAX_DAILY_CALLS = 500;
         this.CACHE_PRIORITIES = {
             SERIE_A_FIXTURES: { ttl: 4 * 60 * 60 * 1000, priority: 1 },
             LIVE_MATCHES: { ttl: 2 * 60 * 1000, priority: 2 },
@@ -220429,12 +220425,14 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
             this.logger.log(`🔍 [BACKFILL_START] Processing: ${fixture.home_team} vs ${fixture.away_team}`);
             this.logger.log(`🔍 [BACKFILL_START] Fixture ID: ${fixture.id}, Date: ${fixture.match_date}, Current Status: ${fixture.status}, Home Score: ${fixture.home_score}, Away Score: ${fixture.away_score}`);
             this.recordApiCall();
-            const matchDate = new Date(fixture.match_date)
-                .toISOString()
-                .split('T')[0];
-            this.logger.log(`🔍 [BACKFILL_API_CALL] Fetching fixtures for date: ${matchDate}`);
-            const matches = await this.apiFootballService.getDailyFixtures(matchDate);
-            this.logger.log(`🔍 [BACKFILL_API_RESPONSE] API returned ${matches.length} matches for ${matchDate}. Looking for: ${fixture.home_team} vs ${fixture.away_team}`);
+            const matchDate = new Date(fixture.match_date);
+            const dateStr = matchDate.toISOString().split('T')[0];
+            const prevDate = new Date(matchDate);
+            prevDate.setDate(prevDate.getDate() - 1);
+            const prevDateStr = prevDate.toISOString().split('T')[0];
+            this.logger.log(`🔍 [BACKFILL_API_CALL] Fetching fixtures for date: ${dateStr} (also checking ${prevDateStr} for timezone issues)`);
+            const matches = await this.apiFootballService.getDailyFixtures(dateStr);
+            this.logger.log(`🔍 [BACKFILL_API_RESPONSE] API returned ${matches.length} matches for ${dateStr}. Looking for: ${fixture.home_team} vs ${fixture.away_team}`);
             matches.forEach((m, idx) => {
                 const status = m.fixture?.status?.short || 'NO_STATUS';
                 const homeTeam = m.teams?.home?.name || 'Unknown';
@@ -220444,12 +220442,35 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
                 this.logger.log(`🔍 [BACKFILL_API_MATCH_${idx + 1}] ${homeTeam} vs ${awayTeam} - Status: ${status}, Score: ${homeScore}-${awayScore}`);
             });
             this.logger.log(`🔍 [BACKFILL_MATCHING] Attempting to find match in API response...`);
-            const matchData = matches.find((m) => (m.teams?.home?.name === fixture.home_team ||
+            let matchData = matches.find((m) => (m.teams?.home?.name === fixture.home_team ||
                 m.teams?.home?.name.includes(fixture.home_team) ||
                 fixture.home_team.includes(m.teams?.home?.name)) &&
                 (m.teams?.away?.name === fixture.away_team ||
                     m.teams?.away?.name.includes(fixture.away_team) ||
                     fixture.away_team.includes(m.teams?.away?.name)));
+            if (!matchData && dateStr !== prevDateStr) {
+                this.logger.log(`🔍 [BACKFILL_RETRY] Match not found on ${dateStr}, checking previous day ${prevDateStr} for timezone issues...`);
+                this.recordApiCall();
+                const prevDayMatches = await this.apiFootballService.getDailyFixtures(prevDateStr);
+                this.logger.log(`🔍 [BACKFILL_RETRY_RESPONSE] API returned ${prevDayMatches.length} matches for ${prevDateStr}`);
+                prevDayMatches.forEach((m, idx) => {
+                    const status = m.fixture?.status?.short || 'NO_STATUS';
+                    const homeTeam = m.teams?.home?.name || 'Unknown';
+                    const awayTeam = m.teams?.away?.name || 'Unknown';
+                    const homeScore = m.goals?.home;
+                    const awayScore = m.goals?.away;
+                    this.logger.log(`🔍 [BACKFILL_RETRY_MATCH_${idx + 1}] ${homeTeam} vs ${awayTeam} - Status: ${status}, Score: ${homeScore}-${awayScore}`);
+                });
+                matchData = prevDayMatches.find((m) => (m.teams?.home?.name === fixture.home_team ||
+                    m.teams?.home?.name.includes(fixture.home_team) ||
+                    fixture.home_team.includes(m.teams?.home?.name)) &&
+                    (m.teams?.away?.name === fixture.away_team ||
+                        m.teams?.away?.name.includes(fixture.away_team) ||
+                        fixture.away_team.includes(m.teams?.away?.name)));
+                if (matchData) {
+                    this.logger.log(`✅ [BACKFILL_FOUND_PREV_DAY] Match found on previous day! Timezone issue detected and resolved.`);
+                }
+            }
             if (!matchData) {
                 this.logger.warn(`⚠️ [BACKFILL_NO_MATCH] Match not found in API response!`);
                 this.logger.warn(`⚠️ [BACKFILL_NO_MATCH] Searching for: ${fixture.home_team} vs ${fixture.away_team}`);
@@ -220460,6 +220481,12 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
             const homeScore = matchData.goals?.home;
             const awayScore = matchData.goals?.away;
             this.logger.log(`🔍 [BACKFILL_MATCH_FOUND] Match found in API! Home: ${matchData.teams?.home?.name}, Away: ${matchData.teams?.away?.name}, Status: ${status}, Score: ${homeScore}-${awayScore}`);
+            if (status === 'NS' || status === 'TBD' || status === 'SUSP') {
+                this.logger.warn(`⏰ [BACKFILL_NOT_STARTED] Match ${fixture.home_team} vs ${fixture.away_team} has not started yet. Status: ${status}. Skipping backfill.`);
+                this.logger.log(`📊 [BACKFILL_NS_DETAILS] Match ID: ${fixture.id}, API Status: ${status}, Scheduled: ${fixture.match_date}, Current Time: ${new Date().toISOString()}`);
+                this.logger.log(`🔄 [BACKFILL_QUEUE] Match will be checked again in future backfill runs once it has been played`);
+                return;
+            }
             if (status === 'FT' || status === 'AET' || status === 'PEN') {
                 this.logger.log(`🔍 [BACKFILL_UPDATE_START] Match is finished (${status}). Updating database...`);
                 const finalHomeScore = homeScore ?? 0;
@@ -223721,7 +223748,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-var _a, _b, _c, _d, _e, _f;
+var _a, _b, _c, _d, _e, _f, _g, _h;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.FinalWeekScoresController = void 0;
 const common_1 = __webpack_require__(10);
@@ -223761,6 +223788,16 @@ let FinalWeekScoresController = class FinalWeekScoresController {
         }
         return this.finalWeekScoresService.deleteFinalWeekScore(userId, weekNumber, mode);
     }
+    async getUserPercentile(userId, week, mode = 'live') {
+        const weekNumber = parseInt(week, 10);
+        if (isNaN(weekNumber) || weekNumber < 1 || weekNumber > 38) {
+            throw new Error('Week must be a number between 1 and 38');
+        }
+        return this.finalWeekScoresService.getUserPercentile(userId, weekNumber, mode);
+    }
+    async getUserStatistics(userId, mode = 'live') {
+        return this.finalWeekScoresService.getUserStatistics(userId, mode);
+    }
 };
 exports.FinalWeekScoresController = FinalWeekScoresController;
 __decorate([
@@ -223798,6 +223835,23 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", typeof (_f = typeof Promise !== "undefined" && Promise) === "function" ? _f : Object)
 ], FinalWeekScoresController.prototype, "deleteFinalWeekScore", null);
+__decorate([
+    (0, common_1.Get)(':userId/week/:week/percentile'),
+    __param(0, (0, common_1.Param)('userId')),
+    __param(1, (0, common_1.Param)('week')),
+    __param(2, (0, common_1.Query)('mode')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", typeof (_g = typeof Promise !== "undefined" && Promise) === "function" ? _g : Object)
+], FinalWeekScoresController.prototype, "getUserPercentile", null);
+__decorate([
+    (0, common_1.Get)(':userId/statistics'),
+    __param(0, (0, common_1.Param)('userId')),
+    __param(1, (0, common_1.Query)('mode')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", typeof (_h = typeof Promise !== "undefined" && Promise) === "function" ? _h : Object)
+], FinalWeekScoresController.prototype, "getUserStatistics", null);
 exports.FinalWeekScoresController = FinalWeekScoresController = __decorate([
     (0, common_1.Controller)('final-week-scores'),
     __metadata("design:paramtypes", [typeof (_a = typeof final_week_scores_service_1.FinalWeekScoresService !== "undefined" && final_week_scores_service_1.FinalWeekScoresService) === "function" ? _a : Object])
@@ -223822,6 +223876,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var FinalWeekScoresService_1;
 var _a;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.FinalWeekScoresService = void 0;
@@ -223829,9 +223884,10 @@ const common_1 = __webpack_require__(10);
 const typeorm_1 = __webpack_require__(1299);
 const typeorm_2 = __webpack_require__(1305);
 const final_week_score_entity_1 = __webpack_require__(1952);
-let FinalWeekScoresService = class FinalWeekScoresService {
+let FinalWeekScoresService = FinalWeekScoresService_1 = class FinalWeekScoresService {
     constructor(finalWeekScoreRepository) {
         this.finalWeekScoreRepository = finalWeekScoreRepository;
+        this.logger = new common_1.Logger(FinalWeekScoresService_1.name);
     }
     async createOrUpdateFinalWeekScore(dto) {
         try {
@@ -223928,9 +223984,85 @@ let FinalWeekScoresService = class FinalWeekScoresService {
             scoreSummary: finalWeekScore.getScoreSummary(),
         };
     }
+    async getUserPercentile(userId, week, mode = 'live') {
+        this.logger.log(`📊 [PERCENTILE] Calculating percentile for user ${userId}, week ${week}, mode: ${mode}`);
+        const tableName = mode === 'test' ? 'test_final_week_scores' : 'final_week_scores';
+        const allScores = await this.finalWeekScoreRepository.query(`SELECT user_id, percent FROM ${tableName} WHERE week = $1 AND percent IS NOT NULL ORDER BY percent DESC`, [week]);
+        if (allScores.length === 0) {
+            this.logger.log(`📊 [PERCENTILE] No scores found for week ${week}`);
+            return {
+                percentile: 0,
+                totalPlayers: 0,
+                betterThanPercent: 0,
+            };
+        }
+        const userIndex = allScores.findIndex((score) => score.user_id === userId);
+        if (userIndex === -1) {
+            this.logger.log(`📊 [PERCENTILE] User ${userId} has no score for week ${week}`);
+            return {
+                percentile: 0,
+                totalPlayers: allScores.length,
+                betterThanPercent: 0,
+            };
+        }
+        const userScore = allScores[userIndex].percent;
+        const totalPlayers = allScores.length;
+        const playersBehind = totalPlayers - userIndex - 1;
+        const betterThanPercent = Math.round((playersBehind / totalPlayers) * 100);
+        let percentile;
+        const position = ((userIndex + 1) / totalPlayers) * 100;
+        if (position <= 10) {
+            percentile = 10;
+        }
+        else if (position <= 25) {
+            percentile = 25;
+        }
+        else if (position <= 50) {
+            percentile = 50;
+        }
+        else if (position <= 75) {
+            percentile = 75;
+        }
+        else {
+            percentile = 100;
+        }
+        this.logger.log(`📊 [PERCENTILE] User ${userId} - Score: ${userScore}%, Rank: ${userIndex + 1}/${totalPlayers}, ` +
+            `Better than ${betterThanPercent}% of players, In top ${percentile}%`);
+        return {
+            percentile,
+            totalPlayers,
+            betterThanPercent,
+        };
+    }
+    async getUserStatistics(userId, mode = 'live') {
+        this.logger.log(`📊 [STATISTICS] Calculating statistics for user ${userId}, mode: ${mode}`);
+        const tableName = mode === 'test' ? 'test_final_week_scores' : 'final_week_scores';
+        const userScores = await this.finalWeekScoreRepository.query(`SELECT week, percent FROM ${tableName} WHERE user_id = $1 AND percent IS NOT NULL ORDER BY percent DESC`, [userId]);
+        if (userScores.length === 0) {
+            this.logger.log(`📊 [STATISTICS] No scores found for user ${userId}`);
+            return {
+                averageScore: 0,
+                bestScore: 0,
+                weeksPlayed: 0,
+                bestWeek: null,
+            };
+        }
+        const scores = userScores.map((s) => s.percent);
+        const averageScore = Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
+        const bestScore = scores[0];
+        const bestWeek = userScores[0].week;
+        const weeksPlayed = scores.length;
+        this.logger.log(`📊 [STATISTICS] User ${userId} - Average: ${averageScore}%, Best: ${bestScore}% (Week ${bestWeek}), Played: ${weeksPlayed} weeks`);
+        return {
+            averageScore,
+            bestScore,
+            weeksPlayed,
+            bestWeek,
+        };
+    }
 };
 exports.FinalWeekScoresService = FinalWeekScoresService;
-exports.FinalWeekScoresService = FinalWeekScoresService = __decorate([
+exports.FinalWeekScoresService = FinalWeekScoresService = FinalWeekScoresService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(final_week_score_entity_1.FinalWeekScore)),
     __metadata("design:paramtypes", [typeof (_a = typeof typeorm_2.Repository !== "undefined" && typeorm_2.Repository) === "function" ? _a : Object])

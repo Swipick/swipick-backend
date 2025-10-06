@@ -40,17 +40,17 @@ class RequestLoggingInterceptor implements NestInterceptor {
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
-  // SANITY CHECK: Verify Gaming Services startup
+  // SANITY CHECK: Verify Gaming Services startup - FORCE REBUILD OCT 6TH
   console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] ='.repeat(5));
   console.log(
-    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] *** STARTING UP WITH NEW LOGS OCT 6TH ***',
+    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] *** STARTING UP WITH NEW LOGS OCT 6TH - FORCE REBUILD ***',
   );
   console.log(
     '🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 6TH] Timestamp:',
     new Date().toISOString(),
   );
   console.log(
-    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Version: PERCENTILE_RANKING_V1',
+    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Version: PERCENTILE_RANKING_V2_FORCE_REBUILD',
   );
   console.log(
     '🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 6TH] Contains: Percentile ranking endpoints and user statistics',
@@ -62,7 +62,7 @@ async function bootstrap() {
     '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Deployed at:',
     new Date().toISOString(),
   );
-  console.log('🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 6TH] ='.repeat(35));
+  console.log('🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 6TH - FORCE REBUILD] ='.repeat(35));
 
   const app = await NestFactory.create(AppModule);
 
