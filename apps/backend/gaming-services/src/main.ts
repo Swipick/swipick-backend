@@ -43,26 +43,26 @@ async function bootstrap() {
   // SANITY CHECK: Verify Gaming Services startup
   console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] ='.repeat(5));
   console.log(
-    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] *** STARTING UP WITH NEW LOGS OCT 5TH ***',
+    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] *** STARTING UP WITH NEW LOGS OCT 6TH ***',
   );
   console.log(
-    '🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 5TH] Timestamp:',
+    '🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 6TH] Timestamp:',
     new Date().toISOString(),
   );
   console.log(
-    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Version: BACKFILL_DETAILED_LOGGING_V1',
+    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Version: PERCENTILE_RANKING_V1',
   );
   console.log(
-    '🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 5TH] Contains: Enhanced backfill logging with 🔍 prefix for debugging',
+    '🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 6TH] Contains: Percentile ranking endpoints and user statistics',
   );
   console.log(
-    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Feature: Shows API responses, team name matching, DB updates',
+    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Feature: getUserPercentile and getUserStatistics endpoints added',
   );
   console.log(
     '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Deployed at:',
     new Date().toISOString(),
   );
-  console.log('🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 5TH] ='.repeat(35));
+  console.log('🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 6TH] ='.repeat(35));
 
   const app = await NestFactory.create(AppModule);
 
