@@ -221640,18 +221640,21 @@ let SpecsService = class SpecsService {
         if (existingSpec) {
             console.log(`🔄 [SPECS_SERVICE] Updating existing prediction for user ${user_id} on fixture ${fixture_id}`);
             existingSpec.choice = choice;
+            existingSpec.week = fixture.week;
             existingSpec.timestamp = new Date();
             const savedSpec = await this.specRepository.save(existingSpec);
             return this.mapSpecToResponse(savedSpec, fixture);
         }
+        console.log(`📝 [SPECS_SERVICE] Creating new spec with fixture week: ${fixture.week} (not controller week: ${week})`);
         const spec = this.specRepository.create({
             user_id,
             fixture_id,
             choice,
-            week,
+            week: fixture.week,
             mode: 'live',
         });
         const savedSpec = await this.specRepository.save(spec);
+        console.log(`✅ [SPECS_SERVICE] Spec saved with week ${savedSpec.week}`);
         return this.mapSpecToResponse(savedSpec, fixture);
     }
     async getWeeklyStats(userId, week, mode = 'live') {
@@ -221823,7 +221826,9 @@ let SpecsService = class SpecsService {
             whereConditions.week = week;
         }
         console.log('🗑️ [DELETE_PREDICTIONS] Where conditions:', whereConditions);
-        const existingSpecs = await this.specRepository.find({ where: whereConditions });
+        const existingSpecs = await this.specRepository.find({
+            where: whereConditions,
+        });
         console.log('🗑️ [DELETE_PREDICTIONS] Found existing specs:', existingSpecs.length);
         if (existingSpecs.length > 0) {
             console.log('🗑️ [DELETE_PREDICTIONS] Sample spec to delete:', {

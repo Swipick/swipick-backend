@@ -296,7 +296,11 @@ export class SpecsController {
     const weekNum = week ? parseInt(week, 10) : undefined;
     console.log('🗑️ [SPECS_CONTROLLER] Parsed week number:', weekNum);
 
-    const deleted = await this.specsService.deleteUserPredictions(userId, mode, weekNum);
+    const deleted = await this.specsService.deleteUserPredictions(
+      userId,
+      mode,
+      weekNum,
+    );
 
     const response = {
       success: true,

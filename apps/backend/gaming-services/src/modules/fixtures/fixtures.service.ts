@@ -385,7 +385,11 @@ export class FixturesService {
    * Returns upcoming SCHEDULED/LIVE fixtures ordered by date, limited (default 10).
    * Optionally a fromDate (ISO date) can be provided; otherwise now is used.
    */
-  async getNextRealFixtures(limit: number = 10, fromDate?: string, userId?: string) {
+  async getNextRealFixtures(
+    limit: number = 10,
+    fromDate?: string,
+    userId?: string,
+  ) {
     try {
       const start = fromDate ? new Date(fromDate) : new Date();
       // Query TypeORM repository for upcoming fixtures (scheduled or live but not finished)
@@ -404,9 +408,8 @@ export class FixturesService {
           'specs',
           'spec',
           'spec.fixture_id = fx.id AND spec.user_id = :userId AND spec.mode = :mode',
-          { userId, mode: 'live' }
-        )
-        .andWhere('spec.id IS NULL'); // Only include fixtures without predictions
+          { userId, mode: 'live' },
+        ).andWhere('spec.id IS NULL'); // Only include fixtures without predictions
       }
 
       const entities = await qb.getMany();

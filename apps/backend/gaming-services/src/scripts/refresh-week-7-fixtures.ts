@@ -55,13 +55,19 @@ async function refreshWeek7Fixtures() {
 
   const apiFootballConfig = configService.get('apiFootball');
   const apiKey = apiFootballConfig?.apiKey || process.env.API_FOOTBALL_KEY;
-  const apiHost = apiFootballConfig?.baseUrl || 'https://v3.football.api-sports.io';
+  const apiHost =
+    apiFootballConfig?.baseUrl || 'https://v3.football.api-sports.io';
 
-  console.log('🔑 API Key found:', apiKey ? `${apiKey.substring(0, 8)}...` : 'NOT FOUND');
+  console.log(
+    '🔑 API Key found:',
+    apiKey ? `${apiKey.substring(0, 8)}...` : 'NOT FOUND',
+  );
   console.log('🌐 API Host:', apiHost);
 
   if (!apiKey) {
-    console.error('❌ API_FOOTBALL_KEY not found in environment variables or config');
+    console.error(
+      '❌ API_FOOTBALL_KEY not found in environment variables or config',
+    );
     await app.close();
     return;
   }
@@ -85,13 +91,17 @@ async function refreshWeek7Fixtures() {
         `DELETE FROM specs WHERE fixture_id = ANY($1)`,
         [fixtureIds],
       );
-      console.log(`  - Deleted ${specsResult.rowCount || 0} user predictions (specs)`);
+      console.log(
+        `  - Deleted ${specsResult.rowCount || 0} user predictions (specs)`,
+      );
 
       // Now delete the fixtures
       const fixturesResult = await dataSource.query(
         `DELETE FROM fixtures WHERE week = 7`,
       );
-      console.log(`  - Deleted ${fixturesResult.rowCount || 0} week 7 fixtures`);
+      console.log(
+        `  - Deleted ${fixturesResult.rowCount || 0} week 7 fixtures`,
+      );
     } else {
       console.log('  - No week 7 fixtures found to delete');
     }
@@ -203,11 +213,11 @@ async function refreshWeek7Fixtures() {
       // Convert UTC to Italy time for logging
       const utcDate = new Date(fixture.date);
       const italyOffset = 2; // Italy is UTC+2 (CEST - Central European Summer Time in Oct)
-      const italyTime = new Date(utcDate.getTime() + italyOffset * 60 * 60 * 1000);
-
-      console.log(
-        `✅ Inserted: ${teams.home.name} vs ${teams.away.name}`,
+      const italyTime = new Date(
+        utcDate.getTime() + italyOffset * 60 * 60 * 1000,
       );
+
+      console.log(`✅ Inserted: ${teams.home.name} vs ${teams.away.name}`);
       console.log(
         `   UTC: ${fixture.date} | Italy: ${italyTime.toISOString().replace('Z', '+02:00')}`,
       );

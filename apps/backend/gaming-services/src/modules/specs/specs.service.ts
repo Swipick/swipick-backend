@@ -1,6 +1,5 @@
 import {
   Injectable,
-  ConflictException,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
@@ -60,8 +59,11 @@ export class SpecsService {
 
     if (existingSpec) {
       // Allow updating the prediction if match hasn't started yet
-      console.log(`🔄 [SPECS_SERVICE] Updating existing prediction for user ${user_id} on fixture ${fixture_id}`);
+      console.log(
+        `🔄 [SPECS_SERVICE] Updating existing prediction for user ${user_id} on fixture ${fixture_id}`,
+      );
       existingSpec.choice = choice;
+      existingSpec.week = fixture.week; // Update week to match fixture if it was wrong
       existingSpec.timestamp = new Date();
 
       const savedSpec = await this.specRepository.save(existingSpec);
@@ -70,16 +72,20 @@ export class SpecsService {
       return this.mapSpecToResponse(savedSpec, fixture);
     }
 
-    // Create new prediction for live mode
+    // Create new prediction for live mode - use week from fixture
+    console.log(
+      `📝 [SPECS_SERVICE] Creating new spec with fixture week: ${fixture.week} (not controller week: ${week})`,
+    );
     const spec = this.specRepository.create({
       user_id,
       fixture_id,
       choice,
-      week,
+      week: fixture.week, // Use the actual week from the fixture
       mode: 'live',
     });
 
     const savedSpec = await this.specRepository.save(spec);
+    console.log(`✅ [SPECS_SERVICE] Spec saved with week ${savedSpec.week}`);
 
     // Return response with match display
     return this.mapSpecToResponse(savedSpec, fixture);
@@ -302,7 +308,11 @@ export class SpecsService {
   }
 
   /** Delete all live predictions for a user (hard delete) */
-  async deleteUserPredictions(userId: string, mode?: 'live' | 'test', week?: number): Promise<number> {
+  async deleteUserPredictions(
+    userId: string,
+    mode?: 'live' | 'test',
+    week?: number,
+  ): Promise<number> {
     console.log('🗑️ [DELETE_PREDICTIONS] Delete request received');
     console.log('🗑️ [DELETE_PREDICTIONS] Parameters:', { userId, mode, week });
 
@@ -319,8 +329,13 @@ export class SpecsService {
     console.log('🗑️ [DELETE_PREDICTIONS] Where conditions:', whereConditions);
 
     // Check what exists before delete
-    const existingSpecs = await this.specRepository.find({ where: whereConditions });
-    console.log('🗑️ [DELETE_PREDICTIONS] Found existing specs:', existingSpecs.length);
+    const existingSpecs = await this.specRepository.find({
+      where: whereConditions,
+    });
+    console.log(
+      '🗑️ [DELETE_PREDICTIONS] Found existing specs:',
+      existingSpecs.length,
+    );
     if (existingSpecs.length > 0) {
       console.log('🗑️ [DELETE_PREDICTIONS] Sample spec to delete:', {
         id: existingSpecs[0].id,
