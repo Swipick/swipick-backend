@@ -429,18 +429,23 @@ export class SimpleMatchPollingService {
       this.recordApiCall();
 
       // Fetch match data from API using the date
-      const matchDate = new Date(fixture.match_date)
-        .toISOString()
-        .split('T')[0];
+      const matchDate = new Date(fixture.match_date);
+      const dateStr = matchDate.toISOString().split('T')[0];
+
+      // Also prepare previous day to handle timezone issues
+      const prevDate = new Date(matchDate);
+      prevDate.setDate(prevDate.getDate() - 1);
+      const prevDateStr = prevDate.toISOString().split('T')[0];
 
       this.logger.log(
-        `🔍 [BACKFILL_API_CALL] Fetching fixtures for date: ${matchDate}`,
+        `🔍 [BACKFILL_API_CALL] Fetching fixtures for date: ${dateStr} (also checking ${prevDateStr} for timezone issues)`,
       );
 
-      const matches = await this.apiFootballService.getDailyFixtures(matchDate);
+      // First try the stored date
+      const matches = await this.apiFootballService.getDailyFixtures(dateStr);
 
       this.logger.log(
-        `🔍 [BACKFILL_API_RESPONSE] API returned ${matches.length} matches for ${matchDate}. Looking for: ${fixture.home_team} vs ${fixture.away_team}`,
+        `🔍 [BACKFILL_API_RESPONSE] API returned ${matches.length} matches for ${dateStr}. Looking for: ${fixture.home_team} vs ${fixture.away_team}`,
       );
 
       // Log all matches returned to help debug
@@ -462,7 +467,7 @@ export class SimpleMatchPollingService {
         `🔍 [BACKFILL_MATCHING] Attempting to find match in API response...`,
       );
 
-      const matchData = matches.find(
+      let matchData = matches.find(
         (m) =>
           (m.teams?.home?.name === fixture.home_team ||
             m.teams?.home?.name.includes(fixture.home_team) ||
@@ -471,6 +476,50 @@ export class SimpleMatchPollingService {
             m.teams?.away?.name.includes(fixture.away_team) ||
             fixture.away_team.includes(m.teams?.away?.name)),
       );
+
+      // If not found and dates are different, try previous day (timezone issue fix)
+      if (!matchData && dateStr !== prevDateStr) {
+        this.logger.log(
+          `🔍 [BACKFILL_RETRY] Match not found on ${dateStr}, checking previous day ${prevDateStr} for timezone issues...`,
+        );
+
+        this.recordApiCall();
+        const prevDayMatches =
+          await this.apiFootballService.getDailyFixtures(prevDateStr);
+
+        this.logger.log(
+          `🔍 [BACKFILL_RETRY_RESPONSE] API returned ${prevDayMatches.length} matches for ${prevDateStr}`,
+        );
+
+        // Log matches from previous day
+        prevDayMatches.forEach((m: any, idx) => {
+          const status = m.fixture?.status?.short || 'NO_STATUS';
+          const homeTeam = m.teams?.home?.name || 'Unknown';
+          const awayTeam = m.teams?.away?.name || 'Unknown';
+          const homeScore = m.goals?.home;
+          const awayScore = m.goals?.away;
+
+          this.logger.log(
+            `🔍 [BACKFILL_RETRY_MATCH_${idx + 1}] ${homeTeam} vs ${awayTeam} - Status: ${status}, Score: ${homeScore}-${awayScore}`,
+          );
+        });
+
+        matchData = prevDayMatches.find(
+          (m) =>
+            (m.teams?.home?.name === fixture.home_team ||
+              m.teams?.home?.name.includes(fixture.home_team) ||
+              fixture.home_team.includes(m.teams?.home?.name)) &&
+            (m.teams?.away?.name === fixture.away_team ||
+              m.teams?.away?.name.includes(fixture.away_team) ||
+              fixture.away_team.includes(m.teams?.away?.name)),
+        );
+
+        if (matchData) {
+          this.logger.log(
+            `✅ [BACKFILL_FOUND_PREV_DAY] Match found on previous day! Timezone issue detected and resolved.`,
+          );
+        }
+      }
 
       if (!matchData) {
         this.logger.warn(
@@ -493,6 +542,25 @@ export class SimpleMatchPollingService {
       this.logger.log(
         `🔍 [BACKFILL_MATCH_FOUND] Match found in API! Home: ${matchData.teams?.home?.name}, Away: ${matchData.teams?.away?.name}, Status: ${status}, Score: ${homeScore}-${awayScore}`,
       );
+
+      // Check if match hasn't started yet
+      if (status === 'NS' || status === 'TBD' || status === 'SUSP') {
+        this.logger.warn(
+          `⏰ [BACKFILL_NOT_STARTED] Match ${fixture.home_team} vs ${fixture.away_team} has not started yet. Status: ${status}. Skipping backfill.`,
+        );
+
+        // Log detailed status for monitoring
+        this.logger.log(
+          `📊 [BACKFILL_NS_DETAILS] Match ID: ${fixture.id}, API Status: ${status}, Scheduled: ${fixture.match_date}, Current Time: ${new Date().toISOString()}`,
+        );
+
+        // Mark for future retry if needed
+        this.logger.log(
+          `🔄 [BACKFILL_QUEUE] Match will be checked again in future backfill runs once it has been played`,
+        );
+
+        return; // Skip this match
+      }
 
       if (status === 'FT' || status === 'AET' || status === 'PEN') {
         this.logger.log(
