@@ -218464,8 +218464,7 @@ let FixturesService = FixturesService_1 = class FixturesService {
                 .orderBy('fx.match_date', 'ASC')
                 .limit(limit);
             if (userId) {
-                qb.leftJoin('specs', 'spec', 'spec.fixture_id = fx.id AND spec.user_id = :userId AND spec.mode = :mode', { userId, mode: 'live' })
-                    .andWhere('spec.id IS NULL');
+                qb.leftJoin('specs', 'spec', 'spec.fixture_id = fx.id AND spec.user_id = :userId AND spec.mode = :mode', { userId, mode: 'live' }).andWhere('spec.id IS NULL');
             }
             const entities = await qb.getMany();
             if (entities.length === 0) {
@@ -218991,7 +218990,7 @@ let ApiRateLimitService = ApiRateLimitService_1 = class ApiRateLimitService {
     constructor(configService) {
         this.configService = configService;
         this.logger = new common_1.Logger(ApiRateLimitService_1.name);
-        this.MAX_DAILY_CALLS = 500;
+        this.MAX_DAILY_CALLS = 1500;
         this.CACHE_PRIORITIES = {
             SERIE_A_FIXTURES: { ttl: 4 * 60 * 60 * 1000, priority: 1 },
             LIVE_MATCHES: { ttl: 2 * 60 * 1000, priority: 2 },
@@ -221813,6 +221812,8 @@ let SpecsService = class SpecsService {
                 ? fixture.getMatchDisplay()
                 : `Fixture ${spec.fixture_id}`,
             choice_display: spec.getChoiceDisplay(),
+            homeScore: fixture?.home_score ?? null,
+            awayScore: fixture?.away_score ?? null,
         };
     }
     async deleteUserPredictions(userId, mode, week) {

@@ -304,6 +304,8 @@ export class SpecsService {
         ? fixture.getMatchDisplay()
         : `Fixture ${spec.fixture_id}`,
       choice_display: spec.getChoiceDisplay(),
+      homeScore: fixture?.home_score ?? null,
+      awayScore: fixture?.away_score ?? null,
     };
   }
 

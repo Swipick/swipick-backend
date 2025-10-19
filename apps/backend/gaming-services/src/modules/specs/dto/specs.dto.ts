@@ -36,6 +36,8 @@ export class SpecResponseDto {
   timestamp: Date;
   match_display: string;
   choice_display: string;
+  homeScore?: number | null;
+  awayScore?: number | null;
 }
 
 export class WeeklyStatsResponseDto {
