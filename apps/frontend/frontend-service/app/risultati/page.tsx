@@ -790,6 +790,7 @@ function RisultatiPageContent() {
         <div className="sticky top-0 z-30 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70 pointer-events-none">
           {/* Top Header Panel (modal-like) */}
           <div
+            key={`header-week-${selectedWeek}`}
             className="w-full mx-0 mt-0 mb-2 rounded-b-2xl rounded-t-none text-white pointer-events-auto"
             style={{ background: 'radial-gradient(circle at center, #554099, #3d2d73)', boxShadow: '0 8px 16px rgba(85, 64, 153, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)' }}
           >
@@ -811,7 +812,7 @@ function RisultatiPageContent() {
 
               {/* Center current week */}
               <div className="text-center">
-                <div className="text-2xl font-bold">Giornata {selectedWeek}</div>
+                <div className="text-2xl font-bold" key={`week-title-${selectedWeek}`}>Giornata {selectedWeek}</div>
                 <div className="mt-2 text-white text-opacity-90">
                   {(() => {
                     if (weekCards.length === 0) return null;

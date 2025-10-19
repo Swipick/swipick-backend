@@ -221799,13 +221799,18 @@ let SpecsService = class SpecsService {
         };
     }
     mapSpecToResponse(spec, fixture) {
+        const actualResult = fixture?.result ?? spec.result;
+        let isCorrect = undefined;
+        if (actualResult && spec.choice !== 'SKIP') {
+            isCorrect = spec.choice === actualResult;
+        }
         return {
             id: spec.id,
             user_id: spec.user_id,
             fixture_id: spec.fixture_id,
             choice: spec.choice,
-            result: spec.result,
-            is_correct: spec.isCorrect(),
+            result: actualResult,
+            is_correct: isCorrect,
             week: spec.week,
             timestamp: spec.timestamp,
             match_display: fixture
