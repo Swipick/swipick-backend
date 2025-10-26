@@ -21,7 +21,7 @@ export interface DailyQuota {
 export class ApiRateLimitService {
   private readonly logger = new Logger(ApiRateLimitService.name);
   private redis: Redis;
-  private readonly MAX_DAILY_CALLS = 1500; // Increased for Pro tier (10k/day API limit)
+  private readonly MAX_DAILY_CALLS = 7000; // Increased for Pro tier (10k/day API limit)
   private readonly CACHE_PRIORITIES = {
     SERIE_A_FIXTURES: { ttl: 4 * 60 * 60 * 1000, priority: 1 }, // 4 hours
     LIVE_MATCHES: { ttl: 2 * 60 * 1000, priority: 2 }, // 2 minutes
