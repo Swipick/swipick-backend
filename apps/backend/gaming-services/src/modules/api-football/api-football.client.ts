@@ -65,11 +65,34 @@ export class ApiFootballClient {
   async getLiveFixtures(): Promise<LiveMatch[]> {
     const endpoint = '/fixtures';
     const params = { live: 'all' };
-    const response = await this.makeRequest<{ response: LiveMatch[] }>(
-      endpoint,
-      params,
-    );
-    return response.response;
+
+    // API returns nested structure: { response: Array<{ fixture, league, teams, goals, score, events }> }
+    const response = await this.makeRequest<{
+      response: Array<{
+        fixture: any;
+        league: any;
+        teams: any;
+        goals: any;
+        score: any;
+        events?: any[];
+      }>
+    }>(endpoint, params);
+
+    // Transform API response to match LiveMatch interface (flatten structure)
+    return response.response.map((item) => ({
+      id: item.fixture.id,
+      referee: item.fixture.referee,
+      timezone: item.fixture.timezone,
+      date: item.fixture.date,
+      timestamp: item.fixture.timestamp,
+      venue: item.fixture.venue,
+      status: item.fixture.status,
+      league: item.league,
+      teams: item.teams,
+      goals: item.goals,
+      score: item.score,
+      events: item.events || [],
+    })) as LiveMatch[];
   }
 
   async getTeams(params: GetTeamsDto): Promise<Team[]> {

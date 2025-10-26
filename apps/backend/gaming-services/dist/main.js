@@ -217627,7 +217627,20 @@ let ApiFootballClient = ApiFootballClient_1 = class ApiFootballClient {
         const endpoint = '/fixtures';
         const params = { live: 'all' };
         const response = await this.makeRequest(endpoint, params);
-        return response.response;
+        return response.response.map((item) => ({
+            id: item.fixture.id,
+            referee: item.fixture.referee,
+            timezone: item.fixture.timezone,
+            date: item.fixture.date,
+            timestamp: item.fixture.timestamp,
+            venue: item.fixture.venue,
+            status: item.fixture.status,
+            league: item.league,
+            teams: item.teams,
+            goals: item.goals,
+            score: item.score,
+            events: item.events || [],
+        }));
     }
     async getTeams(params) {
         const endpoint = '/teams';
