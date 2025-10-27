@@ -450,7 +450,7 @@ export class SimpleMatchPollingService {
 
       // Log all matches returned to help debug
       matches.forEach((m: any, idx) => {
-        // Fixture interface has status at m.status.short (not m.fixture.status.short)
+        // Fixture interface has status at root level (transformed by getFixtures)
         const status = m.status?.short || 'NO_STATUS';
         const homeTeam = m.teams?.home?.name || 'Unknown';
         const awayTeam = m.teams?.away?.name || 'Unknown';
@@ -534,7 +534,7 @@ export class SimpleMatchPollingService {
         return;
       }
 
-      // Fixture interface has status at status.short (not fixture.status.short)
+      // Fixture interface has status at root level (transformed by getFixtures)
       const status = matchData?.status?.short;
       const homeScore = matchData.goals?.home;
       const awayScore = matchData.goals?.away;

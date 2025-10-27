@@ -55,11 +55,31 @@ export class ApiFootballClient {
 
   async getFixtures(params: GetFixturesDto): Promise<Fixture[]> {
     const endpoint = '/fixtures';
-    const response = await this.makeRequest<{ response: Fixture[] }>(
-      endpoint,
-      params,
-    );
-    return response.response;
+    // API returns nested structure: { response: Array<{ fixture, league, teams, goals, score }> }
+    const response = await this.makeRequest<{
+      response: Array<{
+        fixture: any;
+        league: any;
+        teams: any;
+        goals: any;
+        score: any;
+      }>
+    }>(endpoint, params);
+
+    // Transform API response to match Fixture interface (flatten structure)
+    return response.response.map((item) => ({
+      id: item.fixture.id,
+      referee: item.fixture.referee,
+      timezone: item.fixture.timezone,
+      date: item.fixture.date,
+      timestamp: item.fixture.timestamp,
+      venue: item.fixture.venue,
+      status: item.fixture.status,
+      league: item.league,
+      teams: item.teams,
+      goals: item.goals,
+      score: item.score,
+    })) as Fixture[];
   }
 
   async getLiveFixtures(): Promise<LiveMatch[]> {
@@ -121,11 +141,31 @@ export class ApiFootballClient {
   async getHeadToHead(team1Id: number, team2Id: number): Promise<Fixture[]> {
     const endpoint = '/fixtures';
     const params = { h2h: `${team1Id}-${team2Id}` };
-    const response = await this.makeRequest<{ response: Fixture[] }>(
-      endpoint,
-      params,
-    );
-    return response.response;
+    // API returns nested structure: { response: Array<{ fixture, league, teams, goals, score }> }
+    const response = await this.makeRequest<{
+      response: Array<{
+        fixture: any;
+        league: any;
+        teams: any;
+        goals: any;
+        score: any;
+      }>
+    }>(endpoint, params);
+
+    // Transform API response to match Fixture interface (flatten structure)
+    return response.response.map((item) => ({
+      id: item.fixture.id,
+      referee: item.fixture.referee,
+      timezone: item.fixture.timezone,
+      date: item.fixture.date,
+      timestamp: item.fixture.timestamp,
+      venue: item.fixture.venue,
+      status: item.fixture.status,
+      league: item.league,
+      teams: item.teams,
+      goals: item.goals,
+      score: item.score,
+    })) as Fixture[];
   }
 
   async getApiStatus(): Promise<any> {
