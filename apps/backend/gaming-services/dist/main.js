@@ -220446,7 +220446,7 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
             const matches = await this.apiFootballService.getDailyFixtures(dateStr);
             this.logger.log(`🔍 [BACKFILL_API_RESPONSE] API returned ${matches.length} matches for ${dateStr}. Looking for: ${fixture.home_team} vs ${fixture.away_team}`);
             matches.forEach((m, idx) => {
-                const status = m.fixture?.status?.short || 'NO_STATUS';
+                const status = m.status?.short || 'NO_STATUS';
                 const homeTeam = m.teams?.home?.name || 'Unknown';
                 const awayTeam = m.teams?.away?.name || 'Unknown';
                 const homeScore = m.goals?.home;
@@ -220466,7 +220466,7 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
                 const prevDayMatches = await this.apiFootballService.getDailyFixtures(prevDateStr);
                 this.logger.log(`🔍 [BACKFILL_RETRY_RESPONSE] API returned ${prevDayMatches.length} matches for ${prevDateStr}`);
                 prevDayMatches.forEach((m, idx) => {
-                    const status = m.fixture?.status?.short || 'NO_STATUS';
+                    const status = m.status?.short || 'NO_STATUS';
                     const homeTeam = m.teams?.home?.name || 'Unknown';
                     const awayTeam = m.teams?.away?.name || 'Unknown';
                     const homeScore = m.goals?.home;
@@ -220489,7 +220489,7 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
                 this.logger.warn(`⚠️ [BACKFILL_NO_MATCH] Database has home_team='${fixture.home_team}' away_team='${fixture.away_team}'`);
                 return;
             }
-            const status = matchData?.fixture?.status?.short;
+            const status = matchData?.status?.short;
             const homeScore = matchData.goals?.home;
             const awayScore = matchData.goals?.away;
             this.logger.log(`🔍 [BACKFILL_MATCH_FOUND] Match found in API! Home: ${matchData.teams?.home?.name}, Away: ${matchData.teams?.away?.name}, Status: ${status}, Score: ${homeScore}-${awayScore}`);

@@ -450,8 +450,8 @@ export class SimpleMatchPollingService {
 
       // Log all matches returned to help debug
       matches.forEach((m: any, idx) => {
-        // API response structure: fixture.status.short
-        const status = m.fixture?.status?.short || 'NO_STATUS';
+        // Fixture interface has status at m.status.short (not m.fixture.status.short)
+        const status = m.status?.short || 'NO_STATUS';
         const homeTeam = m.teams?.home?.name || 'Unknown';
         const awayTeam = m.teams?.away?.name || 'Unknown';
         const homeScore = m.goals?.home;
@@ -493,7 +493,7 @@ export class SimpleMatchPollingService {
 
         // Log matches from previous day
         prevDayMatches.forEach((m: any, idx) => {
-          const status = m.fixture?.status?.short || 'NO_STATUS';
+          const status = m.status?.short || 'NO_STATUS';
           const homeTeam = m.teams?.home?.name || 'Unknown';
           const awayTeam = m.teams?.away?.name || 'Unknown';
           const homeScore = m.goals?.home;
@@ -534,8 +534,8 @@ export class SimpleMatchPollingService {
         return;
       }
 
-      // API response has status at fixture.status.short
-      const status = (matchData as any)?.fixture?.status?.short;
+      // Fixture interface has status at status.short (not fixture.status.short)
+      const status = matchData?.status?.short;
       const homeScore = matchData.goals?.home;
       const awayScore = matchData.goals?.away;
 
