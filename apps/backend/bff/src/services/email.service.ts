@@ -20,7 +20,12 @@ export class EmailService {
     const smtpPort = this.configService.get<number>('SMTP_PORT');
     const smtpUser = this.configService.get<string>('SMTP_USER');
     const smtpPassword = this.configService.get<string>('SMTP_PASSWORD');
-    const smtpSecure = this.configService.get<boolean>('SMTP_SECURE');
+    // Parse SMTP_SECURE properly - env vars are strings, "false" is truthy!
+    const smtpSecureStr = this.configService.get<string>(
+      'SMTP_SECURE',
+      'false',
+    );
+    const smtpSecure = smtpSecureStr === 'true';
 
     this.logger.log(`🔧 Initializing EmailService with Aruba SMTP...`);
     this.logger.log(`🔑 SMTP Host: ${smtpHost}`);
