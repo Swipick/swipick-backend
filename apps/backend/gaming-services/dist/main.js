@@ -220172,7 +220172,7 @@ let LiveUpdatesScheduler = LiveUpdatesScheduler_1 = class LiveUpdatesScheduler {
 };
 exports.LiveUpdatesScheduler = LiveUpdatesScheduler;
 __decorate([
-    (0, schedule_1.Cron)('*/5 * 12-23 * * *', {
+    (0, schedule_1.Cron)('0 */5 12-23 * * *', {
         name: 'updateLiveMatches',
         timeZone: 'UTC',
     }),

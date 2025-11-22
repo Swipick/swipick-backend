@@ -14,8 +14,8 @@ export class LiveUpdatesScheduler {
     private readonly fixturesService: FixturesService,
   ) {}
 
-  // Every 5 minutes during match hours (12:00-23:00 UTC) - Conservative for testing
-  @Cron('*/5 * 12-23 * * *', {
+  // Every 5 minutes during match hours (12:00-23:00 UTC)
+  @Cron('0 */5 12-23 * * *', {
     name: 'updateLiveMatches',
     timeZone: 'UTC',
   })
