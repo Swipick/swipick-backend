@@ -26,7 +26,7 @@ export class SimpleMatchPollingService {
   private lastDailyReset = new Date();
 
   // Configuration
-  private readonly MAX_DAILY_CALLS = 500; // Pro plan allows 7500/day, using 500 for safety
+  private readonly MAX_DAILY_CALLS = 7000; // Pro plan allows 10k/day, using 7000 for safety margin
   private readonly KICKOFF_BUFFER_MINUTES = 5;
   private readonly MATCH_DURATION_MINUTES = 105; // 90 + 15 injury time
 
@@ -51,13 +51,13 @@ export class SimpleMatchPollingService {
       '[SIMPLE_MATCH_POLLING_INIT] Timestamp: ' + new Date().toISOString(),
     );
     this.logger.log(
-      '[SIMPLE_MATCH_POLLING_INIT] Version: V3_FIXED_STATUS_PATH_20250930_1200PM',
+      '[SIMPLE_MATCH_POLLING_INIT] Version: V4_CONTINUOUS_LIVE_POLLING_20251122',
     );
     this.logger.log(
-      '[SIMPLE_MATCH_POLLING_INIT] Fix: Status now reads from fixture.status.short',
+      '[SIMPLE_MATCH_POLLING_INIT] Fix: Continuous polling for LIVE matches every 5 min',
     );
     this.logger.log(
-      '[SIMPLE_MATCH_POLLING_INIT] Feature: Smart backfill + checkpoint polling',
+      '[SIMPLE_MATCH_POLLING_INIT] Feature: Real-time score updates, 7000 API quota, 5min cache',
     );
     this.logger.log(
       '[SIMPLE_MATCH_POLLING_INIT] Debug: Shows match status and scores in logs',
@@ -78,7 +78,7 @@ export class SimpleMatchPollingService {
     }
 
     // Log version on every run to confirm deployment
-    this.logger.log('📌 Running polling V3_FIXED_STATUS_PATH_20250930_1200PM');
+    this.logger.log('📌 Running polling V4_CONTINUOUS_LIVE_POLLING_20251122');
 
     try {
       await this.resetDailyCounterIfNeeded();
@@ -96,6 +96,9 @@ export class SimpleMatchPollingService {
         );
         await this.processCheckpoints();
       }
+
+      // STEP 4: Continuous polling for LIVE matches - update scores in real-time
+      await this.pollLiveMatches();
 
       this.logger.debug(
         `Polling cycle completed. API calls today: ${this.dailyApiCalls}/${this.MAX_DAILY_CALLS}`,
@@ -144,19 +147,19 @@ export class SimpleMatchPollingService {
         });
       }
 
-      // Find past matches with NULL scores that need updating
+      // Find past matches with NULL scores that need updating (any status except FINISHED)
       const pastMatchesNeedingUpdate = await this.fixtureRepository
         .createQueryBuilder('fixture')
         .where('fixture.match_date < :now', { now })
         .andWhere('fixture.match_date > :tenDaysAgo', { tenDaysAgo })
         .andWhere('(fixture.home_score IS NULL OR fixture.away_score IS NULL)')
-        .andWhere('fixture.status = :status', { status: 'SCHEDULED' })
+        .andWhere('fixture.status != :finished', { finished: 'FINISHED' })
         .orderBy('fixture.match_date', 'ASC')
         .limit(10) // Process max 10 at a time to avoid API overload
         .getMany();
 
       this.logger.log(
-        `🔍 [BACKFILL_QUERY] Found ${pastMatchesNeedingUpdate.length} past matches with status=SCHEDULED that need backfill`,
+        `🔍 [BACKFILL_QUERY] Found ${pastMatchesNeedingUpdate.length} past matches with NULL scores (status != FINISHED) that need backfill`,
       );
 
       if (pastMatchesNeedingUpdate.length > 0) {
@@ -597,6 +600,138 @@ export class SimpleMatchPollingService {
         error,
       );
       this.logger.error(`❌ [BACKFILL_ERROR] Error stack: ${error.stack}`);
+    }
+  }
+
+  /**
+   * STEP 4: Continuous polling for LIVE matches
+   * Polls the API for all Serie A matches and updates any that have finished
+   * This ensures we catch match completion within 5 minutes
+   */
+  private async pollLiveMatches() {
+    try {
+      // First, check if we have any LIVE matches in our database
+      const liveMatchesInDb = await this.fixtureRepository
+        .createQueryBuilder('fixture')
+        .where('fixture.status = :status', { status: 'LIVE' })
+        .getMany();
+
+      // Also check for matches that should have started by now but are still SCHEDULED
+      const now = new Date();
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+
+      const shouldBePlayingMatches = await this.fixtureRepository
+        .createQueryBuilder('fixture')
+        .where('fixture.status = :status', { status: 'SCHEDULED' })
+        .andWhere('fixture.match_date < :now', { now })
+        .andWhere('fixture.match_date > :twoHoursAgo', { twoHoursAgo })
+        .getMany();
+
+      const matchesToCheck = [...liveMatchesInDb, ...shouldBePlayingMatches];
+
+      if (matchesToCheck.length === 0) {
+        this.logger.debug(
+          '🔄 [LIVE_POLL] No LIVE or recently started matches to poll',
+        );
+        return;
+      }
+
+      this.logger.log(
+        `🔄 [LIVE_POLL] Found ${liveMatchesInDb.length} LIVE + ${shouldBePlayingMatches.length} should-be-playing matches to check`,
+      );
+
+      if (!this.canMakeApiCall()) {
+        this.logger.warn('⚠️ [LIVE_POLL] Cannot poll - API limit reached');
+        return;
+      }
+
+      // Get today's date for API call
+      const today = new Date().toISOString().split('T')[0];
+
+      this.recordApiCall();
+      const apiMatches = await this.apiFootballService.getDailyFixtures(today);
+
+      this.logger.log(
+        `🔄 [LIVE_POLL] API returned ${apiMatches.length} matches for ${today}`,
+      );
+
+      // Process each match we're tracking
+      for (const dbFixture of matchesToCheck) {
+        // Find matching API data
+        const apiMatch = apiMatches.find(
+          (m) =>
+            (m.teams?.home?.name === dbFixture.home_team ||
+              m.teams?.home?.name?.includes(dbFixture.home_team) ||
+              dbFixture.home_team.includes(m.teams?.home?.name || '')) &&
+            (m.teams?.away?.name === dbFixture.away_team ||
+              m.teams?.away?.name?.includes(dbFixture.away_team) ||
+              dbFixture.away_team.includes(m.teams?.away?.name || '')),
+        );
+
+        if (!apiMatch) {
+          this.logger.debug(
+            `🔄 [LIVE_POLL] No API match found for ${dbFixture.home_team} vs ${dbFixture.away_team}`,
+          );
+          continue;
+        }
+
+        const apiStatus = apiMatch.status?.short;
+        const homeScore = apiMatch.goals?.home;
+        const awayScore = apiMatch.goals?.away;
+
+        this.logger.log(
+          `🔄 [LIVE_POLL] ${dbFixture.home_team} vs ${dbFixture.away_team}: API status=${apiStatus}, score=${homeScore}-${awayScore}, DB status=${dbFixture.status}`,
+        );
+
+        // Update based on API status
+        if (apiStatus === 'FT' || apiStatus === 'AET' || apiStatus === 'PEN') {
+          // Match has finished - update with final scores
+          const finalHomeScore = homeScore ?? 0;
+          const finalAwayScore = awayScore ?? 0;
+          const result = this.calculateResult(finalHomeScore, finalAwayScore);
+
+          await this.fixtureRepository.update(dbFixture.id, {
+            status: 'FINISHED',
+            home_score: finalHomeScore,
+            away_score: finalAwayScore,
+            result,
+            updated_at: new Date(),
+          });
+
+          this.logger.log(
+            `✅ [LIVE_POLL] MATCH FINISHED: ${dbFixture.home_team} ${finalHomeScore}-${finalAwayScore} ${dbFixture.away_team} (${result})`,
+          );
+        } else if (
+          ['1H', '2H', 'HT', 'ET', 'BT', 'P'].includes(apiStatus || '')
+        ) {
+          // Match is live - update status and current scores
+          if (dbFixture.status !== 'LIVE') {
+            await this.fixtureRepository.update(dbFixture.id, {
+              status: 'LIVE',
+              home_score: homeScore ?? 0,
+              away_score: awayScore ?? 0,
+              updated_at: new Date(),
+            });
+
+            this.logger.log(
+              `🟢 [LIVE_POLL] Match now LIVE: ${dbFixture.home_team} ${homeScore ?? 0}-${awayScore ?? 0} ${dbFixture.away_team}`,
+            );
+          } else {
+            // Update live scores
+            await this.fixtureRepository.update(dbFixture.id, {
+              home_score: homeScore ?? 0,
+              away_score: awayScore ?? 0,
+              updated_at: new Date(),
+            });
+
+            this.logger.debug(
+              `🔄 [LIVE_POLL] Updated live scores: ${dbFixture.home_team} ${homeScore ?? 0}-${awayScore ?? 0} ${dbFixture.away_team}`,
+            );
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error('❌ [LIVE_POLL] Failed to poll live matches', error);
     }
   }
 
