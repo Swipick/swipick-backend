@@ -66,9 +66,9 @@ export class SimpleMatchPollingService {
   }
 
   /**
-   * Main polling orchestrator - runs every 5 minutes
+   * Main polling orchestrator - runs every 2 minutes
    */
-  @Cron('*/5 * * * *', {
+  @Cron('*/2 * * * *', {
     name: 'simpleMatchPolling',
     timeZone: 'Europe/Rome',
   })

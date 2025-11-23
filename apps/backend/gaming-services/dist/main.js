@@ -217859,7 +217859,7 @@ let ApiFootballService = ApiFootballService_1 = class ApiFootballService {
             league: 135,
             season: 2025,
         });
-        await this.cacheService.set(cacheKey, fixtures, 5 * 60);
+        await this.cacheService.set(cacheKey, fixtures, 2 * 60);
         this.logger.log(`Fetched ${fixtures.length} Serie A fixtures for ${date}`);
         return fixtures;
     }
@@ -220172,7 +220172,7 @@ let LiveUpdatesScheduler = LiveUpdatesScheduler_1 = class LiveUpdatesScheduler {
 };
 exports.LiveUpdatesScheduler = LiveUpdatesScheduler;
 __decorate([
-    (0, schedule_1.Cron)('0 */5 12-23 * * *', {
+    (0, schedule_1.Cron)('0 */2 12-23 * * *', {
         name: 'updateLiveMatches',
         timeZone: 'UTC',
     }),
@@ -220743,7 +220743,7 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
 };
 exports.SimpleMatchPollingService = SimpleMatchPollingService;
 __decorate([
-    (0, schedule_1.Cron)('*/5 * * * *', {
+    (0, schedule_1.Cron)('*/2 * * * *', {
         name: 'simpleMatchPolling',
         timeZone: 'Europe/Rome',
     }),

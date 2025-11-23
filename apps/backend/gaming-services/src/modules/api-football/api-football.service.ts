@@ -36,8 +36,8 @@ export class ApiFootballService {
       season: 2025,
     });
 
-    // Cache for 5 minutes (reduced from 24h to allow real-time score updates)
-    await this.cacheService.set(cacheKey, fixtures, 5 * 60);
+    // Cache for 2 minutes (matches polling frequency for real-time score updates)
+    await this.cacheService.set(cacheKey, fixtures, 2 * 60);
 
     this.logger.log(`Fetched ${fixtures.length} Serie A fixtures for ${date}`);
     return fixtures;
