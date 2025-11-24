@@ -217617,6 +217617,7 @@ let ApiFootballClient = ApiFootballClient_1 = class ApiFootballClient {
         if (!this.apiKey) {
             throw new Error('API_FOOTBALL_KEY is required');
         }
+        this.logger.log(`🔧 API-Football Client initialized with tier: ${config.tier}, daily limit: ${config.rateLimits.requestsPerDay}, per-minute limit: ${config.rateLimits.requestsPerMinute}`);
     }
     async getFixtures(params) {
         const endpoint = '/fixtures';
@@ -217775,9 +217776,11 @@ let ApiFootballClient = ApiFootballClient_1 = class ApiFootballClient {
         const config = this.configService.get('apiFootball');
         const limits = config.rateLimits;
         if (this.dailyRequestCount >= limits.requestsPerDay) {
+            this.logger.error(`❌ Daily API quota exceeded: ${this.dailyRequestCount}/${limits.requestsPerDay} (tier: ${config.tier})`);
             throw new Error('Daily API quota exceeded');
         }
         if (this.minuteRequestCount >= limits.requestsPerMinute) {
+            this.logger.error(`❌ Minute API quota exceeded: ${this.minuteRequestCount}/${limits.requestsPerMinute} (tier: ${config.tier})`);
             throw new Error('Minute API quota exceeded');
         }
     }
