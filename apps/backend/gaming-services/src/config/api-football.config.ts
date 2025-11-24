@@ -32,7 +32,7 @@ export const ApiFootballConfig = registerAs(
         concurrentRequests: 2,
       },
       pro: {
-        requestsPerDay: 10000,
+        requestsPerDay: 7500,  // Actual API-Football Pro limit
         requestsPerMinute: 100,
         concurrentRequests: 5,
       },

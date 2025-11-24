@@ -210231,7 +210231,7 @@ exports.ApiFootballConfig = (0, config_1.registerAs)('apiFootball', () => {
             concurrentRequests: 2,
         },
         pro: {
-            requestsPerDay: 10000,
+            requestsPerDay: 7500,
             requestsPerMinute: 100,
             concurrentRequests: 5,
         },
@@ -220112,6 +220112,7 @@ let LiveUpdatesScheduler = LiveUpdatesScheduler_1 = class LiveUpdatesScheduler {
             this.logger.debug('Live updates disabled via DISABLE_LIVE_UPDATES env var');
             return;
         }
+        await new Promise((resolve) => setTimeout(resolve, 30000));
         try {
             this.logger.debug('Starting live matches update...');
             const activeMatches = await this.fixturesService.getActiveMatches();

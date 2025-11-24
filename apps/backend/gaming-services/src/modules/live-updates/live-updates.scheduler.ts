@@ -28,6 +28,9 @@ export class LiveUpdatesScheduler {
       return;
     }
 
+    // Add 30-second delay to avoid collision with SimpleMatchPollingService
+    await new Promise((resolve) => setTimeout(resolve, 30000));
+
     try {
       this.logger.debug('Starting live matches update...');
 
