@@ -49,6 +49,22 @@ export class EmailService {
           user: smtpUser,
           pass: smtpPassword,
         },
+        // Aruba-specific configuration
+        tls: {
+          // Don't fail on invalid certs (for development)
+          rejectUnauthorized: false,
+          // Force TLS version
+          minVersion: 'TLSv1.2',
+          // Cipher configuration for Aruba
+          ciphers: 'SSLv3',
+        },
+        // Extended timeout for Aruba
+        connectionTimeout: 60000, // 60 seconds
+        greetingTimeout: 30000, // 30 seconds
+        socketTimeout: 60000, // 60 seconds
+        // Enable debug logging
+        debug: true,
+        logger: true,
       });
       this.logger.log(
         '✅ Email service initialized with Aruba SMTP successfully',
