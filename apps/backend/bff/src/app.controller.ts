@@ -10,6 +10,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { AppService } from './app.service';
+import { EmailService } from './services/email.service';
 import { Request } from 'express';
 
 // DTOs for mode-based predictions
@@ -28,7 +29,10 @@ interface GetUserStatsParams {
 export class AppController {
   private readonly logger = new Logger(AppController.name);
 
-  constructor(private readonly appService: AppService) {}
+  constructor(
+    private readonly appService: AppService,
+    private readonly emailService: EmailService,
+  ) {}
 
   @Get()
   getHello(): string {
@@ -63,6 +67,12 @@ export class AppController {
         timestamp: new Date().toISOString(),
       },
     };
+  }
+
+  @Get('health/smtp')
+  async testSmtpConnection() {
+    this.logger.log('Testing SMTP connection from Railway...');
+    return this.emailService.testConnection();
   }
 
   // Gaming Services API Routes

@@ -75,6 +75,54 @@ export class EmailService {
   }
 
   /**
+   * Test SMTP connection and configuration
+   */
+  async testConnection(): Promise<{
+    success: boolean;
+    message: string;
+    details?: any;
+  }> {
+    this.logger.log('🔍 Testing SMTP connection to Aruba...');
+
+    if (!this.transporter) {
+      return {
+        success: false,
+        message: 'SMTP transporter not initialized',
+      };
+    }
+
+    try {
+      // Verify connection
+      const verified = await this.transporter.verify();
+      this.logger.log('✅ SMTP connection verified successfully');
+
+      return {
+        success: true,
+        message: 'SMTP connection successful',
+        details: {
+          verified,
+          host: this.configService.get<string>('SMTP_HOST'),
+          port: this.configService.get<number>('SMTP_PORT'),
+          secure: this.configService.get<string>('SMTP_SECURE'),
+        },
+      };
+    } catch (error) {
+      this.logger.error('❌ SMTP connection test failed:', error);
+      const err = error as any;
+      return {
+        success: false,
+        message: 'SMTP connection failed',
+        details: {
+          error: err.message || String(error),
+          code: err.code,
+          errno: err.errno,
+          syscall: err.syscall,
+        },
+      };
+    }
+  }
+
+  /**
    * Send verification email with custom Swipick branding
    */
   async sendVerificationEmail(
