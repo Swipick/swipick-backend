@@ -117,7 +117,7 @@ async function getWeekFixturesWithCache(week: number): Promise<FixtureData[]> {
   }
 
   try {
-    const response = await fetch(`https://swipick-backend-production.up.railway.app/api/test-mode/fixtures/week/${week}`);
+    const response = await fetch(`https://swipick-backend-production-2650.up.railway.app/api/test-mode/fixtures/week/${week}`);
 
     if (!response.ok) {
       fixtureCache.set(week, []); // Cache empty result
