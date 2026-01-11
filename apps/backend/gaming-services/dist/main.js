@@ -220577,7 +220577,9 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
             }
             const matchesByDate = new Map();
             for (const fixture of matchesToCheck) {
-                const matchDate = new Date(fixture.match_date).toISOString().split('T')[0];
+                const matchDate = new Date(fixture.match_date)
+                    .toISOString()
+                    .split('T')[0];
                 if (!matchesByDate.has(matchDate)) {
                     matchesByDate.set(matchDate, []);
                 }
@@ -220607,7 +220609,9 @@ let SimpleMatchPollingService = SimpleMatchPollingService_1 = class SimpleMatchP
                     const homeScore = apiMatch.goals?.home;
                     const awayScore = apiMatch.goals?.away;
                     this.logger.log(`🔄 [LIVE_POLL] ${dbFixture.home_team} vs ${dbFixture.away_team}: API status=${apiStatus}, score=${homeScore}-${awayScore}, DB status=${dbFixture.status}`);
-                    if (apiStatus === 'FT' || apiStatus === 'AET' || apiStatus === 'PEN') {
+                    if (apiStatus === 'FT' ||
+                        apiStatus === 'AET' ||
+                        apiStatus === 'PEN') {
                         const finalHomeScore = homeScore ?? 0;
                         const finalAwayScore = awayScore ?? 0;
                         const result = this.calculateResult(finalHomeScore, finalAwayScore);

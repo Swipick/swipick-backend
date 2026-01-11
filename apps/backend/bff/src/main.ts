@@ -34,6 +34,10 @@ async function bootstrap() {
     'https://www.swipick.com',
     'https://swipick-frontend-production.up.railway.app',
     'https://frontend-service-production.up.railway.app',
+    // Pro account Railway URLs
+    'https://swipick-backend-production-2650.up.railway.app',
+    'https://web-production-89230.up.railway.app',
+    // Legacy URLs (keep for backward compatibility)
     'https://swipick-backend-production.up.railway.app',
     // Add potential Railway domain variations
     'https://swipick-frontend.up.railway.app',
