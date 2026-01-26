@@ -105,9 +105,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const user = await authService.loginWithEmail(email, password);
       setFirebaseUser(user);
+
+      // Sync user to BFF to update emailVerified status
+      try {
+        const idToken = await authService.getCurrentUserToken();
+        if (idToken) {
+          await apiClient.syncEmailUser(idToken);
+          console.log('🟢 [AuthContext] Email user synced to backend');
+        }
+      } catch (syncError) {
+        // Non-blocking - log but don't fail login
+        console.warn('🟡 [AuthContext] sync-email failed:', syncError);
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Errore durante l\'accesso');
       throw error;

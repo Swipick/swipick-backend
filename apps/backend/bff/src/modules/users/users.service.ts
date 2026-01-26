@@ -164,6 +164,40 @@ export class UsersService {
   }
 
   /**
+   * Email user synchronization - syncs emailVerified status from Firebase
+   */
+  async syncEmailUser(firebaseIdToken: string): Promise<UserResponseDto> {
+    try {
+      // Verify Firebase token
+      const decodedToken = await this.firebaseConfig.verifyIdToken(firebaseIdToken);
+
+      // Find user by Firebase UID
+      const user = await this.userRepository.findOne({
+        where: { firebaseUid: decodedToken.uid },
+      });
+
+      if (!user) {
+        throw new NotFoundException('Utente non trovato');
+      }
+
+      // Update emailVerified from Firebase token
+      user.emailVerified = decodedToken.email_verified ?? false;
+      user.updatedAt = new Date();
+
+      const savedUser = await this.userRepository.save(user);
+      this.logger.log(`Email user synced: ${savedUser.id}, emailVerified: ${savedUser.emailVerified}`);
+
+      return this.transformToResponse(savedUser);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error('Failed to sync email user', error);
+      throw new BadRequestException('Errore durante la sincronizzazione utente');
+    }
+  }
+
+  /**
    * Google OAuth user synchronization
    */
   async syncGoogleUser(

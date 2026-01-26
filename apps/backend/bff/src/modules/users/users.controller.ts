@@ -60,6 +60,32 @@ export class UsersController {
   }
 
   /**
+   * Email user synchronization - syncs emailVerified status from Firebase
+   * POST /api/users/sync-email
+   */
+  @Post('sync-email')
+  @HttpCode(HttpStatus.OK)
+  async syncEmailUser(
+    @Body() body: { firebaseIdToken: string },
+  ): Promise<{
+    success: boolean;
+    data: UserResponseDto;
+    message: string;
+  }> {
+    this.logger.log('🔵 [UsersController] Email user sync attempt');
+
+    const result = await this.usersService.syncEmailUser(body.firebaseIdToken);
+
+    this.logger.log(`🔵 [UsersController] Email sync successful - User ID: ${result.id}, emailVerified: ${result.emailVerified}`);
+
+    return {
+      success: true,
+      data: result,
+      message: 'Utente sincronizzato con successo',
+    };
+  }
+
+  /**
    * Google OAuth user synchronization
    * POST /api/users/sync-google
    */

@@ -185,6 +185,21 @@ class ApiClient {
     }
   }
 
+  async syncEmailUser(firebaseIdToken: string) {
+    console.log('🔷 [API Client] syncEmailUser called');
+    try {
+      const result = await this.request('/users/sync-email', {
+        method: 'POST',
+        body: JSON.stringify({ firebaseIdToken }),
+      });
+      console.log('🔷 [API Client] syncEmailUser success:', result);
+      return result;
+    } catch (error) {
+      console.error('🔷 [API Client] syncEmailUser failed:', error);
+      throw error;
+    }
+  }
+
   async completeProfile(userId: string, profileData: { nickname: string }) {
     return this.request(`/users/complete-profile/${userId}`, {
       method: 'POST',
