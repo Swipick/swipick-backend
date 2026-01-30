@@ -27,7 +27,6 @@ const RegistrationForm: React.FC = () => {
     submitRegistration,
     errors,
     isLoading,
-    validateForm,
     isEmailLinkSent,
     resetForm,
   } = useRegistration();
@@ -134,17 +133,7 @@ const RegistrationForm: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateForm()) {
-      await submitRegistration();
-    }
-  };
-
-  const isFormValid = () => {
-    const { nome, sopranome, email, password, confirmPassword, agreeToTerms } = registrationData;
-    // All fields are required including password for account creation
-    const hasAllFields = nome && sopranome && email && password && confirmPassword && agreeToTerms;
-    const hasNoErrors = Object.values(errors).every(error => !error);
-    return hasAllFields && hasNoErrors;
+    await submitRegistration();
   };
 
   return (
@@ -263,7 +252,7 @@ const RegistrationForm: React.FC = () => {
             {/* Submit Button */}
             <Button
               type="submit"
-              disabled={!isFormValid() || isLoading}
+              disabled={isLoading}
               className="w-full h-10 text-base font-semibold"
             >
               {isLoading ? (
