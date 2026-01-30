@@ -28,7 +28,7 @@ const DEBUG_PROFILO = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_
 
 export default function ProfiloPage() {
   const router = useRouter();
-  const { firebaseUser } = useAuthContext();
+  const { firebaseUser, logout } = useAuthContext();
   const { isTestMode } = useGameMode();
 
   const [loading, setLoading] = useState(true);
@@ -194,6 +194,16 @@ export default function ProfiloPage() {
     loadData();
   }, [firebaseUser, loadData, router]);
 
+  // Logout handler
+  const handleLogout = useCallback(async () => {
+    try {
+      await logout();
+      router.push('/login');
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  }, [logout, router]);
+
   // Share CTA
   const onShare = useCallback(async () => {
     try {
@@ -345,6 +355,21 @@ export default function ProfiloPage() {
           >
             <MdOutlineIosShare className="w-4 h-4" />
             Condividi profilo
+          </button>
+        </div>
+
+        {/* Logout */}
+        <div className="pt-4 pb-2 flex justify-center">
+          <button
+            className="w-fit inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 active:bg-red-100"
+            onClick={handleLogout}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Disconnetti
           </button>
         </div>
       </div>
