@@ -213,7 +213,7 @@ export function TestGameHeader({
     try {
       const shareData = {
         title: 'Swipick - Previsioni Calcio',
-        text: 'Ho fatto su Swipick le mie previsioni per la prossima giornata di calcio. Puoi battermi? https://swipick-frontend-production.up.railway.app/registro',
+        text: 'Ho fatto su Swipick le mie previsioni per la prossima giornata di calcio. Puoi battermi? https://mindful-sparkle-production.up.railway.app/registro',
         url: window.location.origin,
       };
 
@@ -221,7 +221,7 @@ export function TestGameHeader({
         await navigator.share(shareData);
       } else {
         // Fallback: copy to clipboard
-        const shareText = `Ho fatto su Swipick le mie previsioni per la prossima giornata di calcio. Puoi battermi?https://swipick-frontend-production.up.railway.app/registro\n${window.location.origin}`;
+        const shareText = `Ho fatto su Swipick le mie previsioni per la prossima giornata di calcio. Puoi battermi?https://mindful-sparkle-production.up.railway.app/registro\n${window.location.origin}`;
         await navigator.clipboard.writeText(shareText);
         // Could show a toast notification here if available
       }

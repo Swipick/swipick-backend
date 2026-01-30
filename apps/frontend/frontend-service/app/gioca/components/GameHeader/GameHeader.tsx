@@ -67,7 +67,7 @@ export function GameHeader({
       if (navigator.share) {
         await navigator.share({
       title: 'Swipick - Previsioni Calcio',
-        text: 'Ho fatto su Swipick le mie previsioni per la prossima giornata di calcio. Puoi battermi? https://swipick-frontend-production.up.railway.app/registro',
+        text: 'Ho fatto su Swipick le mie previsioni per la prossima giornata di calcio. Puoi battermi? https://mindful-sparkle-production.up.railway.app/registro',
           url: window.location.origin,
         });
       } else {

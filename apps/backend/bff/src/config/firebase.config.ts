@@ -257,7 +257,7 @@ export class FirebaseConfigService {
       }
 
       const actionCodeSettings = {
-        url: `https://swipick-frontend-production.up.railway.app/loginVerified`,
+        url: `https://mindful-sparkle-production.up.railway.app/loginVerified`,
         handleCodeInApp: false,
       };
 

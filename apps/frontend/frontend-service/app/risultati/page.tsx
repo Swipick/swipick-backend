@@ -695,7 +695,7 @@ function RisultatiPageContent() {
 
     const text = shareText;
     // Use the specific risultati URL with live mode
-    const url = `https://swipick-frontend-production.up.railway.app/risultati?mode=live`;
+    const url = `https://mindful-sparkle-production.up.railway.app/risultati?mode=live`;
     try {
       const n: NavigatorWebShare | undefined = typeof navigator !== 'undefined' ? (navigator as NavigatorWebShare) : undefined;
       if (n && typeof n.share === 'function') {
