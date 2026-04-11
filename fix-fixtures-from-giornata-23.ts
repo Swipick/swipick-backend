@@ -97,6 +97,11 @@ async function fixWeek(pool: Pool, week: number, matches: ApiMatch[]) {
     const result = isFinished ? calculateResult(homeScore, awayScore) : null;
     const dbStatus = isFinished ? 'FINISHED' : 'SCHEDULED';
 
+    // Normalise names that differ between API and DB (e.g. "Hellas Verona" → "Verona")
+    const normalise = (name: string) => name.replace(/^Hellas\s+/i, '').trim();
+    const dbHome = normalise(apiHomeTeam);
+    const dbAway = normalise(apiAwayTeam);
+
     const res = await pool.query(
       `
       UPDATE fixtures
@@ -122,8 +127,8 @@ async function fixWeek(pool: Pool, week: number, matches: ApiMatch[]) {
         isFinished ? awayScore : null,
         result,
         week,
-        `%${apiHomeTeam}%`,
-        `%${apiAwayTeam}%`,
+        `%${dbHome}%`,
+        `%${dbAway}%`,
       ],
     );
 
@@ -190,11 +195,11 @@ async function main() {
       const updatePredictionsQuery = `
         UPDATE specs s
         SET
-          result  = f.result,
-          correct = (s.choice = f.result)
+          result  = f.result::text::specs_result_enum,
+          correct = (s.choice::text = f.result::text)
         FROM fixtures f
         WHERE
-          s.fixture_id = f.id::text
+          s.fixture_id = f.id
           AND f.week >= ${START_WEEK}
           AND f.status = 'FINISHED'
           AND s.result IS NULL
