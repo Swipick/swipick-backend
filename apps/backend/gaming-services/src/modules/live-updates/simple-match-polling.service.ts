@@ -429,98 +429,102 @@ export class SimpleMatchPollingService {
         `🔍 [BACKFILL_START] Fixture ID: ${fixture.id}, Date: ${fixture.match_date}, Current Status: ${fixture.status}, Home Score: ${fixture.home_score}, Away Score: ${fixture.away_score}`,
       );
 
-      this.recordApiCall();
+      // ── Strategy A: direct ID lookup (when external_api_id is present) ──────
+      let matchData: any = null;
 
-      // Fetch match data from API using the date
-      const matchDate = new Date(fixture.match_date);
-      const dateStr = matchDate.toISOString().split('T')[0];
+      if (fixture.external_api_id) {
+        const numericId = parseInt(
+          fixture.external_api_id.replace('api_football_', ''),
+          10,
+        );
 
-      // Also prepare previous day to handle timezone issues
-      const prevDate = new Date(matchDate);
-      prevDate.setDate(prevDate.getDate() - 1);
-      const prevDateStr = prevDate.toISOString().split('T')[0];
+        if (!isNaN(numericId)) {
+          this.logger.log(
+            `🔍 [BACKFILL_ID_LOOKUP] Using external_api_id=${fixture.external_api_id} → API ID ${numericId}`,
+          );
 
-      this.logger.log(
-        `🔍 [BACKFILL_API_CALL] Fetching fixtures for date: ${dateStr} (also checking ${prevDateStr} for timezone issues)`,
-      );
+          this.recordApiCall();
+          matchData = await this.apiFootballService.getFixtureById(numericId);
 
-      // First try the stored date
-      const matches = await this.apiFootballService.getDailyFixtures(dateStr);
+          if (matchData) {
+            this.logger.log(
+              `✅ [BACKFILL_ID_LOOKUP] Found via ID: ${matchData.teams?.home?.name} vs ${matchData.teams?.away?.name}, Status: ${matchData.status?.short}`,
+            );
+          } else {
+            this.logger.warn(
+              `⚠️ [BACKFILL_ID_LOOKUP] No fixture returned for API ID ${numericId}`,
+            );
+          }
+        }
+      }
 
-      this.logger.log(
-        `🔍 [BACKFILL_API_RESPONSE] API returned ${matches.length} matches for ${dateStr}. Looking for: ${fixture.home_team} vs ${fixture.away_team}`,
-      );
+      // ── Strategy B: date-based lookup (fallback when no external_api_id) ───
+      if (!matchData) {
+        const matchDate = new Date(fixture.match_date);
+        const dateStr = matchDate.toISOString().split('T')[0];
 
-      // Log all matches returned to help debug
-      matches.forEach((m: any, idx) => {
-        // Fixture interface has status at root level (transformed by getFixtures)
-        const status = m.status?.short || 'NO_STATUS';
-        const homeTeam = m.teams?.home?.name || 'Unknown';
-        const awayTeam = m.teams?.away?.name || 'Unknown';
-        const homeScore = m.goals?.home;
-        const awayScore = m.goals?.away;
+        const prevDate = new Date(matchDate);
+        prevDate.setDate(prevDate.getDate() - 1);
+        const prevDateStr = prevDate.toISOString().split('T')[0];
+
+        const nextDate = new Date(matchDate);
+        nextDate.setDate(nextDate.getDate() + 1);
+        const nextDateStr = nextDate.toISOString().split('T')[0];
 
         this.logger.log(
-          `🔍 [BACKFILL_API_MATCH_${idx + 1}] ${homeTeam} vs ${awayTeam} - Status: ${status}, Score: ${homeScore}-${awayScore}`,
+          `🔍 [BACKFILL_DATE_LOOKUP] Fetching fixtures for date: ${dateStr} (will also try ${prevDateStr}, ${nextDateStr})`,
         );
-      });
 
-      // Find the specific match with more flexible matching
-      this.logger.log(
-        `🔍 [BACKFILL_MATCHING] Attempting to find match in API response...`,
-      );
-
-      let matchData = matches.find(
-        (m) =>
+        const teamNameMatch = (m: any) =>
           (m.teams?.home?.name === fixture.home_team ||
-            m.teams?.home?.name.includes(fixture.home_team) ||
+            m.teams?.home?.name?.includes(fixture.home_team) ||
             fixture.home_team.includes(m.teams?.home?.name)) &&
           (m.teams?.away?.name === fixture.away_team ||
-            m.teams?.away?.name.includes(fixture.away_team) ||
-            fixture.away_team.includes(m.teams?.away?.name)),
-      );
-
-      // If not found and dates are different, try previous day (timezone issue fix)
-      if (!matchData && dateStr !== prevDateStr) {
-        this.logger.log(
-          `🔍 [BACKFILL_RETRY] Match not found on ${dateStr}, checking previous day ${prevDateStr} for timezone issues...`,
-        );
+            m.teams?.away?.name?.includes(fixture.away_team) ||
+            fixture.away_team.includes(m.teams?.away?.name));
 
         this.recordApiCall();
-        const prevDayMatches =
-          await this.apiFootballService.getDailyFixtures(prevDateStr);
+        const matches = await this.apiFootballService.getDailyFixtures(dateStr);
 
         this.logger.log(
-          `🔍 [BACKFILL_RETRY_RESPONSE] API returned ${prevDayMatches.length} matches for ${prevDateStr}`,
+          `🔍 [BACKFILL_DATE_RESPONSE] API returned ${matches.length} matches for ${dateStr}. Looking for: ${fixture.home_team} vs ${fixture.away_team}`,
         );
-
-        // Log matches from previous day
-        prevDayMatches.forEach((m: any, idx) => {
-          const status = m.status?.short || 'NO_STATUS';
-          const homeTeam = m.teams?.home?.name || 'Unknown';
-          const awayTeam = m.teams?.away?.name || 'Unknown';
-          const homeScore = m.goals?.home;
-          const awayScore = m.goals?.away;
-
+        matches.forEach((m: any, idx) => {
           this.logger.log(
-            `🔍 [BACKFILL_RETRY_MATCH_${idx + 1}] ${homeTeam} vs ${awayTeam} - Status: ${status}, Score: ${homeScore}-${awayScore}`,
+            `🔍 [BACKFILL_DATE_MATCH_${idx + 1}] ${m.teams?.home?.name || 'Unknown'} vs ${m.teams?.away?.name || 'Unknown'} - Status: ${m.status?.short || 'NO_STATUS'}, Score: ${m.goals?.home}-${m.goals?.away}`,
           );
         });
 
-        matchData = prevDayMatches.find(
-          (m) =>
-            (m.teams?.home?.name === fixture.home_team ||
-              m.teams?.home?.name.includes(fixture.home_team) ||
-              fixture.home_team.includes(m.teams?.home?.name)) &&
-            (m.teams?.away?.name === fixture.away_team ||
-              m.teams?.away?.name.includes(fixture.away_team) ||
-              fixture.away_team.includes(m.teams?.away?.name)),
-        );
+        matchData = matches.find(teamNameMatch) ?? null;
 
-        if (matchData) {
+        if (!matchData) {
           this.logger.log(
-            `✅ [BACKFILL_FOUND_PREV_DAY] Match found on previous day! Timezone issue detected and resolved.`,
+            `🔍 [BACKFILL_DATE_RETRY] Not found on ${dateStr}, trying previous day ${prevDateStr}...`,
           );
+          this.recordApiCall();
+          const prevDayMatches =
+            await this.apiFootballService.getDailyFixtures(prevDateStr);
+          matchData = prevDayMatches.find(teamNameMatch) ?? null;
+          if (matchData) {
+            this.logger.log(
+              `✅ [BACKFILL_FOUND_PREV_DAY] Match found on previous day ${prevDateStr}.`,
+            );
+          }
+        }
+
+        if (!matchData) {
+          this.logger.log(
+            `🔍 [BACKFILL_DATE_RETRY] Not found on ${prevDateStr}, trying next day ${nextDateStr}...`,
+          );
+          this.recordApiCall();
+          const nextDayMatches =
+            await this.apiFootballService.getDailyFixtures(nextDateStr);
+          matchData = nextDayMatches.find(teamNameMatch) ?? null;
+          if (matchData) {
+            this.logger.log(
+              `✅ [BACKFILL_FOUND_NEXT_DAY] Match found on next day ${nextDateStr}.`,
+            );
+          }
         }
       }
 

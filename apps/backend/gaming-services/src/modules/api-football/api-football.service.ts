@@ -7,7 +7,7 @@ import { Fixture, LiveMatch } from './interfaces/fixture.interface';
 import { Team, TeamStatistics } from './interfaces/team.interface';
 
 // DTOs
-// import { GetFixturesDto } from './dto/fixture.dto'; // Unused for now
+import { GetFixturesDto } from './dto/fixture.dto';
 import { GetTeamsDto } from './dto/team.dto';
 
 @Injectable()
@@ -41,6 +41,28 @@ export class ApiFootballService {
 
     this.logger.log(`Fetched ${fixtures.length} Serie A fixtures for ${date}`);
     return fixtures;
+  }
+
+  async getFixtureById(apiId: number): Promise<Fixture | null> {
+    const cacheKey = `fixtures:by-id:${apiId}`;
+
+    const cached = await this.cacheService.get<Fixture>(cacheKey);
+    if (cached) {
+      this.logger.debug(`Cache hit for fixture by ID: ${apiId}`);
+      return cached;
+    }
+
+    const fixtures = await this.apiFootballClient.getFixtures({
+      fixture: apiId,
+    } as GetFixturesDto);
+    const fixture = fixtures[0] ?? null;
+
+    if (fixture) {
+      await this.cacheService.set(cacheKey, fixture, 5 * 60); // 5-min TTL
+    }
+
+    this.logger.log(`Fetched fixture by ID ${apiId}: ${fixture ? 'found' : 'not found'}`);
+    return fixture;
   }
 
   async getLiveMatches(): Promise<LiveMatch[]> {
