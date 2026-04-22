@@ -26,7 +26,7 @@
     "docker:build": "docker build -t swipick-bff .",
     "docker:run": "docker run -p 9000:9000 swipick-bff",
     "health-check": "curl -f http://localhost:9000/health || exit 1",
-    "migrations:run": "ts-node src/run-migrations.ts"
+    "migrations:run": "ts-node -r dotenv/config src/run-migrations.ts dotenv_config_path=../../../.env"
   },
   "dependencies": {
     "@nestjs/axios": "^3.0.0",

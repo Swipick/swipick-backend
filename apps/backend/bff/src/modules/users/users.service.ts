@@ -19,6 +19,7 @@ import { firstValueFrom } from 'rxjs';
 import {
   CreateUserDto,
   GoogleSyncUserDto,
+  AppleSyncUserDto,
   CompleteProfileDto,
   UserResponseDto,
 } from './dto';
@@ -262,6 +263,57 @@ export class UsersService {
   }
 
   /**
+   * Apple Sign-In user synchronization
+   */
+  async syncAppleUser(appleSyncDto: AppleSyncUserDto): Promise<UserResponseDto> {
+    this.logger.log('🍎 [UsersService] syncAppleUser called');
+    try {
+      const decodedToken = await this.firebaseConfig.verifyIdToken(
+        appleSyncDto.firebaseIdToken,
+      );
+      this.logger.log(
+        `🍎 [UsersService] Token verified - Firebase UID: ${decodedToken.uid}`,
+      );
+
+      let user = await this.userRepository.findOne({
+        where: { firebaseUid: decodedToken.uid },
+      });
+
+      if (user) {
+        user.updatedAt = new Date();
+        await this.userRepository.save(user);
+        this.logger.log(`🍎 [UsersService] Existing Apple user login: ${user.id}`);
+      } else {
+        const name =
+          decodedToken.name ||
+          (decodedToken.email ? decodedToken.email.split('@')[0] : 'Apple User');
+
+        user = this.userRepository.create({
+          firebaseUid: decodedToken.uid,
+          email: decodedToken.email,
+          name,
+          nickname: null,
+          passwordHash: null,
+          authProvider: AuthProvider.APPLE,
+          appleSubjectId: decodedToken.uid,
+          googleProfileUrl: null,
+          emailVerified: decodedToken.email_verified ?? true,
+          profileCompleted: false,
+        });
+        user = await this.userRepository.save(user);
+        this.logger.log(`🍎 [UsersService] New Apple user created: ${user.id}`);
+      }
+
+      return this.transformToResponse(user);
+    } catch (error) {
+      this.logger.error('🔴 [UsersService] Failed to sync Apple user', error);
+      throw new BadRequestException(
+        'Errore durante la sincronizzazione con Apple',
+      );
+    }
+  }
+
+  /**
    * Complete profile for Google users
    */
   async completeProfile(
@@ -275,9 +327,9 @@ export class UsersService {
         throw new NotFoundException('Utente non trovato');
       }
 
-      if (!user.isGoogleUser()) {
+      if (!user.isGoogleUser() && !user.isAppleUser()) {
         throw new BadRequestException(
-          'Solo gli utenti Google possono completare il profilo',
+          'Solo gli utenti social possono completare il profilo',
         );
       }
 
@@ -592,9 +644,9 @@ export class UsersService {
         return; // Still return success to not reveal email existence
       }
 
-      if (user.authProvider === AuthProvider.GOOGLE) {
+      if (user.authProvider === AuthProvider.GOOGLE || user.authProvider === AuthProvider.APPLE) {
         throw new BadRequestException(
-          'Gli utenti Google non possono reimpostare la password. Usa "Accedi con Google".',
+          'Gli utenti social non possono reimpostare la password. Usa il tuo metodo di accesso originale.',
         );
       }
 
@@ -626,9 +678,9 @@ export class UsersService {
         throw new NotFoundException('Utente non trovato');
       }
 
-      if (user.authProvider === AuthProvider.GOOGLE) {
+      if (user.authProvider === AuthProvider.GOOGLE || user.authProvider === AuthProvider.APPLE) {
         throw new BadRequestException(
-          'Gli utenti Google non possono cambiare password',
+          'Gli utenti social non possono cambiare password',
         );
       }
 

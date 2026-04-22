@@ -59,10 +59,13 @@ export class UserResponseDto {
   }
 
   /**
-   * Check if user needs profile completion
+   * Check if user needs profile completion (Google and Apple OAuth users)
    */
   @Expose()
   get needsProfileCompletion(): boolean {
-    return this.authProvider === AuthProvider.GOOGLE && !this.profileCompleted;
+    return (
+      (this.authProvider === AuthProvider.GOOGLE || this.authProvider === AuthProvider.APPLE) &&
+      !this.profileCompleted
+    );
   }
 }

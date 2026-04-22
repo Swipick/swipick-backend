@@ -10,6 +10,7 @@ import {
 export enum AuthProvider {
   EMAIL = 'email',
   GOOGLE = 'google',
+  APPLE = 'apple',
 }
 
 @Entity('users')
@@ -64,6 +65,16 @@ export class User {
   })
   googleProfileUrl!: string | null;
 
+  @Column({
+    type: 'varchar',
+    nullable: true,
+    unique: true,
+    length: 128,
+    name: 'apple_subject_id',
+    comment: 'Apple Sign-In subject identifier (Firebase UID for Apple users)',
+  })
+  appleSubjectId!: string | null;
+
   @Column({ default: true, name: 'is_active' })
   isActive!: boolean;
 
@@ -98,10 +109,17 @@ export class User {
   }
 
   /**
+   * Check if this is an Apple Sign-In user
+   */
+  isAppleUser(): boolean {
+    return this.authProvider === AuthProvider.APPLE;
+  }
+
+  /**
    * Check if the user needs to complete their profile
    */
   needsProfileCompletion(): boolean {
-    return this.isGoogleUser() && !this.profileCompleted;
+    return (this.isGoogleUser() || this.isAppleUser()) && !this.profileCompleted;
   }
 
   /**

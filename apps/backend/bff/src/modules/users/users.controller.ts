@@ -23,6 +23,7 @@ import { NotificationPreferences } from '../../entities/notification-preferences
 import {
   CreateUserDto,
   GoogleSyncUserDto,
+  AppleSyncUserDto,
   CompleteProfileDto,
   UserResponseDto,
   EmailVerifiedDto,
@@ -104,6 +105,34 @@ export class UsersController {
 
     this.logger.log(`🔵 [UsersController] Google sync successful - User ID: ${user.id}, Email: ${user.email}`);
     this.logger.log(`🔵 [UsersController] Needs profile completion: ${user.needsProfileCompletion}`);
+
+    return {
+      success: true,
+      data: user,
+      message: user.needsProfileCompletion
+        ? 'Utente sincronizzato. Completa il profilo per continuare.'
+        : 'Accesso effettuato con successo',
+    };
+  }
+
+  /**
+   * Apple Sign-In user synchronization
+   * POST /api/users/sync-apple
+   */
+  @Post('sync-apple')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async syncApple(@Body() appleSyncDto: AppleSyncUserDto): Promise<{
+    success: boolean;
+    data: UserResponseDto;
+    message: string;
+  }> {
+    this.logger.log('🍎 [UsersController] Apple Sign-In sync attempt');
+
+    const user = await this.usersService.syncAppleUser(appleSyncDto);
+
+    this.logger.log(`🍎 [UsersController] Apple sync successful - User ID: ${user.id}`);
+    this.logger.log(`🍎 [UsersController] Needs profile completion: ${user.needsProfileCompletion}`);
 
     return {
       success: true,
