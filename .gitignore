@@ -10,3 +10,16 @@ build/
 
 # Local data (fixtures, CSVs, etc.)
 data/
+# Environment files — secrets must never be tracked (Fase 1.1)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Test coverage
+coverage/
+
+# macOS
+.DS_Store
