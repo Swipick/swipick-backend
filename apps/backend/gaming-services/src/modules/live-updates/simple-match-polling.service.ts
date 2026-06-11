@@ -27,6 +27,7 @@ export class SimpleMatchPollingService {
 
   // Configuration
   private readonly MAX_DAILY_CALLS = 7000; // Pro plan allows 10k/day, using 7000 for safety margin
+  private static readonly BACKFILL_WINDOW_DAYS = 300; // whole season: never abandon unresolved results
   private readonly KICKOFF_BUFFER_MINUTES = 5;
   private readonly MATCH_DURATION_MINUTES = 105; // 90 + 15 injury time
 
@@ -115,20 +116,26 @@ export class SimpleMatchPollingService {
   private async backfillPastMatches() {
     try {
       const now = new Date();
-      const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
+      // Window must cover the whole season: with a short window, matches whose
+      // result is not captured in time (e.g. stale placeholder dates) fall out
+      // of the query and are never backfilled again. API usage stays bounded
+      // by limit(10) + canMakeApiCall().
+      const windowStart = new Date(
+        now.getTime() - SimpleMatchPollingService.BACKFILL_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+      );
 
       this.logger.log(
         `🔍 [BACKFILL_QUERY] Searching for past matches with NULL scores...`,
       );
       this.logger.log(
-        `🔍 [BACKFILL_QUERY] Date range: ${tenDaysAgo.toISOString()} to ${now.toISOString()}`,
+        `🔍 [BACKFILL_QUERY] Date range: ${windowStart.toISOString()} to ${now.toISOString()}`,
       );
 
       // First, check ALL past matches with NULL scores (regardless of status)
       const allPastMatchesWithNullScores = await this.fixtureRepository
         .createQueryBuilder('fixture')
         .where('fixture.match_date < :now', { now })
-        .andWhere('fixture.match_date > :tenDaysAgo', { tenDaysAgo })
+        .andWhere('fixture.match_date > :windowStart', { windowStart })
         .andWhere('(fixture.home_score IS NULL OR fixture.away_score IS NULL)')
         .orderBy('fixture.match_date', 'ASC')
         .limit(20)
@@ -151,7 +158,7 @@ export class SimpleMatchPollingService {
       const pastMatchesNeedingUpdate = await this.fixtureRepository
         .createQueryBuilder('fixture')
         .where('fixture.match_date < :now', { now })
-        .andWhere('fixture.match_date > :tenDaysAgo', { tenDaysAgo })
+        .andWhere('fixture.match_date > :windowStart', { windowStart })
         .andWhere('(fixture.home_score IS NULL OR fixture.away_score IS NULL)')
         .andWhere('fixture.status != :finished', { finished: 'FINISHED' })
         .orderBy('fixture.match_date', 'ASC')
