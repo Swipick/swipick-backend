@@ -32,7 +32,7 @@ const dataSource = new DataSource({
   username,
   password,
   database,
-  ssl: { rejectUnauthorized: false },
+  ssl: { rejectUnauthorized: true },
   entities: [User, NotificationPreferences, UserAvatar],
   migrations: [useTs ? 'src/migrations/*.ts' : 'dist/migrations/*.js'],
   migrationsTableName: 'migrations',

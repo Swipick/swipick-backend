@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
@@ -16,6 +17,8 @@ import {
 
 @Injectable()
 export class SpecsService {
+  private readonly logger = new Logger(SpecsService.name);
+
   constructor(
     @InjectRepository(Spec)
     private specRepository: Repository<Spec>,
@@ -59,7 +62,7 @@ export class SpecsService {
 
     if (existingSpec) {
       // Allow updating the prediction if match hasn't started yet
-      console.log(
+      this.logger.debug(
         `🔄 [SPECS_SERVICE] Updating existing prediction for user ${user_id} on fixture ${fixture_id}`,
       );
       existingSpec.choice = choice;
@@ -73,7 +76,7 @@ export class SpecsService {
     }
 
     // Create new prediction for live mode - use week from fixture
-    console.log(
+    this.logger.debug(
       `📝 [SPECS_SERVICE] Creating new spec with fixture week: ${fixture.week} (not controller week: ${week})`,
     );
     const spec = this.specRepository.create({
@@ -85,7 +88,7 @@ export class SpecsService {
     });
 
     const savedSpec = await this.specRepository.save(spec);
-    console.log(`✅ [SPECS_SERVICE] Spec saved with week ${savedSpec.week}`);
+    this.logger.debug(`✅ [SPECS_SERVICE] Spec saved with week ${savedSpec.week}`);
 
     // Return response with match display
     return this.mapSpecToResponse(savedSpec, fixture);
@@ -96,47 +99,47 @@ export class SpecsService {
     week: number,
     mode: 'live' | 'test' = 'live',
   ): Promise<WeeklyStatsResponseDto> {
-    console.log('🟢 [SPECS_SERVICE] ='.repeat(50));
-    console.log('🟢 [SPECS_SERVICE] getWeeklyStats called');
-    console.log('🟢 [SPECS_SERVICE] Timestamp:', new Date().toISOString());
-    console.log('🟢 [SPECS_SERVICE] Parameters:');
-    console.log('🟢 [SPECS_SERVICE] - userId:', {
+    this.logger.debug('🟢 [SPECS_SERVICE] ='.repeat(50));
+    this.logger.debug('🟢 [SPECS_SERVICE] getWeeklyStats called');
+    this.logger.debug('🟢 [SPECS_SERVICE] Timestamp:', new Date().toISOString());
+    this.logger.debug('🟢 [SPECS_SERVICE] Parameters:');
+    this.logger.debug('🟢 [SPECS_SERVICE] - userId:', {
       value: userId,
       type: typeof userId,
       length: userId?.length,
       isString: typeof userId === 'string',
     });
-    console.log('🟢 [SPECS_SERVICE] - week:', {
+    this.logger.debug('🟢 [SPECS_SERVICE] - week:', {
       value: week,
       type: typeof week,
       isNumber: typeof week === 'number',
     });
-    console.log('🟢 [SPECS_SERVICE] - mode:', {
+    this.logger.debug('🟢 [SPECS_SERVICE] - mode:', {
       value: mode,
       type: typeof mode,
     });
 
     try {
-      console.log('🟢 [SPECS_SERVICE] Preparing database query...');
-      console.log('🟢 [SPECS_SERVICE] Query params:', {
+      this.logger.debug('🟢 [SPECS_SERVICE] Preparing database query...');
+      this.logger.debug('🟢 [SPECS_SERVICE] Query params:', {
         where: { user_id: userId, week, mode },
         relations: ['fixture'],
         order: { timestamp: 'ASC' },
       });
 
       // Get all predictions for the user in the specified week and mode
-      console.log('🟢 [SPECS_SERVICE] Executing database query...');
+      this.logger.debug('🟢 [SPECS_SERVICE] Executing database query...');
       const specs = await this.specRepository.find({
         where: { user_id: userId, week, mode },
         relations: ['fixture'],
         order: { timestamp: 'ASC' },
       });
 
-      console.log('🟢 [SPECS_SERVICE] Database query completed successfully');
-      console.log('🟢 [SPECS_SERVICE] Found specs count:', specs.length);
+      this.logger.debug('🟢 [SPECS_SERVICE] Database query completed successfully');
+      this.logger.debug('🟢 [SPECS_SERVICE] Found specs count:', specs.length);
 
       if (specs.length > 0) {
-        console.log('🟢 [SPECS_SERVICE] Sample spec:', {
+        this.logger.debug('🟢 [SPECS_SERVICE] Sample spec:', {
           id: specs[0].id,
           user_id: specs[0].user_id,
           fixture_id: specs[0].fixture_id,
@@ -146,7 +149,7 @@ export class SpecsService {
         });
       }
 
-      console.log('🟢 [SPECS_SERVICE] Mapping specs to responses...');
+      this.logger.debug('🟢 [SPECS_SERVICE] Mapping specs to responses...');
       const predictions = specs.map((spec) =>
         this.mapSpecToResponse(spec, spec.fixture),
       );
@@ -171,19 +174,19 @@ export class SpecsService {
         predictions,
       };
 
-      console.log('🟢 [SPECS_SERVICE] Result computed successfully:', {
+      this.logger.debug('🟢 [SPECS_SERVICE] Result computed successfully:', {
         week: result.week,
         total_predictions: result.total_predictions,
         correct_predictions: result.correct_predictions,
         success_rate: result.success_rate,
         predictions_count: result.predictions.length,
       });
-      console.log('🟢 [SPECS_SERVICE] ='.repeat(50));
+      this.logger.debug('🟢 [SPECS_SERVICE] ='.repeat(50));
 
       return result;
     } catch (error) {
-      console.log('🔴 [SPECS_SERVICE] ERROR in getWeeklyStats:');
-      console.log('🔴 [SPECS_SERVICE] Error details:', {
+      this.logger.debug('🔴 [SPECS_SERVICE] ERROR in getWeeklyStats:');
+      this.logger.debug('🔴 [SPECS_SERVICE] Error details:', {
         userId,
         week,
         errorType: typeof error,
@@ -196,12 +199,12 @@ export class SpecsService {
         errorTable: error?.table,
         errorColumn: error?.column,
       });
-      console.log(
+      this.logger.debug(
         '🔴 [SPECS_SERVICE] Full error object:',
         JSON.stringify(error, Object.getOwnPropertyNames(error), 2),
       );
-      console.log('🔴 [SPECS_SERVICE] Error stack:', error?.stack);
-      console.log('🟢 [SPECS_SERVICE] ='.repeat(50));
+      this.logger.debug('🔴 [SPECS_SERVICE] Error stack:', error?.stack);
+      this.logger.debug('🟢 [SPECS_SERVICE] ='.repeat(50));
       throw error;
     }
   }
@@ -324,8 +327,8 @@ export class SpecsService {
     mode?: 'live' | 'test',
     week?: number,
   ): Promise<number> {
-    console.log('🗑️ [DELETE_PREDICTIONS] Delete request received');
-    console.log('🗑️ [DELETE_PREDICTIONS] Parameters:', { userId, mode, week });
+    this.logger.debug('🗑️ [DELETE_PREDICTIONS] Delete request received');
+    this.logger.debug('🗑️ [DELETE_PREDICTIONS] Parameters:', { userId, mode, week });
 
     const whereConditions: any = { user_id: userId };
 
@@ -337,18 +340,18 @@ export class SpecsService {
       whereConditions.week = week;
     }
 
-    console.log('🗑️ [DELETE_PREDICTIONS] Where conditions:', whereConditions);
+    this.logger.debug('🗑️ [DELETE_PREDICTIONS] Where conditions:', whereConditions);
 
     // Check what exists before delete
     const existingSpecs = await this.specRepository.find({
       where: whereConditions,
     });
-    console.log(
+    this.logger.debug(
       '🗑️ [DELETE_PREDICTIONS] Found existing specs:',
       existingSpecs.length,
     );
     if (existingSpecs.length > 0) {
-      console.log('🗑️ [DELETE_PREDICTIONS] Sample spec to delete:', {
+      this.logger.debug('🗑️ [DELETE_PREDICTIONS] Sample spec to delete:', {
         id: existingSpecs[0].id,
         user_id: existingSpecs[0].user_id,
         fixture_id: existingSpecs[0].fixture_id,
@@ -359,11 +362,11 @@ export class SpecsService {
     }
 
     const res = await this.specRepository.delete(whereConditions);
-    console.log('🗑️ [DELETE_PREDICTIONS] Delete result:', {
+    this.logger.debug('🗑️ [DELETE_PREDICTIONS] Delete result:', {
       affected: res.affected,
       raw: res.raw,
     });
-    console.log('🗑️ [DELETE_PREDICTIONS] Delete operation complete');
+    this.logger.debug('🗑️ [DELETE_PREDICTIONS] Delete operation complete');
 
     return res.affected || 0;
   }

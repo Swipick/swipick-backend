@@ -8,6 +8,7 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  Logger,
   ValidationPipe,
 } from '@nestjs/common';
 import { FinalWeekScoresService } from './final-week-scores.service';
@@ -19,6 +20,8 @@ import {
 
 @Controller('final-week-scores')
 export class FinalWeekScoresController {
+  private readonly logger = new Logger(FinalWeekScoresController.name);
+
   constructor(
     private readonly finalWeekScoresService: FinalWeekScoresService,
   ) {}
@@ -28,11 +31,11 @@ export class FinalWeekScoresController {
   async createOrUpdateFinalWeekScore(
     @Body(ValidationPipe) createFinalWeekScoreDto: CreateFinalWeekScoreDto,
   ): Promise<FinalWeekScoreResponseDto> {
-    console.log(
+    this.logger.debug(
       '🎯 [FINAL_WEEK_SCORES] POST /api/final-week-scores called with:',
       createFinalWeekScoreDto,
     );
-    console.log(
+    this.logger.debug(
       '🎯 [FINAL_WEEK_SCORES] Request timestamp:',
       new Date().toISOString(),
     );
@@ -42,10 +45,10 @@ export class FinalWeekScoresController {
         await this.finalWeekScoresService.createOrUpdateFinalWeekScore(
           createFinalWeekScoreDto,
         );
-      console.log('🎯 [FINAL_WEEK_SCORES] POST success, result:', result);
+      this.logger.debug('🎯 [FINAL_WEEK_SCORES] POST success, result:', result);
       return result;
     } catch (error) {
-      console.error('🎯 [FINAL_WEEK_SCORES] POST error:', error);
+      this.logger.error('🎯 [FINAL_WEEK_SCORES] POST error:', error);
       throw error;
     }
   }

@@ -1,5 +1,6 @@
 import {
   Controller,
+  Logger,
   Post,
   Get,
   Delete,
@@ -24,32 +25,34 @@ import {
 @Controller('predictions')
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 export class SpecsController {
+  private readonly logger = new Logger(SpecsController.name);
+
   constructor(
     private readonly specsService: SpecsService,
     private readonly testModeService: TestModeService,
   ) {
     // SANITY CHECK: Verify deployment of updated SpecsController
-    console.log('🚀🚀🚀 [SPECS_CONTROLLER_INIT] ='.repeat(25));
-    console.log(
+    this.logger.debug('🚀🚀🚀 [SPECS_CONTROLLER_INIT] ='.repeat(25));
+    this.logger.debug(
       '🚀🚀🚀 [SPECS_CONTROLLER_INIT] *** SPECS CONTROLLER INITIALIZED ***',
     );
-    console.log(
+    this.logger.debug(
       '🚀🚀🚀 [SPECS_CONTROLLER_INIT] Timestamp:',
       new Date().toISOString(),
     );
-    console.log(
+    this.logger.debug(
       '🚀🚀🚀 [SPECS_CONTROLLER_INIT] Version: LIVE_MODE_FIXES_WITH_COMPREHENSIVE_LOGGING',
     );
-    console.log(
+    this.logger.debug(
       '🚀🚀🚀 [SPECS_CONTROLLER_INIT] Contains Firebase UID fixes: YES',
     );
-    console.log(
+    this.logger.debug(
       '🚀🚀🚀 [SPECS_CONTROLLER_INIT] Contains fixtureId string handling: YES',
     );
-    console.log(
+    this.logger.debug(
       '🚀🚀🚀 [SPECS_CONTROLLER_INIT] Contains comprehensive 🟡 logging: YES',
     );
-    console.log('🚀🚀🚀 [SPECS_CONTROLLER_INIT] ='.repeat(25));
+    this.logger.debug('🚀🚀🚀 [SPECS_CONTROLLER_INIT] ='.repeat(25));
   }
 
   /**
@@ -60,19 +63,19 @@ export class SpecsController {
   async createPrediction(
     @Body() data: CreateUnifiedPredictionDto,
   ): Promise<SpecResponseDto> {
-    console.log('='.repeat(80));
-    console.log(
+    this.logger.debug('='.repeat(80));
+    this.logger.debug(
       '🚀 [SPECS_CONTROLLER] *** UNIFIED PREDICTION ENDPOINT HIT ***',
     );
-    console.log('🚀 [SPECS_CONTROLLER] Timestamp:', new Date().toISOString());
-    console.log('🚀 [SPECS_CONTROLLER] Full request body received:');
-    console.log('🚀 [SPECS_CONTROLLER] Raw object:', data);
-    console.log(
+    this.logger.debug('🚀 [SPECS_CONTROLLER] Timestamp:', new Date().toISOString());
+    this.logger.debug('🚀 [SPECS_CONTROLLER] Full request body received:');
+    this.logger.debug('🚀 [SPECS_CONTROLLER] Raw object:', data);
+    this.logger.debug(
       '🚀 [SPECS_CONTROLLER] JSON stringified:',
       JSON.stringify(data, null, 2),
     );
-    console.log('🚀 [SPECS_CONTROLLER] Object keys:', Object.keys(data));
-    console.log('🚀 [SPECS_CONTROLLER] userId:', {
+    this.logger.debug('🚀 [SPECS_CONTROLLER] Object keys:', Object.keys(data));
+    this.logger.debug('🚀 [SPECS_CONTROLLER] userId:', {
       value: data.userId,
       type: typeof data.userId,
       length: data.userId?.length,
@@ -82,23 +85,23 @@ export class SpecsController {
         ),
       isFirebaseUID: typeof data.userId === 'string' && data.userId.length > 20,
     });
-    console.log('🚀 [SPECS_CONTROLLER] fixtureId:', {
+    this.logger.debug('🚀 [SPECS_CONTROLLER] fixtureId:', {
       value: data.fixtureId,
       type: typeof data.fixtureId,
       isNumber: typeof data.fixtureId === 'number',
     });
-    console.log('🚀 [SPECS_CONTROLLER] choice:', {
+    this.logger.debug('🚀 [SPECS_CONTROLLER] choice:', {
       value: data.choice,
       type: typeof data.choice,
     });
-    console.log('🚀 [SPECS_CONTROLLER] mode:', {
+    this.logger.debug('🚀 [SPECS_CONTROLLER] mode:', {
       value: data.mode,
       type: typeof data.mode,
     });
-    console.log('='.repeat(80));
+    this.logger.debug('='.repeat(80));
 
     try {
-      console.log(
+      this.logger.debug(
         '🚀 [SPECS_CONTROLLER] Starting validation and processing...',
       );
 
@@ -144,19 +147,19 @@ export class SpecsController {
         return this.specsService.createPrediction(createSpecDto);
       }
     } catch (error) {
-      console.log('❌ [SPECS_CONTROLLER] ERROR occurred:');
-      console.log('❌ [SPECS_CONTROLLER] Error type:', typeof error);
-      console.log(
+      this.logger.debug('❌ [SPECS_CONTROLLER] ERROR occurred:');
+      this.logger.debug('❌ [SPECS_CONTROLLER] Error type:', typeof error);
+      this.logger.debug(
         '❌ [SPECS_CONTROLLER] Error constructor:',
         error?.constructor?.name,
       );
-      console.log('❌ [SPECS_CONTROLLER] Error message:', error?.message);
-      console.log('❌ [SPECS_CONTROLLER] Error stack:', error?.stack);
-      console.log(
+      this.logger.debug('❌ [SPECS_CONTROLLER] Error message:', error?.message);
+      this.logger.debug('❌ [SPECS_CONTROLLER] Error stack:', error?.stack);
+      this.logger.debug(
         '❌ [SPECS_CONTROLLER] Full error object:',
         JSON.stringify(error, Object.getOwnPropertyNames(error), 2),
       );
-      console.log('='.repeat(80));
+      this.logger.debug('='.repeat(80));
 
       // Re-throw the error so it's handled by NestJS
       throw error;
@@ -173,23 +176,23 @@ export class SpecsController {
     @Param('week', ParseIntPipe) week: number,
     @Query('mode') mode?: 'live' | 'test',
   ): Promise<WeeklyStatsResponseDto> {
-    console.log('🟡 [SPECS_CONTROLLER] ='.repeat(50));
-    console.log('🟡 [SPECS_CONTROLLER] getWeeklyStats endpoint hit');
-    console.log('🟡 [SPECS_CONTROLLER] Timestamp:', new Date().toISOString());
-    console.log('🟡 [SPECS_CONTROLLER] Raw params received:');
-    console.log('🟡 [SPECS_CONTROLLER] - userId:', {
+    this.logger.debug('🟡 [SPECS_CONTROLLER] ='.repeat(50));
+    this.logger.debug('🟡 [SPECS_CONTROLLER] getWeeklyStats endpoint hit');
+    this.logger.debug('🟡 [SPECS_CONTROLLER] Timestamp:', new Date().toISOString());
+    this.logger.debug('🟡 [SPECS_CONTROLLER] Raw params received:');
+    this.logger.debug('🟡 [SPECS_CONTROLLER] - userId:', {
       value: userId,
       type: typeof userId,
       length: userId?.length,
       isString: typeof userId === 'string',
       isValidFirebaseUID: typeof userId === 'string' && userId.length > 20,
     });
-    console.log('🟡 [SPECS_CONTROLLER] - week:', {
+    this.logger.debug('🟡 [SPECS_CONTROLLER] - week:', {
       value: week,
       type: typeof week,
       isNumber: typeof week === 'number',
     });
-    console.log('🟡 [SPECS_CONTROLLER] - mode:', {
+    this.logger.debug('🟡 [SPECS_CONTROLLER] - mode:', {
       value: mode,
       type: typeof mode,
       isLive: mode === 'live',
@@ -198,12 +201,12 @@ export class SpecsController {
 
     try {
       if (mode === 'test') {
-        console.log('🟡 [SPECS_CONTROLLER] Routing to TEST mode service');
+        this.logger.debug('🟡 [SPECS_CONTROLLER] Routing to TEST mode service');
         const testStats = await this.testModeService.getTestWeeklyStats(
           userId,
           week,
         );
-        console.log(
+        this.logger.debug(
           '🟡 [SPECS_CONTROLLER] Test mode service completed successfully',
         );
         // Convert test mode format to unified format
@@ -227,7 +230,7 @@ export class SpecsController {
         };
       }
 
-      console.log(
+      this.logger.debug(
         '🟡 [SPECS_CONTROLLER] Routing to LIVE mode service (specs.service.getWeeklyStats)',
       );
       const result = await this.specsService.getWeeklyStats(
@@ -235,10 +238,10 @@ export class SpecsController {
         week,
         'live',
       );
-      console.log(
+      this.logger.debug(
         '🟡 [SPECS_CONTROLLER] Live mode service completed successfully',
       );
-      console.log('🟡 [SPECS_CONTROLLER] Result preview:', {
+      this.logger.debug('🟡 [SPECS_CONTROLLER] Result preview:', {
         week: result.week,
         total_predictions: result.total_predictions,
         correct_predictions: result.correct_predictions,
@@ -247,8 +250,8 @@ export class SpecsController {
       });
       return result;
     } catch (error) {
-      console.log('🔴 [SPECS_CONTROLLER] ERROR in getWeeklyStats:');
-      console.log('🔴 [SPECS_CONTROLLER] Error details:', {
+      this.logger.debug('🔴 [SPECS_CONTROLLER] ERROR in getWeeklyStats:');
+      this.logger.debug('🔴 [SPECS_CONTROLLER] Error details:', {
         userId,
         week,
         mode,
@@ -257,11 +260,11 @@ export class SpecsController {
         errorMessage: error?.message,
         errorStack: error?.stack,
       });
-      console.log(
+      this.logger.debug(
         '🔴 [SPECS_CONTROLLER] Full error object:',
         JSON.stringify(error, Object.getOwnPropertyNames(error), 2),
       );
-      console.log('🟡 [SPECS_CONTROLLER] ='.repeat(50));
+      this.logger.debug('🟡 [SPECS_CONTROLLER] ='.repeat(50));
       throw error;
     }
   }
@@ -289,12 +292,12 @@ export class SpecsController {
     @Query('mode') mode?: 'live' | 'test',
     @Query('week') week?: string,
   ): Promise<{ success: boolean; deleted: number; message: string }> {
-    console.log('🗑️ [SPECS_CONTROLLER] DELETE request received');
-    console.log('🗑️ [SPECS_CONTROLLER] Path params:', { userId });
-    console.log('🗑️ [SPECS_CONTROLLER] Query params:', { mode, week });
+    this.logger.debug('🗑️ [SPECS_CONTROLLER] DELETE request received');
+    this.logger.debug('🗑️ [SPECS_CONTROLLER] Path params:', { userId });
+    this.logger.debug('🗑️ [SPECS_CONTROLLER] Query params:', { mode, week });
 
     const weekNum = week ? parseInt(week, 10) : undefined;
-    console.log('🗑️ [SPECS_CONTROLLER] Parsed week number:', weekNum);
+    this.logger.debug('🗑️ [SPECS_CONTROLLER] Parsed week number:', weekNum);
 
     const deleted = await this.specsService.deleteUserPredictions(
       userId,
@@ -308,7 +311,7 @@ export class SpecsController {
       message: `Deleted ${deleted} predictions for user ${userId}${mode ? ` (mode: ${mode})` : ''}${weekNum ? ` (week: ${weekNum})` : ''}`,
     };
 
-    console.log('🗑️ [SPECS_CONTROLLER] Response:', response);
+    this.logger.debug('🗑️ [SPECS_CONTROLLER] Response:', response);
     return response;
   }
 }

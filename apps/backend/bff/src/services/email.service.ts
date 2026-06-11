@@ -51,8 +51,8 @@ export class EmailService {
         },
         // Aruba-specific configuration
         tls: {
-          // Don't fail on invalid certs (for development)
-          rejectUnauthorized: false,
+          // Verify Aruba certificate (validated: public CA on smtps.aruba.it)
+          rejectUnauthorized: true,
           // Force TLS version
           minVersion: 'TLSv1.2',
           // Cipher configuration for Aruba

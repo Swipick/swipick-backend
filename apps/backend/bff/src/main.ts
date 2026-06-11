@@ -1,17 +1,9 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  // DEPLOYMENT VERIFICATION LOGS
-  console.log('🎯'.repeat(20));
-  console.log('🎯 [BFF_STARTUP] DEPLOYMENT VERIFICATION OCT 6TH');
-  console.log('🎯 [BFF_STARTUP] Version: PERCENTILE_ENDPOINTS_V1');
-  console.log('🎯 [BFF_STARTUP] Timestamp:', new Date().toISOString());
-  console.log(
-    '🎯 [BFF_STARTUP] Features: Proxying percentile and statistics endpoints',
-  );
-  console.log('🎯'.repeat(20));
+  const logger = new Logger('Bootstrap');
 
   const app = await NestFactory.create(AppModule);
 
@@ -22,10 +14,6 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
       transform: true,
     }),
-  );
-
-  console.log(
-    '🔄 LOADING CORS UPDATE - Timestamp: 2025-08-13 v2.2 - FORCE REBUILD',
   );
 
   // CORS configuration - Production ready with explicit origin setting
@@ -65,33 +53,25 @@ async function bootstrap() {
 
   const allowedOriginSet = new Set(allowedOrigins);
 
-  console.log(`🌐 NODE_ENV: ${process.env.NODE_ENV}`);
-  console.log(`🔧 Raw CORS_ALLOWED_ORIGINS:`, process.env.CORS_ALLOWED_ORIGINS);
-  console.log(`🔧 Allowed CORS origins:`, allowedOrigins);
+  logger.log(`Allowed CORS origins: ${allowedOrigins.join(', ')}`);
 
   // Enhanced CORS configuration
   const corsConfig = {
     origin: (origin, callback) => {
       const normalizedOrigin = origin ? origin.replace(/\/$/, '') : origin;
-      console.log(
-        `🔍 CORS Origin Check: raw=${origin} normalized=${normalizedOrigin}`,
-      );
       // Allow requests with no origin (mobile apps, etc.)
       if (!normalizedOrigin) return callback(null, true);
 
       // Temporary: Allow all Railway domains for debugging
       if (normalizedOrigin && normalizedOrigin.includes('.up.railway.app')) {
-        console.log(`✅ CORS Origin Allowed (Railway): ${normalizedOrigin}`);
         return callback(null, true);
       }
 
       if (allowedOriginSet.has(normalizedOrigin)) {
-        console.log(`✅ CORS Origin Allowed: ${normalizedOrigin}`);
         return callback(null, true);
       }
 
-      console.log(`❌ CORS Origin Blocked: ${normalizedOrigin}`);
-      console.log(`🔧 Allowed origins:`, allowedOrigins);
+      logger.warn(`CORS origin blocked: ${normalizedOrigin}`);
       return callback(new Error('Not allowed by CORS'), false);
     },
     credentials: true,
@@ -107,46 +87,22 @@ async function bootstrap() {
     optionsSuccessStatus: 204,
   };
 
-  console.log(`🚀 CORS Configuration Applied`);
-
   // Enable CORS with explicit configuration
   app.enableCors(corsConfig);
 
-  // Add explicit middleware to handle CORS headers for debugging
+  // Request logging (debug level: enable via logger config when troubleshooting)
+  const requestLogger = new Logger('HTTP');
   app.use((req, res, next) => {
-    const origin = req.headers.origin;
-    const userAgent = req.headers['user-agent'] || 'unknown';
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(userAgent);
-
-    console.log(
-      `🔍 Request: ${req.method} ${req.url} | Origin: ${origin} | Mobile: ${isMobile}`,
+    requestLogger.debug(
+      `${req.method} ${req.url} | Origin: ${req.headers.origin ?? '-'}`,
     );
-
-    if (req.method === 'OPTIONS') {
-      console.log(`🔍 CORS Preflight Request:`, {
-        method: req.method,
-        origin: origin,
-        url: req.url,
-        userAgent: userAgent.substring(0, 100),
-      });
-    }
-
-    // Log Google sync requests specifically
-    if (req.url.includes('/sync-google')) {
-      console.log(`🟣 [CORS Middleware] Google sync request detected!`);
-      console.log(`🟣 [CORS Middleware] User-Agent: ${userAgent}`);
-      console.log(`🟣 [CORS Middleware] Origin: ${origin}`);
-      console.log(`🟣 [CORS Middleware] Method: ${req.method}`);
-    }
-
     next();
   });
 
   const port = process.env.PORT || 9000;
-  console.log(`🔧 Force rebuild verification - binding to 0.0.0.0:${port}`);
   await app.listen(port, '0.0.0.0');
 
-  console.log(`🚀 BFF Service is running on: http://0.0.0.0:${port}`);
-  console.log(`📱 Environment: ${process.env.NODE_ENV}`);
+  logger.log(`BFF service running on http://0.0.0.0:${port}`);
+  logger.log(`Environment: ${process.env.NODE_ENV}`);
 }
 bootstrap();

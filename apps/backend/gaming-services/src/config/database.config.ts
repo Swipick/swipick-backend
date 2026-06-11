@@ -18,7 +18,7 @@ export const DatabaseConfig = registerAs(
         migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
         synchronize: false, // Disabled for local builds
         logging: process.env.NODE_ENV === 'development',
-        ssl: { rejectUnauthorized: false }, // Always use SSL for cloud databases
+        ssl: { rejectUnauthorized: true }, // Verify Neon certificate (public CA)
       };
     }
 
@@ -36,7 +36,7 @@ export const DatabaseConfig = registerAs(
       logging: process.env.NODE_ENV === 'development',
       ssl:
         process.env.NODE_ENV === 'production'
-          ? { rejectUnauthorized: false }
+          ? { rejectUnauthorized: true }
           : false,
     };
   },

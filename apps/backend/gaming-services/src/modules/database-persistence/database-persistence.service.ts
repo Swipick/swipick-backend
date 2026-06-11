@@ -17,7 +17,7 @@ export class DatabasePersistenceService {
     if (databaseUrl) {
       this.pool = new Pool({
         connectionString: databaseUrl,
-        ssl: { rejectUnauthorized: false },
+        ssl: { rejectUnauthorized: true },
         max: 5, // Limit connections for free tier
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,

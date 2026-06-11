@@ -35,7 +35,7 @@ export class DatabaseConfigService implements TypeOrmOptionsFactory {
       password,
       database,
       ssl: {
-        rejectUnauthorized: false, // Neon requires SSL but with relaxed certificate validation
+        rejectUnauthorized: true, // Verify Neon certificate (public CA)
       },
       entities: [User],
       synchronize: this.configService.get<string>('NODE_ENV') !== 'production',

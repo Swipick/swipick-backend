@@ -10,7 +10,7 @@ const config = process.env.DATABASE_URL
   ? {
       type: 'postgres' as const,
       url: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
+      ssl: { rejectUnauthorized: true },
     }
   : {
       type: 'postgres' as const,

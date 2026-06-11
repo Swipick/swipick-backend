@@ -13,24 +13,17 @@ import { Observable } from 'rxjs';
 
 @Injectable()
 class RequestLoggingInterceptor implements NestInterceptor {
+  private readonly logger = new Logger(RequestLoggingInterceptor.name);
+
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest();
-    const { method, url, body, headers } = request;
+    const { method, url } = request;
 
-    // Only log POST requests to /api/predictions to avoid spam
+    // Only log POST requests to /api/predictions to avoid spam.
+    // Debug level: headers/body possono contenere token — non vanno nei log
+    // di produzione di default.
     if (method === 'POST' && url.includes('/predictions')) {
-      console.log('🌐 [GLOBAL_INTERCEPTOR] === INCOMING REQUEST ===');
-      console.log('🌐 [GLOBAL_INTERCEPTOR] Method:', method);
-      console.log('🌐 [GLOBAL_INTERCEPTOR] URL:', url);
-      console.log(
-        '🌐 [GLOBAL_INTERCEPTOR] Headers:',
-        JSON.stringify(headers, null, 2),
-      );
-      console.log(
-        '🌐 [GLOBAL_INTERCEPTOR] Body:',
-        JSON.stringify(body, null, 2),
-      );
-      console.log('🌐 [GLOBAL_INTERCEPTOR] === END REQUEST ===');
+      this.logger.debug(`Incoming ${method} ${url}`);
     }
 
     return next.handle();
@@ -40,31 +33,7 @@ class RequestLoggingInterceptor implements NestInterceptor {
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
-  // SANITY CHECK: Verify Gaming Services startup - FORCE REBUILD OCT 6TH
-  console.log('🚀🚀🚀 [GAMING_SERVICES_STARTUP] ='.repeat(5));
-  console.log(
-    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] *** STARTING UP WITH NEW LOGS OCT 6TH - FORCE REBUILD ***',
-  );
-  console.log(
-    '🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 6TH] Timestamp:',
-    new Date().toISOString(),
-  );
-  console.log(
-    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Version: PERCENTILE_RANKING_V2_FORCE_REBUILD',
-  );
-  console.log(
-    '🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 6TH] Contains: Percentile ranking endpoints and user statistics',
-  );
-  console.log(
-    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Feature: getUserPercentile and getUserStatistics endpoints added',
-  );
-  console.log(
-    '🚀🚀🚀 [GAMING_SERVICES_STARTUP] Deployed at:',
-    new Date().toISOString(),
-  );
-  console.log(
-    '🚀🚀🚀 [STARTING UP WITH NEW LOGS OCT 6TH - FORCE REBUILD] ='.repeat(35),
-  );
+  logger.log('Starting gaming-services...');
 
   const app = await NestFactory.create(AppModule);
 
@@ -143,6 +112,6 @@ async function bootstrap() {
 }
 
 bootstrap().catch((error) => {
-  console.error('Failed to start Gaming Services:', error);
+  new Logger('Bootstrap').error('Failed to start Gaming Services:', error);
   process.exit(1);
 });
