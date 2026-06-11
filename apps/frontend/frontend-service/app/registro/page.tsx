@@ -233,7 +233,7 @@ const RegistrationForm: React.FC = () => {
                 <label htmlFor="agreeToTerms" className="text-gray-700">
                   Accetto i{' '}
                   <Link
-                    href="https://www.iubenda.com/terms-and-conditions/55491947?ifr=false#terms-of-use"
+                    href="https://www.swipick.com/termini-e-condizioni.html"
                     className="text-purple-600 hover:text-purple-700 underline"
                     target="_blank"
                   >
@@ -314,7 +314,7 @@ const RegistrationForm: React.FC = () => {
             <p className="text-xs text-gray-500">
               Creando un account accetti i nostri{' '}
               <Link
-                href="https://www.iubenda.com/terms-and-conditions/55491947?ifr=false#terms-of-use"
+                href="https://www.swipick.com/termini-e-condizioni.html"
                 className="text-purple-600 hover:text-purple-700"
                 target="_blank"
               >
@@ -322,7 +322,7 @@ const RegistrationForm: React.FC = () => {
               </Link>
               {' '}e la{' '}
               <Link
-                href="https://www.iubenda.com/terms-and-conditions/55491947?ifr=false#user-rights"
+                href="https://www.swipick.com/privacy-e-cookie.html"
                 className="text-purple-600 hover:text-purple-700"
                 target="_blank"
               >
