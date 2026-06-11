@@ -131,7 +131,7 @@ export class AppController {
   }
 
   @Post('api/fixtures/sync')
-  async syncFixtures(@Body() body: any) {
+  async syncFixtures(@Body() body: unknown) {
     this.logger.log('Forwarding fixtures sync request to Gaming Services');
     return this.appService.forwardToGamingServices(
       '/api/fixtures/sync',
@@ -317,7 +317,7 @@ export class AppController {
 
   // Final Week Scores Endpoints
   @Post('api/final-week-scores')
-  async createFinalWeekScore(@Body() body: any) {
+  async createFinalWeekScore(@Body() body: unknown) {
     this.logger.log('Creating final week score');
     return this.appService.forwardToGamingServices(
       '/api/final-week-scores',

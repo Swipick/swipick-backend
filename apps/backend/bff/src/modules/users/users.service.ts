@@ -7,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import * as bcrypt from 'bcrypt';
 import { User, AuthProvider } from '../../entities/user.entity';
 import { FirebaseConfigService } from '../../config/firebase.config';
 import { EmailService } from '../../services/email.service';
@@ -24,6 +23,7 @@ import {
   UserResponseDto,
 } from './dto';
 import { plainToClass } from 'class-transformer';
+import type { auth as adminAuth } from 'firebase-admin';
 
 export interface GoogleUserData {
   uid: string;
@@ -36,7 +36,6 @@ export interface GoogleUserData {
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
-  private readonly saltRounds = 12;
 
   private readonly gamingServicesUrl: string;
 
@@ -70,6 +69,10 @@ export class UsersService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
+    // Track del solo uid creato in QUESTO flusso: il rollback non deve mai
+    // cancellare un account Firebase pre-esistente con la stessa email.
+    let createdFirebaseUid: string | null = null;
+
     try {
       // Check if email already exists
       await this.checkEmailUniqueness(createUserDto.email);
@@ -77,23 +80,23 @@ export class UsersService {
       // Check if nickname already exists
       await this.checkNicknameUniqueness(createUserDto.nickname);
 
-      // Hash password
-      const passwordHash = await this.hashPassword(createUserDto.password);
-
       // Create Firebase user first
       const firebaseUser = await this.firebaseConfig.createUser(
         createUserDto.email,
         createUserDto.password,
         createUserDto.name,
       );
+      createdFirebaseUid = firebaseUser.uid;
 
-      // Create database user
+      // Create database user.
+      // passwordHash: null — Firebase è l'unico proprietario delle credenziali;
+      // un hash locale sarebbe un secondo store mai verificato e da proteggere.
       const user = queryRunner.manager.create(User, {
         firebaseUid: firebaseUser.uid,
         email: createUserDto.email,
         name: createUserDto.name,
         nickname: createUserDto.nickname,
-        passwordHash,
+        passwordHash: null,
         authProvider: AuthProvider.EMAIL,
         emailVerified: false,
         profileCompleted: true, // Traditional users complete profile during registration
@@ -142,17 +145,14 @@ export class UsersService {
     } catch (error) {
       await queryRunner.rollbackTransaction();
 
-      // Cleanup Firebase user if database creation failed
-      if (createUserDto.email) {
+      // Rollback compensativo: SOLO l'utente Firebase creato in questo flusso.
+      // Mai cercare per email — cancellerebbe account legittimi pre-esistenti.
+      if (createdFirebaseUid) {
         try {
-          const auth = this.firebaseConfig.getAuth();
-          if (auth) {
-            const firebaseUser = await auth.getUserByEmail(createUserDto.email);
-            await this.firebaseConfig.deleteUser(firebaseUser.uid);
-          }
+          await this.firebaseConfig.deleteUser(createdFirebaseUid);
         } catch (cleanupError) {
           this.logger.error(
-            'Failed to cleanup Firebase user after database error',
+            `Failed to cleanup Firebase user ${createdFirebaseUid} after database error`,
             cleanupError,
           );
         }
@@ -410,18 +410,17 @@ export class UsersService {
     return await this.userRepository.save(user);
   }
 
-  private extractGoogleUserData(decodedToken: any): GoogleUserData {
+  private extractGoogleUserData(
+    decodedToken: adminAuth.DecodedIdToken,
+  ): GoogleUserData {
+    const email = decodedToken.email ?? '';
     return {
       uid: decodedToken.uid,
-      email: decodedToken.email,
-      name: decodedToken.name || decodedToken.email.split('@')[0],
+      email,
+      name: decodedToken.name || email.split('@')[0],
       picture: decodedToken.picture,
       emailVerified: decodedToken.email_verified || false,
     };
-  }
-
-  private async hashPassword(password: string): Promise<string> {
-    return await bcrypt.hash(password, this.saltRounds);
   }
 
   private async checkEmailUniqueness(email: string): Promise<void> {
@@ -729,6 +728,16 @@ export class UsersService {
   }
 
   private handleRegistrationError(error: any): never {
+    // Eccezioni HTTP già specifiche (es. ConflictException dei check di
+    // unicità): rilanciate intatte, il client deve sapere il motivo reale.
+    if (
+      error instanceof ConflictException ||
+      error instanceof BadRequestException ||
+      error instanceof NotFoundException
+    ) {
+      throw error;
+    }
+
     if (error.code === '23505') {
       // PostgreSQL unique constraint violation
       if (error.constraint?.includes('email')) {
