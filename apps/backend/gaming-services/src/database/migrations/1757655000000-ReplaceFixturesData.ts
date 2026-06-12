@@ -217,5 +217,5 @@ export class ReplaceFixturesData1757655000000 implements MigrationInterface {
     );
   }
 
-  public async down(queryRunner: QueryRunner): Promise<void> {}
+  public async down(): Promise<void> {}
 }

@@ -318,5 +318,5 @@ export class ReplaceFixturesDataAgain1757656000000
     );
   }
 
-  public async down(queryRunner: QueryRunner): Promise<void> {}
+  public async down(): Promise<void> {}
 }
