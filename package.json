@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Backend service for Swipick - a speculative football game",
   "private": true,
-  "packageManager": "npm@10.0.0",
   "workspaces": [
     "apps/backend/*",
     "apps/frontend/*",
@@ -61,7 +60,7 @@
     "typescript": "^5.1.3"
   },
   "engines": {
-    "node": ">=18.0.0",
+    "node": ">=20.0.0",
     "npm": ">=8.0.0"
   },
   "dependencies": {
