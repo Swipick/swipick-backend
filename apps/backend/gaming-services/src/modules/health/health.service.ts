@@ -137,15 +137,22 @@ export class HealthService {
       return 'not_configured';
     }
 
+    // Stessa env var e default del client reale (api-football.config.ts).
+    // NB: API_FOOTBALL_URL (gateway RapidAPI) presente in .env è config morta
+    // non usata dal client — non leggerla qui.
     const baseUrl = this.configService.get<string>(
-      'API_FOOTBALL_URL',
+      'API_FOOTBALL_BASE_URL',
       'https://v3.football.api-sports.io',
     );
 
     let result: CheckResult;
     try {
+      // Stessa convenzione header del resto del codebase (chiave RapidAPI)
       const response = await axios.get(`${baseUrl}/status`, {
-        headers: { 'x-apisports-key': apiKey },
+        headers: {
+          'X-RapidAPI-Key': apiKey,
+          'X-RapidAPI-Host': 'v3.football.api-sports.io',
+        },
         timeout: CHECK_TIMEOUT_MS,
       });
       result = response.status === 200 ? 'healthy' : 'unhealthy';

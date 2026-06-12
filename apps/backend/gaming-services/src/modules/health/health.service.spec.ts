@@ -34,7 +34,7 @@ describe('HealthService', () => {
     config = {
       NODE_ENV: 'test',
       API_FOOTBALL_KEY: 'test-key',
-      API_FOOTBALL_URL: 'https://v3.football.api-sports.io',
+      API_FOOTBALL_BASE_URL: 'https://v3.football.api-sports.io',
       // REDIS_URL assente di default
     };
     mockedAxios.get.mockResolvedValue({ status: 200, data: { errors: [] } });
