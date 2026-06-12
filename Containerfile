@@ -9,6 +9,11 @@ FROM node:20-alpine AS dependencies
 LABEL maintainer="Swipick Development Team"
 LABEL description="Swipick Backend BFF Service - Dependencies Stage"
 
+# Corepack (bundled, outdated) chokes on the packageManager field with a
+# signature error (exit 254) at the first npm invocation. The image's npm
+# is all we need — disable Corepack shims.
+RUN corepack disable || true
+
 # Install dumb-init for proper signal handling in containers
 RUN apk add --no-cache dumb-init
 
@@ -70,6 +75,9 @@ FROM node:20-alpine AS production
 LABEL maintainer="Swipick Development Team"
 LABEL description="Swipick Backend BFF Service - Production Runtime"
 LABEL version="1.0.0"
+
+# See dependencies stage: bundled Corepack fails on the packageManager field.
+RUN corepack disable || true
 
 # Install dumb-init and curl for health checks
 RUN apk add --no-cache dumb-init curl
