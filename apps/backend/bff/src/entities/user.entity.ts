@@ -119,7 +119,9 @@ export class User {
    * Check if the user needs to complete their profile
    */
   needsProfileCompletion(): boolean {
-    return (this.isGoogleUser() || this.isAppleUser()) && !this.profileCompleted;
+    return (
+      (this.isGoogleUser() || this.isAppleUser()) && !this.profileCompleted
+    );
   }
 
   /**

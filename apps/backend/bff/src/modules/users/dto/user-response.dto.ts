@@ -64,7 +64,8 @@ export class UserResponseDto {
   @Expose()
   get needsProfileCompletion(): boolean {
     return (
-      (this.authProvider === AuthProvider.GOOGLE || this.authProvider === AuthProvider.APPLE) &&
+      (this.authProvider === AuthProvider.GOOGLE ||
+        this.authProvider === AuthProvider.APPLE) &&
       !this.profileCompleted
     );
   }

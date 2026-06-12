@@ -88,9 +88,18 @@ describe('UsersService - syncAppleUser', () => {
       providers: [
         UsersService,
         { provide: getRepositoryToken(User), useFactory: mockUserRepository },
-        { provide: getRepositoryToken(NotificationPreferences), useFactory: mockPrefsRepository },
-        { provide: getRepositoryToken(UserAvatar), useFactory: mockAvatarRepository },
-        { provide: FirebaseConfigService, useFactory: mockFirebaseConfigService },
+        {
+          provide: getRepositoryToken(NotificationPreferences),
+          useFactory: mockPrefsRepository,
+        },
+        {
+          provide: getRepositoryToken(UserAvatar),
+          useFactory: mockAvatarRepository,
+        },
+        {
+          provide: FirebaseConfigService,
+          useFactory: mockFirebaseConfigService,
+        },
         { provide: EmailService, useFactory: mockEmailService },
         { provide: HttpService, useFactory: mockHttpService },
         { provide: ConfigService, useFactory: mockConfigService },
@@ -130,7 +139,9 @@ describe('UsersService - syncAppleUser', () => {
       const dto: AppleSyncUserDto = { firebaseIdToken: MOCK_TOKEN };
       const result = await service.syncAppleUser(dto);
 
-      expect(firebaseConfigService.verifyIdToken).toHaveBeenCalledWith(MOCK_TOKEN);
+      expect(firebaseConfigService.verifyIdToken).toHaveBeenCalledWith(
+        MOCK_TOKEN,
+      );
       expect(userRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
           authProvider: AuthProvider.APPLE,
@@ -183,7 +194,9 @@ describe('UsersService - syncAppleUser', () => {
 
       const dto: AppleSyncUserDto = { firebaseIdToken: 'invalid-token' };
 
-      await expect(service.syncAppleUser(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.syncAppleUser(dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 });

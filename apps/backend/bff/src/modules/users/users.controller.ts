@@ -66,9 +66,7 @@ export class UsersController {
    */
   @Post('sync-email')
   @HttpCode(HttpStatus.OK)
-  async syncEmailUser(
-    @Body() body: { firebaseIdToken: string },
-  ): Promise<{
+  async syncEmailUser(@Body() body: { firebaseIdToken: string }): Promise<{
     success: boolean;
     data: UserResponseDto;
     message: string;
@@ -77,7 +75,9 @@ export class UsersController {
 
     const result = await this.usersService.syncEmailUser(body.firebaseIdToken);
 
-    this.logger.log(`🔵 [UsersController] Email sync successful - User ID: ${result.id}, emailVerified: ${result.emailVerified}`);
+    this.logger.log(
+      `🔵 [UsersController] Email sync successful - User ID: ${result.id}, emailVerified: ${result.emailVerified}`,
+    );
 
     return {
       success: true,
@@ -99,12 +99,18 @@ export class UsersController {
     message: string;
   }> {
     this.logger.log('🔵 [UsersController] Google OAuth sync attempt');
-    this.logger.log(`🔵 [UsersController] Firebase token received (length: ${googleSyncDto.firebaseIdToken?.length || 0})`);
+    this.logger.log(
+      `🔵 [UsersController] Firebase token received (length: ${googleSyncDto.firebaseIdToken?.length || 0})`,
+    );
 
     const user = await this.usersService.syncGoogleUser(googleSyncDto);
 
-    this.logger.log(`🔵 [UsersController] Google sync successful - User ID: ${user.id}, Email: ${user.email}`);
-    this.logger.log(`🔵 [UsersController] Needs profile completion: ${user.needsProfileCompletion}`);
+    this.logger.log(
+      `🔵 [UsersController] Google sync successful - User ID: ${user.id}, Email: ${user.email}`,
+    );
+    this.logger.log(
+      `🔵 [UsersController] Needs profile completion: ${user.needsProfileCompletion}`,
+    );
 
     return {
       success: true,
@@ -131,8 +137,12 @@ export class UsersController {
 
     const user = await this.usersService.syncAppleUser(appleSyncDto);
 
-    this.logger.log(`🍎 [UsersController] Apple sync successful - User ID: ${user.id}`);
-    this.logger.log(`🍎 [UsersController] Needs profile completion: ${user.needsProfileCompletion}`);
+    this.logger.log(
+      `🍎 [UsersController] Apple sync successful - User ID: ${user.id}`,
+    );
+    this.logger.log(
+      `🍎 [UsersController] Needs profile completion: ${user.needsProfileCompletion}`,
+    );
 
     return {
       success: true,

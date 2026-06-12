@@ -170,7 +170,8 @@ export class UsersService {
   async syncEmailUser(firebaseIdToken: string): Promise<UserResponseDto> {
     try {
       // Verify Firebase token
-      const decodedToken = await this.firebaseConfig.verifyIdToken(firebaseIdToken);
+      const decodedToken =
+        await this.firebaseConfig.verifyIdToken(firebaseIdToken);
 
       // Find user by Firebase UID
       const user = await this.userRepository.findOne({
@@ -186,7 +187,9 @@ export class UsersService {
       user.updatedAt = new Date();
 
       const savedUser = await this.userRepository.save(user);
-      this.logger.log(`Email user synced: ${savedUser.id}, emailVerified: ${savedUser.emailVerified}`);
+      this.logger.log(
+        `Email user synced: ${savedUser.id}, emailVerified: ${savedUser.emailVerified}`,
+      );
 
       return this.transformToResponse(savedUser);
     } catch (error) {
@@ -194,7 +197,9 @@ export class UsersService {
         throw error;
       }
       this.logger.error('Failed to sync email user', error);
-      throw new BadRequestException('Errore durante la sincronizzazione utente');
+      throw new BadRequestException(
+        'Errore durante la sincronizzazione utente',
+      );
     }
   }
 
@@ -265,7 +270,9 @@ export class UsersService {
   /**
    * Apple Sign-In user synchronization
    */
-  async syncAppleUser(appleSyncDto: AppleSyncUserDto): Promise<UserResponseDto> {
+  async syncAppleUser(
+    appleSyncDto: AppleSyncUserDto,
+  ): Promise<UserResponseDto> {
     this.logger.log('🍎 [UsersService] syncAppleUser called');
     try {
       const decodedToken = await this.firebaseConfig.verifyIdToken(
@@ -282,11 +289,15 @@ export class UsersService {
       if (user) {
         user.updatedAt = new Date();
         await this.userRepository.save(user);
-        this.logger.log(`🍎 [UsersService] Existing Apple user login: ${user.id}`);
+        this.logger.log(
+          `🍎 [UsersService] Existing Apple user login: ${user.id}`,
+        );
       } else {
         const name =
           decodedToken.name ||
-          (decodedToken.email ? decodedToken.email.split('@')[0] : 'Apple User');
+          (decodedToken.email
+            ? decodedToken.email.split('@')[0]
+            : 'Apple User');
 
         user = this.userRepository.create({
           firebaseUid: decodedToken.uid,
@@ -643,7 +654,10 @@ export class UsersService {
         return; // Still return success to not reveal email existence
       }
 
-      if (user.authProvider === AuthProvider.GOOGLE || user.authProvider === AuthProvider.APPLE) {
+      if (
+        user.authProvider === AuthProvider.GOOGLE ||
+        user.authProvider === AuthProvider.APPLE
+      ) {
         throw new BadRequestException(
           'Gli utenti social non possono reimpostare la password. Usa il tuo metodo di accesso originale.',
         );
@@ -677,7 +691,10 @@ export class UsersService {
         throw new NotFoundException('Utente non trovato');
       }
 
-      if (user.authProvider === AuthProvider.GOOGLE || user.authProvider === AuthProvider.APPLE) {
+      if (
+        user.authProvider === AuthProvider.GOOGLE ||
+        user.authProvider === AuthProvider.APPLE
+      ) {
         throw new BadRequestException(
           'Gli utenti social non possono cambiare password',
         );

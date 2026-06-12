@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddAppleSubjectIdToUsers1745000000000 implements MigrationInterface {
+export class AddAppleSubjectIdToUsers1745000000000
+  implements MigrationInterface
+{
   name = 'AddAppleSubjectIdToUsers1745000000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

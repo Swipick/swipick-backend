@@ -40,9 +40,13 @@ describe('UsersService.createUser — atomicità e gestione credenziali', () => 
       createUser: jest.fn().mockResolvedValue({ uid: 'fb-uid-creato' }),
       deleteUser: jest.fn().mockResolvedValue(undefined),
       getAuth: jest.fn().mockReturnValue({
-        getUserByEmail: jest.fn().mockResolvedValue({ uid: 'fb-uid-esistente' }),
+        getUserByEmail: jest
+          .fn()
+          .mockResolvedValue({ uid: 'fb-uid-esistente' }),
       }),
-      generateEmailVerificationLink: jest.fn().mockResolvedValue('https://link'),
+      generateEmailVerificationLink: jest
+        .fn()
+        .mockResolvedValue('https://link'),
       verifyIdToken: jest.fn(),
     };
 
