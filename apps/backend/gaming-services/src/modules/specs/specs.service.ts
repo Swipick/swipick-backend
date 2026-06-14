@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Spec } from '../../entities/spec.entity';
 import { Fixture } from '../../entities/fixture.entity';
+import { SeasonConfigService } from '../season/season-config.service';
 import {
   CreateSpecDto,
   SpecResponseDto,
@@ -24,6 +25,7 @@ export class SpecsService {
     private specRepository: Repository<Spec>,
     @InjectRepository(Fixture)
     private fixtureRepository: Repository<Fixture>,
+    private readonly seasonConfig: SeasonConfigService,
   ) {}
 
   async createPrediction(
@@ -67,6 +69,7 @@ export class SpecsService {
       );
       existingSpec.choice = choice;
       existingSpec.week = fixture.week; // Update week to match fixture if it was wrong
+      existingSpec.season = fixture.season;
       existingSpec.timestamp = new Date();
 
       const savedSpec = await this.specRepository.save(existingSpec);
@@ -84,11 +87,14 @@ export class SpecsService {
       fixture_id,
       choice,
       week: fixture.week, // Use the actual week from the fixture
+      season: fixture.season, // Denormalized from the fixture (like week)
       mode: 'live',
     });
 
     const savedSpec = await this.specRepository.save(spec);
-    this.logger.debug(`✅ [SPECS_SERVICE] Spec saved with week ${savedSpec.week}`);
+    this.logger.debug(
+      `✅ [SPECS_SERVICE] Spec saved with week ${savedSpec.week}`,
+    );
 
     // Return response with match display
     return this.mapSpecToResponse(savedSpec, fixture);
@@ -98,10 +104,15 @@ export class SpecsService {
     userId: string,
     week: number,
     mode: 'live' | 'test' = 'live',
+    season?: number,
   ): Promise<WeeklyStatsResponseDto> {
+    const targetSeason = season ?? this.seasonConfig.getCurrentSeason();
     this.logger.debug('🟢 [SPECS_SERVICE] ='.repeat(50));
     this.logger.debug('🟢 [SPECS_SERVICE] getWeeklyStats called');
-    this.logger.debug('🟢 [SPECS_SERVICE] Timestamp:', new Date().toISOString());
+    this.logger.debug(
+      '🟢 [SPECS_SERVICE] Timestamp:',
+      new Date().toISOString(),
+    );
     this.logger.debug('🟢 [SPECS_SERVICE] Parameters:');
     this.logger.debug('🟢 [SPECS_SERVICE] - userId:', {
       value: userId,
@@ -127,15 +138,17 @@ export class SpecsService {
         order: { timestamp: 'ASC' },
       });
 
-      // Get all predictions for the user in the specified week and mode
+      // Get all predictions for the user in the specified week, season and mode
       this.logger.debug('🟢 [SPECS_SERVICE] Executing database query...');
       const specs = await this.specRepository.find({
-        where: { user_id: userId, week, mode },
+        where: { user_id: userId, week, season: targetSeason, mode },
         relations: ['fixture'],
         order: { timestamp: 'ASC' },
       });
 
-      this.logger.debug('🟢 [SPECS_SERVICE] Database query completed successfully');
+      this.logger.debug(
+        '🟢 [SPECS_SERVICE] Database query completed successfully',
+      );
       this.logger.debug('🟢 [SPECS_SERVICE] Found specs count:', specs.length);
 
       if (specs.length > 0) {
@@ -212,10 +225,12 @@ export class SpecsService {
   async getUserSummary(
     userId: string,
     mode: 'live' | 'test' = 'live',
+    season?: number,
   ): Promise<UserSummaryResponseDto> {
-    // Get all predictions for the user in the specified mode
+    const targetSeason = season ?? this.seasonConfig.getCurrentSeason();
+    // Get all predictions for the user in the specified mode and season
     const allSpecs = await this.specRepository.find({
-      where: { user_id: userId, mode },
+      where: { user_id: userId, season: targetSeason, mode },
       relations: ['fixture'],
       order: { week: 'ASC', timestamp: 'ASC' },
     });
@@ -328,7 +343,11 @@ export class SpecsService {
     week?: number,
   ): Promise<number> {
     this.logger.debug('🗑️ [DELETE_PREDICTIONS] Delete request received');
-    this.logger.debug('🗑️ [DELETE_PREDICTIONS] Parameters:', { userId, mode, week });
+    this.logger.debug('🗑️ [DELETE_PREDICTIONS] Parameters:', {
+      userId,
+      mode,
+      week,
+    });
 
     const whereConditions: any = { user_id: userId };
 
@@ -340,7 +359,10 @@ export class SpecsService {
       whereConditions.week = week;
     }
 
-    this.logger.debug('🗑️ [DELETE_PREDICTIONS] Where conditions:', whereConditions);
+    this.logger.debug(
+      '🗑️ [DELETE_PREDICTIONS] Where conditions:',
+      whereConditions,
+    );
 
     // Check what exists before delete
     const existingSpecs = await this.specRepository.find({

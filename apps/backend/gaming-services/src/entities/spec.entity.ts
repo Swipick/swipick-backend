@@ -16,6 +16,8 @@ import {
 @Index(['user_id', 'week'])
 @Index(['user_id', 'mode'])
 @Index(['mode'])
+@Index(['user_id', 'season', 'week'])
+@Index(['user_id', 'season', 'mode'])
 export class Spec {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -47,6 +49,10 @@ export class Spec {
   @Column({ type: 'integer', nullable: false })
   @Index()
   week: number;
+
+  // Denormalized from fixture.season (like week) for fast season-scoped stats.
+  @Column({ type: 'integer', nullable: false, default: 2025 })
+  season: number;
 
   @Column({
     type: 'enum',

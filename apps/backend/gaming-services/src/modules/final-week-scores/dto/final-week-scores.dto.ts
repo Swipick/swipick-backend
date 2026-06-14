@@ -1,4 +1,11 @@
-import { IsEnum, IsNumber, IsString, Min, Max } from 'class-validator';
+import {
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+  Max,
+} from 'class-validator';
 
 export class CreateFinalWeekScoreDto {
   @IsString({ message: 'userId must be a string' })
@@ -8,6 +15,11 @@ export class CreateFinalWeekScoreDto {
   @Min(1, { message: 'week must be at least 1' })
   @Max(38, { message: 'week must be at most 38' })
   week: number;
+
+  // Optional: defaults to the current season (live) on the server.
+  @IsOptional()
+  @IsNumber({}, { message: 'season must be a number' })
+  season?: number;
 
   @IsEnum(['live', 'test'], {
     message: 'mode must be either live or test',

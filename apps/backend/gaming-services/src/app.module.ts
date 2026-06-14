@@ -8,6 +8,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { DatabaseConfig } from './config/database.config';
 import { ApiFootballConfig } from './config/api-football.config';
 import { WebSocketConfig } from './config/websocket.config';
+import { SeasonConfig } from './config/season.config';
 
 // Modules
 import { ApiFootballModule } from './modules/api-football/api-football.module';
@@ -20,6 +21,7 @@ import { SpecsModule } from './modules/specs/specs.module';
 import { TestModeModule } from './modules/test-mode/test-mode.module';
 import { MatchCardsModule } from './modules/match-cards/match-cards.module';
 import { FinalWeekScoresModule } from './modules/final-week-scores/final-week-scores.module';
+import { SeasonModule } from './modules/season/season.module';
 
 @Module({
   imports: [
@@ -27,7 +29,7 @@ import { FinalWeekScoresModule } from './modules/final-week-scores/final-week-sc
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '../../../.env', // Path to root .env file
-      load: [DatabaseConfig, ApiFootballConfig, WebSocketConfig],
+      load: [DatabaseConfig, ApiFootballConfig, WebSocketConfig, SeasonConfig],
     }),
 
     // Database
@@ -45,6 +47,7 @@ import { FinalWeekScoresModule } from './modules/final-week-scores/final-week-sc
     ScheduleModule.forRoot(),
 
     // Application modules
+    SeasonModule,
     ApiFootballModule,
     FixturesModule,
     TeamsModule,

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ApiFootballClient } from './api-football.client';
 import { CacheService } from '../cache/cache.service';
+import { SeasonConfigService } from '../season/season-config.service';
 
 // Interfaces
 import { Fixture, LiveMatch } from './interfaces/fixture.interface';
@@ -17,6 +18,7 @@ export class ApiFootballService {
   constructor(
     private readonly apiFootballClient: ApiFootballClient,
     private readonly cacheService: CacheService,
+    private readonly seasonConfig: SeasonConfigService,
   ) {}
 
   async getDailyFixtures(date: string): Promise<Fixture[]> {
@@ -33,7 +35,7 @@ export class ApiFootballService {
     const fixtures = await this.apiFootballClient.getFixtures({
       date,
       league: 135,
-      season: 2025,
+      season: this.seasonConfig.getCurrentSeason(),
     });
 
     // Cache for 2 minutes (matches polling frequency for real-time score updates)
@@ -61,7 +63,9 @@ export class ApiFootballService {
       await this.cacheService.set(cacheKey, fixture, 5 * 60); // 5-min TTL
     }
 
-    this.logger.log(`Fetched fixture by ID ${apiId}: ${fixture ? 'found' : 'not found'}`);
+    this.logger.log(
+      `Fetched fixture by ID ${apiId}: ${fixture ? 'found' : 'not found'}`,
+    );
     return fixture;
   }
 

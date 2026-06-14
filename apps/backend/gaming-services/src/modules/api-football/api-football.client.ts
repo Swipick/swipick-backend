@@ -68,7 +68,7 @@ export class ApiFootballClient {
         teams: any;
         goals: any;
         score: any;
-      }>
+      }>;
     }>(endpoint, params);
 
     // Transform API response to match Fixture interface (flatten structure)
@@ -100,7 +100,7 @@ export class ApiFootballClient {
         goals: any;
         score: any;
         events?: any[];
-      }>
+      }>;
     }>(endpoint, params);
 
     // Transform API response to match LiveMatch interface (flatten structure)
@@ -154,7 +154,7 @@ export class ApiFootballClient {
         teams: any;
         goals: any;
         score: any;
-      }>
+      }>;
     }>(endpoint, params);
 
     // Transform API response to match Fixture interface (flatten structure)

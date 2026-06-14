@@ -9,9 +9,10 @@ import {
 } from 'typeorm';
 
 @Entity('final_week_scores')
-@Unique(['userId', 'week', 'mode']) // One score per user per week per mode
+@Unique(['userId', 'week', 'season', 'mode']) // One score per user per week per season per mode
 @Index(['userId', 'mode']) // Optimize for user mode queries
 @Index(['week', 'mode']) // Optimize for week mode queries
+@Index(['week', 'season', 'mode']) // Season-scoped percentile/leaderboard
 export class FinalWeekScore {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -21,6 +22,10 @@ export class FinalWeekScore {
 
   @Column()
   week: number; // Week number (1-38)
+
+  // Serie A season (start year). DEFAULT 2025 keeps older code compatible.
+  @Column({ type: 'integer', default: 2025 })
+  season: number;
 
   @Column({
     type: 'enum',
@@ -75,10 +80,12 @@ export class FinalWeekScore {
     mode: 'live' | 'test',
     revealed: number,
     correct: number,
+    season = 2025,
   ): FinalWeekScore {
     const score = new FinalWeekScore();
     score.userId = userId;
     score.week = week;
+    score.season = season;
     score.mode = mode;
     score.revealed = revealed;
     score.correct = correct;

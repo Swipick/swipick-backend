@@ -44,7 +44,9 @@ async function main(): Promise<void> {
   );
 
   console.log('week | partite | mancanti | senza_risultato | giorni | range');
-  console.log('-----|---------|----------|-----------------|--------|------------------');
+  console.log(
+    '-----|---------|----------|-----------------|--------|------------------',
+  );
   for (const r of reports) {
     const range =
       r.firstMatch && r.lastMatch

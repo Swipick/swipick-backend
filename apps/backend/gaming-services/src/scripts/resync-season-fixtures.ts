@@ -29,7 +29,10 @@ interface ApiFixture {
     venue: { name: string | null };
     status: { short: string };
   };
-  teams: { home: { id: number; name: string }; away: { id: number; name: string } };
+  teams: {
+    home: { id: number; name: string };
+    away: { id: number; name: string };
+  };
   goals: { home: number | null; away: number | null };
 }
 
@@ -65,7 +68,10 @@ const mapStatus = (short: string): string => {
   return 'SCHEDULED';
 };
 
-const computeResult = (home: number | null, away: number | null): string | null => {
+const computeResult = (
+  home: number | null,
+  away: number | null,
+): string | null => {
   if (home === null || away === null) return null;
   if (home > away) return '1';
   if (home < away) return '2';
@@ -78,17 +84,21 @@ async function main(): Promise<void> {
   const weeks = args.filter((a) => /^\d+$/.test(a)).map(Number);
 
   if (weeks.length === 0) {
-    console.error('Specificare almeno una giornata, es: resync-season-fixtures.ts 35 36');
+    console.error(
+      'Specificare almeno una giornata, es: resync-season-fixtures.ts 35 36',
+    );
     process.exit(1);
   }
 
   const apiKey = process.env.API_FOOTBALL_KEY;
   if (!apiKey || !process.env.DATABASE_URL) {
-    console.error('API_FOOTBALL_KEY o DATABASE_URL mancanti nell\'ambiente');
+    console.error("API_FOOTBALL_KEY o DATABASE_URL mancanti nell'ambiente");
     process.exit(1);
   }
 
-  console.log(`Modalità: ${apply ? '✍️  APPLY (scrive sul DB)' : '👀 DRY-RUN (nessuna scrittura)'}`);
+  console.log(
+    `Modalità: ${apply ? '✍️  APPLY (scrive sul DB)' : '👀 DRY-RUN (nessuna scrittura)'}`,
+  );
   console.log(`Stagione: ${SEASON} — Giornate: ${weeks.join(', ')}\n`);
 
   const dataSource = new DataSource({
@@ -104,10 +114,16 @@ async function main(): Promise<void> {
 
   for (const week of weeks) {
     const round = `Regular Season - ${week}`;
-    const { data } = await axios.get('https://v3.football.api-sports.io/fixtures', {
-      headers: { 'X-RapidAPI-Key': apiKey, 'X-RapidAPI-Host': 'v3.football.api-sports.io' },
-      params: { league: LEAGUE_ID, season: SEASON, round },
-    });
+    const { data } = await axios.get(
+      'https://v3.football.api-sports.io/fixtures',
+      {
+        headers: {
+          'X-RapidAPI-Key': apiKey,
+          'X-RapidAPI-Host': 'v3.football.api-sports.io',
+        },
+        params: { league: LEAGUE_ID, season: SEASON, round },
+      },
+    );
 
     const apiFixtures: ApiFixture[] = data.response ?? [];
     console.log(`— Giornata ${week}: ${apiFixtures.length} partite da API`);
@@ -129,29 +145,43 @@ async function main(): Promise<void> {
         );
 
       if (!db) {
-        unmatched.push(`g.${week}: ${api.teams.home.name} vs ${api.teams.away.name}`);
+        unmatched.push(
+          `g.${week}: ${api.teams.home.name} vs ${api.teams.away.name}`,
+        );
         continue;
       }
 
       const newStatus = mapStatus(api.fixture.status.short);
-      const newResult = newStatus === 'FINISHED' ? computeResult(api.goals.home, api.goals.away) : db.result;
+      const newResult =
+        newStatus === 'FINISHED'
+          ? computeResult(api.goals.home, api.goals.away)
+          : db.result;
       const newDate = new Date(api.fixture.date);
 
       const changes: string[] = [];
       if (new Date(db.match_date).getTime() !== newDate.getTime())
-        changes.push(`date ${new Date(db.match_date).toISOString().slice(0, 16)} → ${newDate.toISOString().slice(0, 16)}`);
-      if (db.status !== newStatus) changes.push(`status ${db.status} → ${newStatus}`);
+        changes.push(
+          `date ${new Date(db.match_date).toISOString().slice(0, 16)} → ${newDate.toISOString().slice(0, 16)}`,
+        );
+      if (db.status !== newStatus)
+        changes.push(`status ${db.status} → ${newStatus}`);
       if (db.home_score !== api.goals.home || db.away_score !== api.goals.away)
-        changes.push(`score ${db.home_score ?? '-'}–${db.away_score ?? '-'} → ${api.goals.home ?? '-'}–${api.goals.away ?? '-'}`);
-      if (db.result !== newResult) changes.push(`result ${db.result ?? '-'} → ${newResult ?? '-'}`);
-      if (db.external_api_id !== apiId) changes.push(`external_api_id → ${apiId}`);
+        changes.push(
+          `score ${db.home_score ?? '-'}–${db.away_score ?? '-'} → ${api.goals.home ?? '-'}–${api.goals.away ?? '-'}`,
+        );
+      if (db.result !== newResult)
+        changes.push(`result ${db.result ?? '-'} → ${newResult ?? '-'}`);
+      if (db.external_api_id !== apiId)
+        changes.push(`external_api_id → ${apiId}`);
 
       if (changes.length === 0) {
         unchanged++;
         continue;
       }
 
-      console.log(`  ${db.home_team} vs ${db.away_team}: ${changes.join(', ')}`);
+      console.log(
+        `  ${db.home_team} vs ${db.away_team}: ${changes.join(', ')}`,
+      );
       updated++;
 
       if (apply) {
@@ -160,18 +190,32 @@ async function main(): Promise<void> {
            SET match_date = $1, status = $2, home_score = $3, away_score = $4,
                result = $5, external_api_id = $6, updated_at = NOW()
            WHERE id = $7`,
-          [newDate, newStatus, api.goals.home, api.goals.away, newResult, apiId, db.id],
+          [
+            newDate,
+            newStatus,
+            api.goals.home,
+            api.goals.away,
+            newResult,
+            apiId,
+            db.id,
+          ],
         );
       }
     }
   }
 
-  console.log(`\n${apply ? 'Aggiornate' : 'Da aggiornare'}: ${updated} — Già corrette: ${unchanged}`);
+  console.log(
+    `\n${apply ? 'Aggiornate' : 'Da aggiornare'}: ${updated} — Già corrette: ${unchanged}`,
+  );
   if (unmatched.length > 0) {
-    console.log(`⚠️  Non abbinate (nessuna modifica): \n  ${unmatched.join('\n  ')}`);
+    console.log(
+      `⚠️  Non abbinate (nessuna modifica): \n  ${unmatched.join('\n  ')}`,
+    );
   }
   if (!apply && updated > 0) {
-    console.log('\nNessuna scrittura effettuata. Rilanciare con --apply per applicare.');
+    console.log(
+      '\nNessuna scrittura effettuata. Rilanciare con --apply per applicare.',
+    );
   }
 
   await dataSource.destroy();

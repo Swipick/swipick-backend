@@ -12,6 +12,7 @@ import {
   FinalWeekScoreResponseDto,
   UserFinalScoresResponseDto,
 } from './dto/final-week-scores.dto';
+import { SeasonConfigService } from '../season/season-config.service';
 
 @Injectable()
 export class FinalWeekScoresService {
@@ -20,17 +21,29 @@ export class FinalWeekScoresService {
   constructor(
     @InjectRepository(FinalWeekScore)
     private readonly finalWeekScoreRepository: Repository<FinalWeekScore>,
+    private readonly seasonConfig: SeasonConfigService,
   ) {}
+
+  /**
+   * Season used for scoping. Only the LIVE table is season-aware; the test
+   * scores live in a separate, season-agnostic table, so test stays pinned to
+   * the default season and is never filtered out by a season flip.
+   */
+  private seasonFor(mode: 'live' | 'test'): number {
+    return mode === 'live' ? this.seasonConfig.getCurrentSeason() : 2025;
+  }
 
   async createOrUpdateFinalWeekScore(
     dto: CreateFinalWeekScoreDto,
   ): Promise<FinalWeekScoreResponseDto> {
+    const season = dto.season ?? this.seasonFor(dto.mode);
     try {
       // Try to find existing score
       const existingScore = await this.finalWeekScoreRepository.findOne({
         where: {
           userId: dto.userId,
           week: dto.week,
+          season,
           mode: dto.mode,
         },
       });
@@ -52,6 +65,7 @@ export class FinalWeekScoresService {
           dto.mode,
           dto.revealed,
           dto.correct,
+          season,
         );
         finalWeekScore =
           await this.finalWeekScoreRepository.save(finalWeekScore);
@@ -78,6 +92,7 @@ export class FinalWeekScoresService {
       where: {
         userId,
         week,
+        season: this.seasonFor(mode),
         mode,
       },
     });
@@ -98,6 +113,10 @@ export class FinalWeekScoresService {
     const whereClause: any = { userId };
     if (mode) {
       whereClause.mode = mode;
+      whereClause.season = this.seasonFor(mode);
+    } else {
+      // Live-only season scoping; without a mode we default to current live season.
+      whereClause.season = this.seasonConfig.getCurrentSeason();
     }
 
     const scores = await this.finalWeekScoreRepository.find({
@@ -132,6 +151,7 @@ export class FinalWeekScoresService {
     const result = await this.finalWeekScoreRepository.delete({
       userId,
       week,
+      season: this.seasonFor(mode),
       mode,
     });
 
@@ -175,16 +195,22 @@ export class FinalWeekScoresService {
         `📊 [PERCENTILE] Calculating percentile for user ${userId}, week ${week}, mode: ${mode}`,
       );
 
-      // Get all scores for this week
+      // Get all scores for this week. Only the live table is season-scoped.
       const tableName =
         mode === 'test' ? 'test_final_week_scores' : 'final_week_scores';
 
       this.logger.log(`📊 [PERCENTILE] Querying table: ${tableName}`);
 
-      const allScores = await this.finalWeekScoreRepository.query(
-        `SELECT "userId" as user_id, percent FROM ${tableName} WHERE week = $1 AND percent IS NOT NULL ORDER BY percent DESC`,
-        [week],
-      );
+      const allScores =
+        mode === 'live'
+          ? await this.finalWeekScoreRepository.query(
+              `SELECT "userId" as user_id, percent FROM ${tableName} WHERE week = $1 AND season = $2 AND percent IS NOT NULL ORDER BY percent DESC`,
+              [week, this.seasonConfig.getCurrentSeason()],
+            )
+          : await this.finalWeekScoreRepository.query(
+              `SELECT "userId" as user_id, percent FROM ${tableName} WHERE week = $1 AND percent IS NOT NULL ORDER BY percent DESC`,
+              [week],
+            );
 
       if (allScores.length === 0) {
         this.logger.log(`📊 [PERCENTILE] No scores found for week ${week}`);
@@ -275,11 +301,18 @@ export class FinalWeekScoresService {
 
       this.logger.log(`📊 [STATISTICS] Querying table: ${tableName}`);
 
-      // Get all user's scores
-      const userScores = await this.finalWeekScoreRepository.query(
-        `SELECT week, percent FROM ${tableName} WHERE "userId" = $1 AND percent IS NOT NULL ORDER BY percent DESC`,
-        [userId],
-      );
+      // Get all user's scores. Only the live table is season-scoped, so stats
+      // (average/best/weeksPlayed) are per-season and 2025/2026 never mix.
+      const userScores =
+        mode === 'live'
+          ? await this.finalWeekScoreRepository.query(
+              `SELECT week, percent FROM ${tableName} WHERE "userId" = $1 AND season = $2 AND percent IS NOT NULL ORDER BY percent DESC`,
+              [userId, this.seasonConfig.getCurrentSeason()],
+            )
+          : await this.finalWeekScoreRepository.query(
+              `SELECT week, percent FROM ${tableName} WHERE "userId" = $1 AND percent IS NOT NULL ORDER BY percent DESC`,
+              [userId],
+            );
 
       if (userScores.length === 0) {
         this.logger.log(`📊 [STATISTICS] No scores found for user ${userId}`);

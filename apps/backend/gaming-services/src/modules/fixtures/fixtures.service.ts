@@ -9,6 +9,7 @@ import {
   LiveMatch,
 } from '../api-football/interfaces/fixture.interface';
 import { Fixture as FixtureEntity } from '../../entities/fixture.entity';
+import { SeasonConfigService } from '../season/season-config.service';
 
 interface CacheEntry<T> {
   data: T;
@@ -30,6 +31,7 @@ export class FixturesService {
     private readonly apiFootballService: ApiFootballService,
     private readonly rateLimitService: ApiRateLimitService,
     private readonly dbPersistenceService: DatabasePersistenceService,
+    private readonly seasonConfig: SeasonConfigService,
   ) {}
 
   async syncFixturesForDate(date: string): Promise<Fixture[]> {
@@ -188,15 +190,19 @@ export class FixturesService {
   /**
    * Get fixtures by week number from local database
    */
-  async getFixturesByWeek(weekNumber: number): Promise<FixtureEntity[]> {
+  async getFixturesByWeek(
+    weekNumber: number,
+    season?: number,
+  ): Promise<FixtureEntity[]> {
+    const targetSeason = season ?? this.seasonConfig.getCurrentSeason();
     try {
       const fixtures = await this.fixtureRepository.find({
-        where: { week: weekNumber },
+        where: { week: weekNumber, season: targetSeason },
         order: { match_date: 'ASC' },
       });
 
       this.logger.debug(
-        `Retrieved ${fixtures.length} fixtures for week ${weekNumber} from database`,
+        `Retrieved ${fixtures.length} fixtures for week ${weekNumber} (season ${targetSeason}) from database`,
       );
 
       return fixtures;
@@ -209,7 +215,10 @@ export class FixturesService {
   /**
    * Get date range for a specific week from database fixtures
    */
-  async getWeekDateRange(weekNumber: number): Promise<{
+  async getWeekDateRange(
+    weekNumber: number,
+    season?: number,
+  ): Promise<{
     week: number;
     startDate: string;
     endDate: string;
@@ -217,9 +226,10 @@ export class FixturesService {
     endDateFormatted: string;
     fixtureCount: number;
   } | null> {
+    const targetSeason = season ?? this.seasonConfig.getCurrentSeason();
     try {
       const fixtures = await this.fixtureRepository.find({
-        where: { week: weekNumber },
+        where: { week: weekNumber, season: targetSeason },
         order: { match_date: 'ASC' },
       });
 
@@ -283,7 +293,10 @@ export class FixturesService {
 
       // 2. Check database persistence (medium speed)
       const persistedFixtures =
-        await this.dbPersistenceService.getPersistedSerieAFixtures(2025, days);
+        await this.dbPersistenceService.getPersistedSerieAFixtures(
+          this.seasonConfig.getCurrentSeason(),
+          days,
+        );
       if (persistedFixtures && persistedFixtures.length > 0) {
         this.logger.log(
           `📦 Retrieved ${persistedFixtures.length} Serie A fixtures from database`,
@@ -350,7 +363,7 @@ export class FixturesService {
         );
         await this.dbPersistenceService.persistSerieAFixtures(
           finalFixtures,
-          2025,
+          this.seasonConfig.getCurrentSeason(),
         );
 
         this.logger.log(
@@ -392,10 +405,12 @@ export class FixturesService {
   ) {
     try {
       const start = fromDate ? new Date(fromDate) : new Date();
+      const season = this.seasonConfig.getCurrentSeason();
       // Query TypeORM repository for upcoming fixtures (scheduled or live but not finished)
       const qb = this.fixtureRepository
         .createQueryBuilder('fx')
         .where('fx.match_date >= :start', { start })
+        .andWhere('fx.season = :season', { season })
         .andWhere('fx.status IN (:...statuses)', {
           statuses: ['SCHEDULED', 'LIVE'],
         })
@@ -418,6 +433,7 @@ export class FixturesService {
       if (entities.length === 0) {
         const recent = await this.fixtureRepository
           .createQueryBuilder('fx')
+          .where('fx.season = :season', { season })
           .orderBy('fx.match_date', 'DESC')
           .limit(Math.min(5, limit))
           .getMany();
@@ -443,6 +459,34 @@ export class FixturesService {
     }
   }
 
+  /**
+   * The most recent (season, week) that has at least one FINISHED fixture.
+   * Drives the Risultati screen's initial open: during the pre-season gap it
+   * returns the previous season's last giornata (e.g. {2025, 38}); once the
+   * current season has a played match it returns {currentSeason, latestWeek}.
+   */
+  async getLastPlayedWeek(): Promise<{ season: number; week: number } | null> {
+    try {
+      const row = await this.fixtureRepository
+        .createQueryBuilder('fx')
+        .select('fx.season', 'season')
+        .addSelect('MAX(fx.week)', 'week')
+        .where('fx.status = :status', { status: 'FINISHED' })
+        .andWhere(
+          'fx.season = (SELECT MAX(f2.season) FROM fixtures f2 WHERE f2.status = :status)',
+          { status: 'FINISHED' },
+        )
+        .groupBy('fx.season')
+        .getRawOne<{ season: string; week: string }>();
+
+      if (!row) return null;
+      return { season: Number(row.season), week: Number(row.week) };
+    } catch (error) {
+      this.logger.error('Failed to get last played week', error);
+      return null;
+    }
+  }
+
   /** Map DB fixture entity into the public (subset) Fixture API shape the frontend already expects */
   private mapEntityToApiFixture(e: FixtureEntity): Fixture {
     // Minimal mapping; fill league.round as Regular Season - {week}
@@ -461,7 +505,7 @@ export class FixturesService {
         name: 'Serie A',
         country: 'Italy',
         logo: 'https://media.api-sports.io/football/leagues/135.png',
-        season: new Date().getFullYear(),
+        season: e.season,
         round: `Regular Season - ${e.week}`,
       },
       teams: {
@@ -795,14 +839,17 @@ export class FixturesService {
   /**
    * Sync all Serie A 2025 fixtures in bulk from API-Football using single API call
    */
-  async syncAllSeasonFixtures(season: number = 2025): Promise<{
+  async syncAllSeasonFixtures(season?: number): Promise<{
     success: boolean;
     message: string;
     syncedCount: number;
     existingCount: number;
   }> {
+    const targetSeason = season ?? this.seasonConfig.getCurrentSeason();
     try {
-      this.logger.log(`🚀 Starting bulk Serie A ${season} fixtures sync...`);
+      this.logger.log(
+        `🚀 Starting bulk Serie A ${targetSeason} fixtures sync...`,
+      );
 
       // Check existing fixtures count
       const existingCount = await this.fixtureRepository.count();
@@ -838,12 +885,12 @@ export class FixturesService {
 
       // Fetch all Serie A 2025 fixtures using the service method that makes one API call
       this.logger.log(
-        `🌐 Fetching all Serie A ${season} fixtures from API-Football...`,
+        `🌐 Fetching all Serie A ${targetSeason} fixtures from API-Football...`,
       );
 
       const apiFixtures = await this.apiFootballService.getFixtures({
         league: 135,
-        season,
+        season: targetSeason,
       });
 
       this.logger.log(
@@ -852,7 +899,7 @@ export class FixturesService {
 
       if (apiFixtures.length === 0) {
         throw new Error(
-          `No fixtures returned from API-Football for Serie A ${season}`,
+          `No fixtures returned from API-Football for Serie A ${targetSeason}`,
         );
       }
 
@@ -905,6 +952,7 @@ export class FixturesService {
             apiFixture.venue?.name ||
             'TBD',
           week: week,
+          season: targetSeason,
           result: result,
           home_score: homeGoals,
           away_score: awayGoals,
@@ -965,8 +1013,11 @@ export class FixturesService {
       // 2. Currently LIVE
       const activeMatches = await this.fixtureRepository
         .createQueryBuilder('fixture')
-        .where(
-          '(fixture.status = :scheduled AND fixture.match_date >= :today AND fixture.match_date < :tomorrow) OR fixture.status = :live',
+        .where('fixture.season = :season', {
+          season: this.seasonConfig.getCurrentSeason(),
+        })
+        .andWhere(
+          '((fixture.status = :scheduled AND fixture.match_date >= :today AND fixture.match_date < :tomorrow) OR fixture.status = :live)',
           {
             scheduled: 'SCHEDULED',
             live: 'LIVE',
