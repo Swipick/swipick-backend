@@ -9,7 +9,7 @@ import { MdOutlineIosShare } from 'react-icons/md';
 import { CountdownTimer } from './CountdownTimer';
 import { ProgressBar } from './ProgressBar';
 import { useVirtualClock } from '../VirtualClock';
-import { calculateActiveWeek, getWeekFixtures, WeekInfo } from '../../utils/weekCalculator';
+import { getWeekFixtures, WeekInfo } from '../../utils/weekCalculator';
 import type { TimeToMatch } from '../../types';
 import { GAME_CONFIG } from '../../utils/constants';
 import { apiClient } from "@/lib/api-client";
@@ -41,8 +41,9 @@ export function TestGameHeader({
 }: TestGameHeaderProps) {
   const headerRef = useRef<HTMLDivElement | null>(null);
 
-  // Virtual clock for dynamic test time progression
-  const { virtualTime, formatDisplay, resetClock } = useVirtualClock();
+  // Virtual clock retained only for the cosmetic countdown timer; giornata
+  // selection is now driven by server-side sequential progression.
+  const { virtualTime, resetClock } = useVirtualClock();
 
   // Dynamic active week state - start with null to prevent showing incorrect week
   const [activeWeekInfo, setActiveWeekInfo] = useState<WeekInfo | null>(null);
@@ -50,6 +51,11 @@ export function TestGameHeader({
 
   // Virtual timeToMatch state for test mode
   const [virtualTimeToMatch, setVirtualTimeToMatch] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+
+  // Sequential progression state (server-driven, replaces the virtual clock)
+  const [maxWeek, setMaxWeek] = useState<number>(38);
+  const [advanceLoading, setAdvanceLoading] = useState(false);
+  const [progressionTick, setProgressionTick] = useState(0);
 
   // Reset state
   const [isResetting, setIsResetting] = useState(false);
@@ -117,29 +123,63 @@ export function TestGameHeader({
     return () => window.removeEventListener('resize', measure);
   }, [onHeightChange]);
 
-  // Calculate active week and fetch fixtures based on virtual time
+  // Determine the active giornata from the server-side per-user progression
+  // (sequential, explicit "Prossima giornata" advance — no virtual clock).
   useEffect(() => {
+    if (!userKey) return;
     const updateActiveWeek = async () => {
       try {
-        // Calculate which week should be active for predictions
-        const weekInfo = await calculateActiveWeek(virtualTime);
+        const resp = await apiClient.getTestProgression(userKey);
+        const data = (resp as { data?: { currentWeek?: number; maxWeek?: number } })?.data ?? resp;
+        const currentWeek = Number((data as { currentWeek?: number })?.currentWeek ?? 1);
+        const max = Number((data as { maxWeek?: number })?.maxWeek ?? 38);
+        setMaxWeek(max);
+
+        const weekInfo: WeekInfo = { activeWeek: currentWeek, status: 'prediction' };
         setActiveWeekInfo(weekInfo);
 
         // Notify parent component of active week change
-        onActiveWeekChange?.(weekInfo.activeWeek);
+        onActiveWeekChange?.(currentWeek);
 
-        // Fetch fixtures for the active week
-        const fixtures = await getWeekFixtures(weekInfo.activeWeek);
+        // Fetch fixtures for the active week (date-range display)
+        const fixtures = await getWeekFixtures(currentWeek);
         setActiveWeekFixtures(fixtures);
 
-        console.log(`[TestGameHeader] Active week updated: ${weekInfo.activeWeek}, status: ${weekInfo.status}`);
+        console.log(`[TestGameHeader] Active giornata (progression): ${currentWeek}/${max}`);
       } catch (error) {
-        console.error('[TestGameHeader] Error in updateActiveWeek:', error);
+        console.error('[TestGameHeader] Error loading progression:', error);
       }
     };
 
     updateActiveWeek();
-  }, [virtualTime, onActiveWeekChange]); // Recalculate when virtual time changes
+  }, [userKey, onActiveWeekChange, progressionTick]); // Reload after advance/reset
+
+  // Advance to the next giornata in sequence ("Prossima giornata")
+  const handleNextGiornata = useCallback(async () => {
+    if (!userKey || advanceLoading) return;
+    try {
+      setAdvanceLoading(true);
+      // Clear local prediction flags so the new giornata starts fresh in the UI
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.includes('swipick:gioca:') && key.includes(`:user:${userKey}`)) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+      } catch {}
+
+      await apiClient.advanceTestProgression(userKey);
+      onReset?.(); // reset local game state for the new giornata
+      setProgressionTick((t) => t + 1); // re-fetch progression
+    } catch (error) {
+      console.error('[TestGameHeader] Failed to advance giornata:', error);
+    } finally {
+      setAdvanceLoading(false);
+    }
+  }, [userKey, advanceLoading, onReset]);
 
   // Update virtual countdown every second
   useEffect(() => {
@@ -358,40 +398,31 @@ export function TestGameHeader({
           </div>
         )}
 
-        {/* Test mode info - virtual date calendar with controls */}
+        {/* Sequential giornata progression controls */}
         <div className="mt-3 pt-3 border-t border-white/20 game-header-reset-responsive">
           <div className="text-xs text-white/80 mb-2">
-            📅 Data simulata: {formatDisplay()}
+            Giornata {weekNumber ?? '--'} di {maxWeek}
           </div>
 
-          {/* Virtual clock controls */}
           <div className="flex justify-center gap-2">
             <button
-              onClick={() => {
-                // Fast forward to next week (7 days)
-                const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
-                const storageKey = 'swipick:virtual-clock:reference';
-                try {
-                  const stored = localStorage.getItem(storageKey);
-                  if (stored) {
-                    const state = JSON.parse(stored);
-                    state.fastForwardOffset = (state.fastForwardOffset || 0) + oneWeekMs;
-                    localStorage.setItem(storageKey, JSON.stringify(state));
-                    window.location.reload(); // Refresh to apply new virtual time
-                  }
-                } catch (error) {
-                  console.warn('Failed to update virtual clock:', error);
-                }
-              }}
-              className="inline-flex items-center px-2 py-1 text-xs bg-blue-500/80 hover:bg-blue-600/80 rounded-full transition-colors"
-              title="Avanza di una settimana"
+              onClick={handleNextGiornata}
+              disabled={advanceLoading || (weekNumber != null && weekNumber >= maxWeek)}
+              className="inline-flex items-center px-3 py-1 text-xs bg-blue-500/80 hover:bg-blue-600/80 disabled:bg-blue-500/40 rounded-full transition-colors"
+              title="Vai alla prossima giornata"
             >
-              <svg className="-ml-0.5 mr-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3-3 3m-6 0l3-3-3-3" />
-              </svg>
-              +1 Settimana
+              {advanceLoading ? (
+                <svg className="animate-spin -ml-0.5 mr-1 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+              ) : (
+                <svg className="-ml-0.5 mr-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3-3 3m-6 0l3-3-3-3" />
+                </svg>
+              )}
+              Prossima giornata
             </button>
-
           </div>
         </div>
       </div>
