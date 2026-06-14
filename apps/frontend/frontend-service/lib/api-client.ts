@@ -400,6 +400,17 @@ class ApiClient {
     });
   }
 
+  // Test Mode sequential giornata progression
+  async getTestProgression(userId: string) {
+    return this.request(`/test-mode/progression/${userId}`);
+  }
+
+  async advanceTestProgression(userId: string) {
+    return this.request(`/test-mode/progression/${userId}/next`, {
+      method: 'POST',
+    });
+  }
+
   async seedTestFixtures() {
     return this.request('/test-mode/seed', {
       method: 'POST',

@@ -261,6 +261,24 @@ export class AppController {
     );
   }
 
+  // Test Mode sequential giornata progression
+  @Get('api/test-mode/progression/:userId')
+  async getTestProgression(@Param('userId') userId: string) {
+    this.logger.log(`Getting test progression for user ${userId}`);
+    return this.appService.forwardToGamingServices(
+      `/api/test-mode/progression/${userId}`,
+    );
+  }
+
+  @Post('api/test-mode/progression/:userId/next')
+  async advanceTestProgression(@Param('userId') userId: string) {
+    this.logger.log(`Advancing test progression for user ${userId}`);
+    return this.appService.forwardToGamingServices(
+      `/api/test-mode/progression/${userId}/next`,
+      'POST',
+    );
+  }
+
   // Match Cards Endpoints
   @Get('api/match-cards/week/:weekNumber')
   async getMatchCardsByWeek(

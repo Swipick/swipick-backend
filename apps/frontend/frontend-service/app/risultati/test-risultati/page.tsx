@@ -12,7 +12,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Toast } from '@/src/components/Toast';
 import confetti from 'canvas-confetti';
 import { useVirtualClock } from '../../gioca/components/VirtualClock/VirtualClock';
-import { calculateActiveWeek, WeekInfo } from '../../gioca/utils/weekCalculator';
+import { WeekInfo } from '../../gioca/utils/weekCalculator';
 
 interface Fixture {
   id: number;
@@ -318,21 +318,31 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
   const [storedFinalScore, setStoredFinalScore] = useState<{ revealed: number; correct: number; percent: number } | null>(null);
   const [finalScoreLoading, setFinalScoreLoading] = useState(false);
 
-  // Calculate active week and fetch fixtures based on virtual time
+  // Determine the reached giornata from the server-side per-user progression.
+  // currentWeek = highest giornata available in Risultati; results for weeks
+  // 1..currentWeek are always inspectable (the test dataset is fully FINISHED).
   useEffect(() => {
-    const updateActiveWeek = async () => {
+    if (!userKey) return;
+    const loadProgression = async () => {
       try {
-        // Calculate which week should be active for predictions
-        const weekInfo = await calculateActiveWeek(virtualTime);
-        setActiveWeekInfo(weekInfo);
-        console.log(`[TestRisultati] Active week updated: ${weekInfo.activeWeek}, status: ${weekInfo.status}`);
+        const resp = await apiClient.getTestProgression(userKey);
+        const data = (resp as { data?: { currentWeek?: number } })?.data ?? resp;
+        const currentWeek = Number((data as { currentWeek?: number })?.currentWeek ?? 1);
+        setActiveWeekInfo({ activeWeek: currentWeek, status: 'completed' });
+
+        // Default the view to the current giornata when no explicit week in URL
+        const urlWeek = searchParams?.get('week');
+        if (!urlWeek) {
+          setSelectedWeek(currentWeek);
+        }
+        console.log(`[TestRisultati] Reached giornata (progression): ${currentWeek}`);
       } catch (error: unknown) {
-        console.warn('Could not calculate active week:', error);
+        console.warn('Could not load test progression:', error);
       }
     };
 
-    updateActiveWeek();
-  }, [virtualTime]); // Recalculate when virtual time changes
+    loadProgression();
+  }, [userKey, searchParams]);
 
   // Use dynamic virtual current week based on virtual time
   const VIRTUAL_CURRENT_WEEK = activeWeekInfo.activeWeek;
@@ -440,47 +450,11 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     } catch {}
   }, [revealed, revealKey]);
 
-  // Reveal function with virtual timing logic
+  // Reveal function
   const onReveal = useCallback(async (fixtureId: string, anchorEl?: HTMLElement) => {
-    // For current and future virtual weeks, check if the virtual match has "finished"
-    if (selectedWeek >= activeWeekInfo.activeWeek) {
-      // Use virtual clock to determine if match has been played
-      const fixture = fixtures.find(f => String(f.id) === fixtureId);
-      if (fixture) {
-        // Get match date from fixture
-        const matchDate = new Date(fixture.date || fixture.kickoff || fixture.datetime || fixture.match_date || '');
-
-        // Add 2 hours (120 minutes) to match start time to simulate match completion
-        const matchEndTime = new Date(matchDate.getTime() + (120 * 60 * 1000));
-
-        // Check if virtual time has passed the match end time
-        const virtuallyFinished = virtualTime.getTime() >= matchEndTime.getTime();
-
-        if (!virtuallyFinished) {
-          setToast('La partita non è ancora terminata');
-          setTimeout(() => setToast(null), 3000); // Auto-dismiss after 3 seconds
-          console.log(`[TestRisultati] 🚫 Reveal blocked - virtual match not finished yet:`, {
-            fixtureId,
-            week: selectedWeek,
-            matchDate: matchDate.toISOString(),
-            matchEndTime: matchEndTime.toISOString(),
-            virtualTime: virtualTime.toISOString(),
-            reason: 'virtual match still in progress or not started'
-          });
-          return;
-        }
-
-        console.log(`[TestRisultati] ✅ Reveal allowed - virtual match finished:`, {
-          fixtureId,
-          week: selectedWeek,
-          matchEndTime: matchEndTime.toISOString(),
-          virtualTime: virtualTime.toISOString()
-        });
-      }
-    } else {
-      // For past weeks, always allow reveals (no time restrictions)
-      console.log(`[TestRisultati] ✅ Reveal allowed - past week ${selectedWeek} (virtual current week ${activeWeekInfo.activeWeek})`);
-    }
+    // The test dataset is fully FINISHED, so results are always available for
+    // any reached giornata — reveal is never gated by a virtual clock. The user
+    // can verify the giornata they just predicted immediately.
 
     // Allow reveal
     setRevealed(prev => ({ ...prev, [fixtureId]: true }));
@@ -503,7 +477,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     setRecentlyRevealed({ id: fixtureId, origin });
 
     console.log(`[TestRisultati] 🔍 Revealed fixture ${fixtureId} in week ${selectedWeek}`);
-  }, [selectedWeek, fixtures, userKey, activeWeekInfo, virtualTime]);
+  }, [selectedWeek]);
 
   // Helper function to get prediction data for a fixture
   const getPredictionData = useCallback((fixtureId: number) => {
@@ -687,7 +661,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
       centerWeek + 5,  // 5 weeks forward
       centerWeek + 6,  // 6 weeks forward
       centerWeek + 7   // 7 weeks forward
-    ].filter(w => w >= 1 && w <= 38); // Valid week range
+    ].filter(w => w >= 1 && w <= activeWeekInfo.activeWeek); // Only reached giornate
 
     console.log(`[TestRisultati] 🔄 Preloading 10 weeks around ${centerWeek}:`, weeksToPreload);
 
@@ -695,7 +669,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     await Promise.all(weeksToPreload.map(week => fetchWeekData(week)));
 
     console.log(`[TestRisultati] ✅ 10-week preloading completed for weeks:`, weeksToPreload);
-  }, [fetchWeekData]);
+  }, [fetchWeekData, activeWeekInfo.activeWeek]);
 
   // Initial data loading and preloading
   useEffect(() => {
@@ -746,7 +720,8 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
   // Optimized week navigation - no immediate re-fetching since data is cached
   const updateWeek = useCallback((w: number) => {
     console.log('[TestRisultati] 🔄 updateWeek called', { from: selectedWeek, to: w, timestamp: new Date().toISOString() });
-    const next = Math.max(1, Math.min(38, w));
+    // Cap navigation to the reached giornata (no peeking at future weeks)
+    const next = Math.max(1, Math.min(activeWeekInfo.activeWeek, w));
 
     // Check if target week is already cached
     const isCached = isWeekCached(next);
@@ -757,7 +732,7 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
     setPendingWeekForUrl(next);
 
     console.log('[TestRisultati] ✅ State updates queued - no API calls needed due to caching');
-  }, [selectedWeek, isWeekCached]);
+  }, [selectedWeek, isWeekCached, activeWeekInfo.activeWeek]);
 
   // Reset function
   const handleReset = async () => {
@@ -1110,24 +1085,28 @@ const TestRisultatiPageContent = React.memo(function TestRisultatiPageContent() 
               )}
             </div>
 
-            {/* Next week (right) */}
+            {/* Next week (right) — only up to the reached giornata */}
             <div className="absolute right-4 top-1/2 -translate-y-1/2 text-white text-sm opacity-60 text-right">
-              <button
-                onClick={(e) => {
-                  console.log('[TestRisultati] ➡️ NEXT WEEK BUTTON CLICKED', {
-                    currentWeek: selectedWeek,
-                    targetWeek: selectedWeek + 1,
-                    timestamp: new Date().toISOString(),
-                    event: e.type,
-                    target: e.target
-                  });
-                  updateWeek(selectedWeek + 1);
-                  console.log('[TestRisultati] ➡️ updateWeek call completed for next week');
-                }}
-                className="font-medium hover:opacity-80 transition-opacity cursor-pointer"
-              >
-                <div>Giornata {selectedWeek + 1}</div>
-              </button>
+              {selectedWeek < activeWeekInfo.activeWeek ? (
+                <button
+                  onClick={(e) => {
+                    console.log('[TestRisultati] ➡️ NEXT WEEK BUTTON CLICKED', {
+                      currentWeek: selectedWeek,
+                      targetWeek: selectedWeek + 1,
+                      timestamp: new Date().toISOString(),
+                      event: e.type,
+                      target: e.target
+                    });
+                    updateWeek(selectedWeek + 1);
+                    console.log('[TestRisultati] ➡️ updateWeek call completed for next week');
+                  }}
+                  className="font-medium hover:opacity-80 transition-opacity cursor-pointer"
+                >
+                  <div>Giornata {selectedWeek + 1}</div>
+                </button>
+              ) : (
+                <div className="h-6 select-none" />
+              )}
             </div>
           </div>
 

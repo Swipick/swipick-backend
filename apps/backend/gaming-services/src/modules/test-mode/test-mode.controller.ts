@@ -132,6 +132,32 @@ export class TestModeController {
     };
   }
 
+  @Get('progression/:userId')
+  async getProgression(@Param('userId') userId: string) {
+    this.logger.log(`Getting test progression for user ${userId}`);
+
+    const progression = await this.testModeService.getProgression(userId);
+
+    return {
+      success: true,
+      data: progression,
+      message: `Test progression retrieved for user ${userId}`,
+    };
+  }
+
+  @Post('progression/:userId/next')
+  async advanceProgression(@Param('userId') userId: string) {
+    this.logger.log(`Advancing test progression for user ${userId}`);
+
+    const progression = await this.testModeService.advanceProgression(userId);
+
+    return {
+      success: true,
+      data: progression,
+      message: `Advanced to test giornata ${progression.currentWeek}`,
+    };
+  }
+
   @Post('seed')
   async seedTestData(@Query('force') force?: string) {
     const forceReplace = force === 'true' || force === '1';

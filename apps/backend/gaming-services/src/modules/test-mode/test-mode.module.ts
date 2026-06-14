@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TestFixture } from '../../entities/test-fixture.entity';
 import { TestSpec } from '../../entities/test-spec.entity';
+import { TestUserProgress } from '../../entities/test-user-progress.entity';
 import { FinalWeekScore } from '../../entities/final-week-score.entity';
 import { TestModeService } from './test-mode.service';
 import { TestModeController } from './test-mode.controller';
@@ -9,7 +10,12 @@ import { ApiFootballModule } from '../api-football/api-football.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([TestFixture, TestSpec, FinalWeekScore]),
+    TypeOrmModule.forFeature([
+      TestFixture,
+      TestSpec,
+      TestUserProgress,
+      FinalWeekScore,
+    ]),
     ApiFootballModule,
   ],
   controllers: [TestModeController],

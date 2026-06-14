@@ -4,6 +4,7 @@ import { Fixture } from '../entities/fixture.entity';
 import { Spec } from '../entities/spec.entity';
 import { TestFixture } from '../entities/test-fixture.entity';
 import { TestSpec } from '../entities/test-spec.entity';
+import { TestUserProgress } from '../entities/test-user-progress.entity';
 import { FinalWeekScore } from '../entities/final-week-score.entity';
 
 export const DatabaseConfig = registerAs(
@@ -14,7 +15,14 @@ export const DatabaseConfig = registerAs(
       return {
         type: 'postgres',
         url: process.env.DATABASE_URL,
-        entities: [Fixture, Spec, TestFixture, TestSpec, FinalWeekScore],
+        entities: [
+          Fixture,
+          Spec,
+          TestFixture,
+          TestSpec,
+          TestUserProgress,
+          FinalWeekScore,
+        ],
         migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
         synchronize: false, // Disabled for local builds
         logging: process.env.NODE_ENV === 'development',

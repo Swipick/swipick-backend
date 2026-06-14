@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TestFixture } from '../../entities/test-fixture.entity';
 import { TestSpec } from '../../entities/test-spec.entity';
+import { TestUserProgress } from '../../entities/test-user-progress.entity';
 import { FinalWeekScore } from '../../entities/final-week-score.entity';
 import { ApiFootballService } from '../api-football/api-football.service';
 import { WeeklyStats, UserSummary } from './dto/test-mode.dto';
@@ -39,6 +40,8 @@ export class TestModeService {
     private testFixtureRepository: Repository<TestFixture>,
     @InjectRepository(TestSpec)
     private testSpecRepository: Repository<TestSpec>,
+    @InjectRepository(TestUserProgress)
+    private testUserProgressRepository: Repository<TestUserProgress>,
     @InjectRepository(FinalWeekScore)
     private finalWeekScoreRepository: Repository<FinalWeekScore>,
     private readonly apiFootballService: ApiFootballService,
@@ -67,8 +70,10 @@ export class TestModeService {
 
     const cards: MatchCardDto[] = [];
 
-    // Auto-complete past fixtures based on virtual time before computing stats
-    await this.autoCompleteVirtualFixtures();
+    // NOTE: the legacy real-time "virtual clock" auto-completion was removed.
+    // The test dataset (2023-24) is fully FINISHED with results, and giornata
+    // progression is now driven explicitly per-user (see getProgression /
+    // advanceProgression), not by elapsed wall-clock time.
 
     // Preload prior fixtures up to week-1 to compute stats in-memory
     const priorFixtures = isWeekOne
@@ -1273,8 +1278,13 @@ export class TestModeService {
       mode: 'test',
     });
 
+    // Reset the sequential giornata pointer back to week 1
+    await this.testUserProgressRepository.upsert({ userId, currentWeek: 1 }, [
+      'userId',
+    ]);
+
     this.logger.log(
-      `✅ Test data reset completed for user ${userId}: ${deleteResult.affected || 0} predictions deleted, ${finalScoresDeleteResult.affected || 0} final week scores deleted`,
+      `✅ Test data reset completed for user ${userId}: ${deleteResult.affected || 0} predictions deleted, ${finalScoresDeleteResult.affected || 0} final week scores deleted, progression reset to week 1`,
     );
 
     // Invalidate all cache entries for this user across weeks
@@ -1294,73 +1304,72 @@ export class TestModeService {
     }
   }
 
+  // --- Sequential giornata progression (test mode) ---
+
   /**
-   * Auto-complete fixtures that have passed in virtual time with their predefined scores
-   * This enables historical last5 calculations for test mode
+   * Return the user's progression pointer for test mode, creating it at week 1
+   * on first access. `playedWeeks` are the giornate reached so far (1..current)
+   * and are always inspectable in Risultati with their known results.
    */
-  private async autoCompleteVirtualFixtures(): Promise<void> {
-    // Get current virtual time (September 9, 2023 13:35 + elapsed time)
-    const virtualStartDate = new Date('2023-09-09T13:35:00.000Z');
-    const realElapsed = Date.now() - virtualStartDate.getTime();
+  async getProgression(
+    userId: string,
+  ): Promise<{ currentWeek: number; playedWeeks: number[]; maxWeek: number }> {
+    const maxWeek = await this.getMaxTestWeek();
 
-    // For demo purposes, simulate that time passes quickly in virtual mode
-    const virtualNow = new Date(virtualStartDate.getTime() + realElapsed);
-
-    this.logger.log(`[AutoComplete] Virtual time: ${virtualNow.toISOString()}`);
-
-    // Find fixtures that should be completed (date has passed) but don't have scores yet
-    const fixturesToComplete = await this.testFixtureRepository
-      .createQueryBuilder('fixture')
-      .where('fixture.date < :virtualNow', { virtualNow })
-      .andWhere('fixture.homeScore IS NULL OR fixture.awayScore IS NULL')
-      .getMany();
-
-    if (fixturesToComplete.length === 0) {
-      return; // Nothing to complete
+    let progress = await this.testUserProgressRepository.findOne({
+      where: { userId },
+    });
+    if (!progress) {
+      progress = this.testUserProgressRepository.create({
+        userId,
+        currentWeek: 1,
+      });
+      await this.testUserProgressRepository.save(progress);
     }
 
-    this.logger.log(
-      `[AutoComplete] Found ${fixturesToComplete.length} fixtures to complete`,
-    );
+    // Clamp defensively in case the dataset shrank below a stored pointer.
+    const currentWeek = Math.min(Math.max(progress.currentWeek, 1), maxWeek);
+    const playedWeeks = Array.from({ length: currentWeek }, (_, i) => i + 1);
 
-    // Complete each fixture with its predefined scores from the seed data
-    for (const fixture of fixturesToComplete) {
-      // Set scores from the original seed data structure
-      const completed = this.getCompletedFixtureScores(fixture);
-      if (completed) {
-        await this.testFixtureRepository.update(
-          { id: fixture.id },
-          { homeScore: completed.homeScore, awayScore: completed.awayScore },
-        );
-        this.logger.log(
-          `[AutoComplete] Completed fixture ${fixture.id}: ${fixture.homeTeam} ${completed.homeScore}-${completed.awayScore} ${fixture.awayTeam}`,
-        );
-      }
-    }
+    return { currentWeek, playedWeeks, maxWeek };
   }
 
   /**
-   * Get the predefined scores for a fixture based on the original seed data
+   * Advance the user's giornata pointer by one ("Prossima giornata"), capped at
+   * the last available test giornata. Free advance — no requirement to have
+   * completed the current giornata's predictions.
    */
-  private getCompletedFixtureScores(
-    fixture: TestFixture,
-  ): { homeScore: number; awayScore: number } | null {
-    // This maps to the predefined results from the seed data
-    const results: Record<string, { homeScore: number; awayScore: number }> = {
-      // Week 1 results
-      'Genoa-Fiorentina': { homeScore: 1, awayScore: 4 },
-      'Inter-Monza': { homeScore: 2, awayScore: 0 },
-      'Empoli-Verona': { homeScore: 0, awayScore: 1 },
-      'Frosinone-Napoli': { homeScore: 1, awayScore: 3 },
-      'Lecce-Lazio': { homeScore: 2, awayScore: 1 },
-      'Udinese-Juventus': { homeScore: 0, awayScore: 3 },
-      'AS Roma-Salernitana': { homeScore: 2, awayScore: 1 },
-      'Sassuolo-Cagliari': { homeScore: 2, awayScore: 1 },
-      'Bologna-AC Milan': { homeScore: 0, awayScore: 2 },
-      'Torino-Atalanta': { homeScore: 1, awayScore: 2 },
-    };
+  async advanceProgression(
+    userId: string,
+  ): Promise<{ currentWeek: number; playedWeeks: number[]; maxWeek: number }> {
+    const { currentWeek, maxWeek } = await this.getProgression(userId);
+    const nextWeek = Math.min(currentWeek + 1, maxWeek);
 
-    const key = `${fixture.homeTeam}-${fixture.awayTeam}`;
-    return results[key] || null;
+    if (nextWeek !== currentWeek) {
+      await this.testUserProgressRepository.update(
+        { userId },
+        { currentWeek: nextWeek },
+      );
+      this.logger.log(
+        `[Progression] User ${userId} advanced to test giornata ${nextWeek}`,
+      );
+    } else {
+      this.logger.log(
+        `[Progression] User ${userId} already at last giornata ${maxWeek}`,
+      );
+    }
+
+    const playedWeeks = Array.from({ length: nextWeek }, (_, i) => i + 1);
+    return { currentWeek: nextWeek, playedWeeks, maxWeek };
+  }
+
+  /** Highest giornata available in the test dataset (fallback 38). */
+  private async getMaxTestWeek(): Promise<number> {
+    const row = await this.testFixtureRepository
+      .createQueryBuilder('fixture')
+      .select('MAX(fixture.week)', 'max')
+      .getRawOne<{ max: string | null }>();
+    const max = row?.max ? parseInt(row.max, 10) : 0;
+    return max > 0 ? max : 38;
   }
 }
