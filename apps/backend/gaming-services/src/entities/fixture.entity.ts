@@ -12,9 +12,15 @@ import {
 @Index(['week'])
 @Index(['match_date'])
 @Index(['status'])
+@Index(['season', 'week'])
 export class Fixture {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  // Serie A season (start year). 2025 = 2025-26, 2026 = 2026-27.
+  // DEFAULT 2025 at the DB level keeps older code compatible during rollout.
+  @Column({ type: 'integer', nullable: false, default: 2025 })
+  season: number;
 
   @Column({ type: 'varchar', length: 100, nullable: false })
   home_team: string;

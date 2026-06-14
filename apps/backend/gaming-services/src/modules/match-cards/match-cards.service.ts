@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Fixture } from '../../entities/fixture.entity';
 import { Spec } from '../../entities/spec.entity';
+import { SeasonConfigService } from '../season/season-config.service';
 import {
   MatchCardDto,
   MatchCardKickoffDto,
@@ -28,6 +29,7 @@ export class MatchCardsService {
     private readonly fixtureRepository: Repository<Fixture>,
     @InjectRepository(Spec)
     private readonly specRepository: Repository<Spec>,
+    private readonly seasonConfig: SeasonConfigService,
   ) {}
 
   /**
@@ -36,8 +38,10 @@ export class MatchCardsService {
   async getMatchCardsByWeek(
     weekNumber: number,
     userId?: string,
+    season?: number,
   ): Promise<MatchCardDto[]> {
-    const cacheKey = `live-match-cards-${weekNumber}-${userId || 'anonymous'}`;
+    const targetSeason = season ?? this.seasonConfig.getCurrentSeason();
+    const cacheKey = `live-match-cards-${targetSeason}-${weekNumber}-${userId || 'anonymous'}`;
     const cached = this.matchCardsCache.get(cacheKey);
 
     if (cached && cached.expiresAt > Date.now()) {
@@ -47,7 +51,7 @@ export class MatchCardsService {
 
     // Get fixtures for the requested week
     const fixtures = await this.fixtureRepository.find({
-      where: { week: weekNumber },
+      where: { week: weekNumber, season: targetSeason },
       order: { match_date: 'ASC' },
     });
 
@@ -65,6 +69,7 @@ export class MatchCardsService {
       : await this.fixtureRepository
           .createQueryBuilder('fixture')
           .where('fixture.week <= :week', { week: weekNumber })
+          .andWhere('fixture.season = :season', { season: targetSeason })
           .andWhere(
             'fixture.home_score IS NOT NULL AND fixture.away_score IS NOT NULL',
           )

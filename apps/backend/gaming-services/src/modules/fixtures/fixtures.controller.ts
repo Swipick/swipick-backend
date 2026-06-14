@@ -52,14 +52,35 @@ export class FixturesController {
     return this.fixturesService.getNextRealFixtures(lim, fromDate, userId);
   }
 
+  // Most recent (season, week) with at least one played match — drives the
+  // Risultati screen's initial open. Declared BEFORE ':id' so the generic
+  // route doesn't capture "last-played".
+  @Get('last-played')
+  async getLastPlayed() {
+    const result = await this.fixturesService.getLastPlayedWeek();
+    return result ?? { season: 2025, week: 1 };
+  }
+
   @Get('week/:weekNumber')
-  async getFixturesByWeek(@Param('weekNumber') weekNumber: number) {
-    return this.fixturesService.getFixturesByWeek(weekNumber);
+  async getFixturesByWeek(
+    @Param('weekNumber') weekNumber: number,
+    @Query('season') season?: number,
+  ) {
+    return this.fixturesService.getFixturesByWeek(
+      weekNumber,
+      season ? Number(season) : undefined,
+    );
   }
 
   @Get('week/:weekNumber/daterange')
-  async getWeekDateRange(@Param('weekNumber') weekNumber: number) {
-    return this.fixturesService.getWeekDateRange(weekNumber);
+  async getWeekDateRange(
+    @Param('weekNumber') weekNumber: number,
+    @Query('season') season?: number,
+  ) {
+    return this.fixturesService.getWeekDateRange(
+      weekNumber,
+      season ? Number(season) : undefined,
+    );
   }
 
   @Get(':id')
@@ -79,8 +100,7 @@ export class FixturesController {
 
   @Post('sync/season')
   async syncAllSeasonFixtures(@Body() body: { season?: number }) {
-    const season = body?.season || 2025;
-    return await this.fixturesService.syncAllSeasonFixtures(season);
+    return await this.fixturesService.syncAllSeasonFixtures(body?.season);
   }
 
   @Get('quota/status')

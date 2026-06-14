@@ -7,6 +7,7 @@ import { CacheService } from '../cache/cache.service';
 import { FixturesService } from '../fixtures/fixtures.service';
 import { Fixture } from '../../entities/fixture.entity';
 import { Fixture as ApiFixture } from '../api-football/interfaces/fixture.interface';
+import { SeasonConfigService } from '../season/season-config.service';
 
 interface MatchCheckpoint {
   id: string;
@@ -37,6 +38,7 @@ export class SimpleMatchPollingService {
     private readonly fixturesService: FixturesService,
     private readonly apiFootballService: ApiFootballService,
     private readonly cacheService: CacheService,
+    private readonly seasonConfig: SeasonConfigService,
   ) {
     this.initializeDailyTracking();
     this.logServiceVersion();
@@ -121,8 +123,10 @@ export class SimpleMatchPollingService {
       // of the query and are never backfilled again. API usage stays bounded
       // by limit(10) + canMakeApiCall().
       const windowStart = new Date(
-        now.getTime() - SimpleMatchPollingService.BACKFILL_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+        now.getTime() -
+          SimpleMatchPollingService.BACKFILL_WINDOW_DAYS * 24 * 60 * 60 * 1000,
       );
+      const season = this.seasonConfig.getCurrentSeason();
 
       this.logger.log(
         `🔍 [BACKFILL_QUERY] Searching for past matches with NULL scores...`,
@@ -136,6 +140,7 @@ export class SimpleMatchPollingService {
         .createQueryBuilder('fixture')
         .where('fixture.match_date < :now', { now })
         .andWhere('fixture.match_date > :windowStart', { windowStart })
+        .andWhere('fixture.season = :season', { season })
         .andWhere('(fixture.home_score IS NULL OR fixture.away_score IS NULL)')
         .orderBy('fixture.match_date', 'ASC')
         .limit(20)
@@ -159,6 +164,7 @@ export class SimpleMatchPollingService {
         .createQueryBuilder('fixture')
         .where('fixture.match_date < :now', { now })
         .andWhere('fixture.match_date > :windowStart', { windowStart })
+        .andWhere('fixture.season = :season', { season })
         .andWhere('(fixture.home_score IS NULL OR fixture.away_score IS NULL)')
         .andWhere('fixture.status != :finished', { finished: 'FINISHED' })
         .orderBy('fixture.match_date', 'ASC')

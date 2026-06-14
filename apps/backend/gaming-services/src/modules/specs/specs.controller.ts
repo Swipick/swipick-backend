@@ -67,7 +67,10 @@ export class SpecsController {
     this.logger.debug(
       '🚀 [SPECS_CONTROLLER] *** UNIFIED PREDICTION ENDPOINT HIT ***',
     );
-    this.logger.debug('🚀 [SPECS_CONTROLLER] Timestamp:', new Date().toISOString());
+    this.logger.debug(
+      '🚀 [SPECS_CONTROLLER] Timestamp:',
+      new Date().toISOString(),
+    );
     this.logger.debug('🚀 [SPECS_CONTROLLER] Full request body received:');
     this.logger.debug('🚀 [SPECS_CONTROLLER] Raw object:', data);
     this.logger.debug(
@@ -175,10 +178,14 @@ export class SpecsController {
     @Param('userId') userId: string,
     @Param('week', ParseIntPipe) week: number,
     @Query('mode') mode?: 'live' | 'test',
+    @Query('season') season?: number,
   ): Promise<WeeklyStatsResponseDto> {
     this.logger.debug('🟡 [SPECS_CONTROLLER] ='.repeat(50));
     this.logger.debug('🟡 [SPECS_CONTROLLER] getWeeklyStats endpoint hit');
-    this.logger.debug('🟡 [SPECS_CONTROLLER] Timestamp:', new Date().toISOString());
+    this.logger.debug(
+      '🟡 [SPECS_CONTROLLER] Timestamp:',
+      new Date().toISOString(),
+    );
     this.logger.debug('🟡 [SPECS_CONTROLLER] Raw params received:');
     this.logger.debug('🟡 [SPECS_CONTROLLER] - userId:', {
       value: userId,
@@ -237,6 +244,7 @@ export class SpecsController {
         userId,
         week,
         'live',
+        season ? Number(season) : undefined,
       );
       this.logger.debug(
         '🟡 [SPECS_CONTROLLER] Live mode service completed successfully',
@@ -277,9 +285,14 @@ export class SpecsController {
   async getUserSummary(
     @Param('userId') userId: string,
     @Query('mode') mode?: 'live' | 'test',
+    @Query('season') season?: number,
   ): Promise<UserSummaryResponseDto> {
     const summaryMode = mode || 'live';
-    return this.specsService.getUserSummary(userId, summaryMode);
+    return this.specsService.getUserSummary(
+      userId,
+      summaryMode,
+      season ? Number(season) : undefined,
+    );
   }
 
   /**

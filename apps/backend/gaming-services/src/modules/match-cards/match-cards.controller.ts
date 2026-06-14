@@ -9,7 +9,12 @@ export class MatchCardsController {
   async getMatchCardsByWeek(
     @Param('weekNumber') weekNumber: number,
     @Query('userId') userId?: string,
+    @Query('season') season?: number,
   ) {
-    return this.matchCardsService.getMatchCardsByWeek(weekNumber, userId);
+    return this.matchCardsService.getMatchCardsByWeek(
+      weekNumber,
+      userId,
+      season ? Number(season) : undefined,
+    );
   }
 }

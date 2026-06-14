@@ -77,7 +77,8 @@ export const analyzeWeekIntegrity = (
   };
 
   if (report.missingFixtures > 0) report.issues.push('MISSING_FIXTURES');
-  if (report.unresolvedResults > 0) report.issues.push('UNRESOLVED_PAST_RESULTS');
+  if (report.unresolvedResults > 0)
+    report.issues.push('UNRESOLVED_PAST_RESULTS');
   // A genuine single-day giornata (contemporaneità) has different kickoff
   // times; seed placeholders put every match at the same identical instant.
   const distinctInstants = new Set(times);

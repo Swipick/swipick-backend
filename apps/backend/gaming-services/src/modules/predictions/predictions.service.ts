@@ -94,6 +94,7 @@ export class PredictionsService {
         fixture_id: fixtureId.toString(),
         choice,
         week: fixture.week || 1, // Assuming fixture has a week property
+        season: fixture.season, // Denormalized from the fixture (like week)
       });
 
       try {

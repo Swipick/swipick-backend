@@ -21,7 +21,8 @@
     "migration:run": "npm run typeorm -- migration:run -d typeorm.config.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d typeorm.config.ts",
     "refresh:week6": "ts-node src/scripts/refresh-week-6-fixtures.ts",
-    "refresh:week7": "ts-node src/scripts/refresh-week-7-fixtures.ts"
+    "refresh:week7": "ts-node src/scripts/refresh-week-7-fixtures.ts",
+    "import:season": "ts-node src/scripts/import-season-fixtures.ts"
   },
   "dependencies": {
     "@nestjs/axios": "^3.1.3",
