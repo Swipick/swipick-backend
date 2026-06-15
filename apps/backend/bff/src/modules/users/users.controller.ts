@@ -277,6 +277,27 @@ export class UsersController {
   }
 
   /**
+   * Re-send the branded email verification message
+   * POST /api/users/resend-verification
+   */
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async resendVerification(@Body() body: { email: string }): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    this.logger.log(`Verification resend request for email: ${body.email}`);
+
+    await this.usersService.resendVerificationEmail(body.email);
+
+    return {
+      success: true,
+      message: "Email di verifica inviata se l'indirizzo esiste",
+    };
+  }
+
+  /**
    * Sync password reset with database after Firebase reset
    * POST /api/users/sync-password-reset
    */

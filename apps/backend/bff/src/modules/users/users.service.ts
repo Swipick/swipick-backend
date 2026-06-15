@@ -663,9 +663,25 @@ export class UsersService {
         );
       }
 
-      // Note: Actual password reset email is sent from client-side Firebase Auth
-      // This endpoint just validates the user exists and has email auth
-      this.logger.log(`Password reset validation passed for user: ${user.id}`);
+      // Generate the reset link via Admin SDK and send our own branded email
+      // (replaces Firebase's default password-reset template).
+      try {
+        const resetLink =
+          await this.firebaseConfig.generatePasswordResetLink(email);
+        await this.emailService.sendPasswordResetEmail(
+          email,
+          user.name,
+          resetLink,
+        );
+        this.logger.log(`Password reset email sent to user: ${user.id}`);
+      } catch (emailError) {
+        // Don't leak failures to the caller: keep the neutral response so we
+        // never reveal account existence. Log for diagnostics.
+        this.logger.error(
+          `Failed to send password reset email to ${email}`,
+          emailError,
+        );
+      }
     } catch (error) {
       if (error instanceof BadRequestException) {
         throw error;
@@ -673,6 +689,51 @@ export class UsersService {
       this.logger.error('Failed to validate password reset request', error);
       throw new BadRequestException(
         'Errore durante la validazione del reset password',
+      );
+    }
+  }
+
+  /**
+   * Re-send the email verification message using our own branded EmailService
+   * (replaces Firebase's default verification template). Neutral on missing /
+   * already-verified / social accounts so it never reveals account state.
+   */
+  async resendVerificationEmail(email: string): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { email } });
+
+    if (!user) {
+      this.logger.warn(
+        `Verification resend attempted for non-existent email: ${email}`,
+      );
+      return;
+    }
+
+    if (user.emailVerified) {
+      this.logger.log(`Verification resend skipped (already verified): ${email}`);
+      return;
+    }
+
+    if (
+      user.authProvider === AuthProvider.GOOGLE ||
+      user.authProvider === AuthProvider.APPLE
+    ) {
+      this.logger.log(`Verification resend skipped (social account): ${email}`);
+      return;
+    }
+
+    try {
+      const verificationLink =
+        await this.firebaseConfig.generateEmailVerificationLink(email);
+      await this.emailService.sendVerificationEmail(
+        email,
+        user.name,
+        verificationLink,
+      );
+      this.logger.log(`Verification email re-sent to user: ${user.id}`);
+    } catch (emailError) {
+      this.logger.error(
+        `Failed to resend verification email to ${email}`,
+        emailError,
       );
     }
   }

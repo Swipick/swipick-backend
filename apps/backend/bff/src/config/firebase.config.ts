@@ -276,10 +276,26 @@ export class FirebaseConfigService {
   }
 
   /**
-   * Note: Password reset emails must be sent from client-side Firebase Auth
-   * This is a Firebase security requirement - password reset links can only be generated client-side
-   * Use sendPasswordResetEmail() from firebase/auth on the frontend
+   * Generate a password reset link via the Admin SDK so the email can be sent
+   * from our own branded EmailService (instead of Firebase's default template).
    */
+  async generatePasswordResetLink(email: string): Promise<string> {
+    try {
+      const auth = this.getAuth();
+      if (!auth) {
+        throw new Error('Firebase Admin SDK non inizializzato');
+      }
+
+      const link = await auth.generatePasswordResetLink(email);
+      this.logger.log(`Password reset link generated for: ${email}`);
+      return link;
+    } catch (error) {
+      this.logger.error('Failed to generate password reset link', error);
+      throw new Error(
+        'Errore durante la generazione del link di reset password',
+      );
+    }
+  }
 }
 
 @Global()
