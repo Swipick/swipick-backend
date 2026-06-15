@@ -104,23 +104,40 @@ export class AppController {
     return this.appService.forwardToGamingServices(endpoint);
   }
 
+  // Most recent (season, week) with at least one played match.
+  @Get('api/fixtures/last-played')
+  async getLastPlayed() {
+    this.logger.log('Forwarding last-played request to Gaming Services');
+    return this.appService.forwardToGamingServices(
+      `/api/fixtures/last-played`,
+    );
+  }
+
   @Get('api/fixtures/week/:weekNumber')
-  async getFixturesByWeek(@Param('weekNumber') weekNumber: string) {
+  async getFixturesByWeek(
+    @Param('weekNumber') weekNumber: string,
+    @Req() req: Request,
+  ) {
     this.logger.log(
       `Forwarding fixtures week ${weekNumber} request to Gaming Services`,
     );
+    const queryString = req.url.split('?')[1] || '';
     return this.appService.forwardToGamingServices(
-      `/api/fixtures/week/${weekNumber}`,
+      `/api/fixtures/week/${weekNumber}${queryString ? `?${queryString}` : ''}`,
     );
   }
 
   @Get('api/fixtures/week/:weekNumber/daterange')
-  async getWeekDateRange(@Param('weekNumber') weekNumber: string) {
+  async getWeekDateRange(
+    @Param('weekNumber') weekNumber: string,
+    @Req() req: Request,
+  ) {
     this.logger.log(
       `Forwarding week ${weekNumber} date range request to Gaming Services`,
     );
+    const queryString = req.url.split('?')[1] || '';
     return this.appService.forwardToGamingServices(
-      `/api/fixtures/week/${weekNumber}/daterange`,
+      `/api/fixtures/week/${weekNumber}/daterange${queryString ? `?${queryString}` : ''}`,
     );
   }
 
@@ -283,10 +300,11 @@ export class AppController {
   @Get('api/match-cards/week/:weekNumber')
   async getMatchCardsByWeek(
     @Param('weekNumber') weekNumber: string,
-    @Query('userId') userId?: string,
+    @Req() req: Request,
   ) {
     this.logger.log(`Getting match cards for week ${weekNumber}`);
-    const endpoint = `/api/match-cards/week/${weekNumber}${userId ? `?userId=${userId}` : ''}`;
+    const queryString = req.url.split('?')[1] || '';
+    const endpoint = `/api/match-cards/week/${weekNumber}${queryString ? `?${queryString}` : ''}`;
     return this.appService.forwardToGamingServices(endpoint);
   }
 
