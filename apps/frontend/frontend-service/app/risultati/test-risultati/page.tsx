@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'reac
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthContext } from '@/src/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
+import { resolveTeamLogo } from '@/lib/club-logos';
 import { RiFootballLine } from 'react-icons/ri';
 import { IoShareOutline } from 'react-icons/io5';
 import { FaMedal } from 'react-icons/fa';
@@ -58,34 +59,6 @@ interface WeeklyStatsResponse {
   }>;
 }
 
-// Helper function to get team logo path
-const getTeamLogoPath = (teamName: string): string => {
-  const logoMap: Record<string, string> = {
-    'Juventus': 'JuventusFcLogo.png',
-    'AC Milan': 'AcMilanLogo.png',
-    'Inter': 'FcInternazionaleMilano.png',
-    'Roma': 'AsRomaLogo.png',
-    'Napoli': 'NapolLogo.png',
-    'Lazio': 'StemmaLazioCentenarioLogo.png',
-    'Atalanta': 'AtalantaBcLogo.png',
-    'Fiorentina': 'AcfFiorentinaLogo.png',
-    'Bologna': 'LogobolognaLogo.png',
-    'Torino': 'TorinoFcLogo.png',
-    'Udinese': 'UdineseLogo.png',
-    'Sassuolo': 'SassuoloLogo.png',
-    'Verona': 'HellasVeronaFcLogo.png',
-    'Genoa': 'GenoaCfcLogo.png',
-    'Cagliari': 'CagliariCalcioLogo.png',
-    'Lecce': 'LecceLogo.png',
-    'Monza': 'AcMonzaLogo.png',
-    'Empoli': 'EmpolFcLogo.png',
-    'Como': 'ComoCalcioLogo.png',
-    'Parma': 'ParmaLogo.png'
-  };
-
-  return logoMap[teamName] ? `/teams/${logoMap[teamName]}` : '';
-};
-
 // Team logo component with fallback
 const TeamLogo: React.FC<{
   src?: string;
@@ -93,7 +66,9 @@ const TeamLogo: React.FC<{
   teamName: string;
 }> = ({ src, alt, teamName }) => {
   const [imageError, setImageError] = useState(false);
-  const logoPath = src || getTeamLogoPath(teamName);
+  // Use the centralized resolver: it normalizes team names (handles "AS Roma",
+  // "Salernitana", "Frosinone", etc.) and falls back to the backend logo path.
+  const logoPath = resolveTeamLogo(teamName, src);
 
   if (!logoPath || imageError) {
     return (

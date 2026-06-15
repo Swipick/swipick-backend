@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { resolveTeamLogo } from '../../../../lib/club-logos';
 import type { Fixture, PredictionRecord } from '../../types';
 
 interface GameSummaryScreenProps {
@@ -12,35 +13,6 @@ interface GameSummaryScreenProps {
   headerHeight?: number;
 }
 
-// Helper function to get team logo path
-const getTeamLogoPath = (teamName: string): string => {
-  // Map team names to logo files
-  const logoMap: Record<string, string> = {
-    'Juventus': 'JuventusFcLogo.png',
-    'AC Milan': 'AcMilanLogo.png',
-    'Inter': 'FcInternazionaleMilano.png',
-    'Roma': 'AsRomaLogo.png',
-    'Napoli': 'NapolLogo.png',
-    'Lazio': 'StemmaLazioCentenarioLogo.png',
-    'Atalanta': 'AtalantaBcLogo.png',
-    'Fiorentina': 'AcfFiorentinaLogo.png',
-    'Bologna': 'LogobolognaLogo.png',
-    'Torino': 'TorinoFcLogo.png',
-    'Udinese': 'UdineseLogo.png',
-    'Sassuolo': 'SassuoloLogo.png',
-    'Verona': 'HellasVeronaFcLogo.png',
-    'Genoa': 'GenoaCfcLogo.png',
-    'Cagliari': 'CagliariCalcioLogo.png',
-    'Lecce': 'LecceLogo.png',
-    'Monza': 'AcMonzaLogo.png',
-    'Empoli': 'EmpolFcLogo.png',
-    'Como': 'ComoCalcioLogo.png',
-    'Parma': 'ParmaLogo.png'
-  };
-
-  return logoMap[teamName] ? `/teams/${logoMap[teamName]}` : '';
-};
-
 // Team logo component with fallback
 const TeamLogo: React.FC<{
   src?: string;
@@ -48,7 +20,9 @@ const TeamLogo: React.FC<{
   teamName: string;
 }> = ({ src, alt, teamName }) => {
   const [imageError, setImageError] = useState(false);
-  const logoPath = src || getTeamLogoPath(teamName);
+  // Centralized resolver: normalizes names (e.g. "AS Roma", "Salernitana",
+  // "Frosinone") and falls back to the backend logo path.
+  const logoPath = resolveTeamLogo(teamName, src);
 
   if (!logoPath || imageError) {
     return (
