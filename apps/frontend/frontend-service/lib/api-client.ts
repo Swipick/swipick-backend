@@ -180,6 +180,22 @@ class ApiClient {
     });
   }
 
+  // Request a branded password reset email (sent server-side via our EmailService)
+  async sendPasswordReset(email: string) {
+    return this.request('/users/send-password-reset', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  // Re-send the branded email verification message (sent server-side)
+  async resendVerificationEmail(email: string) {
+    return this.request('/users/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
   async syncGoogleUser(firebaseIdToken: string) {
     console.log('🔷 [API Client] syncGoogleUser called');
     console.log('🔷 [API Client] Token length:', firebaseIdToken?.length || 0);

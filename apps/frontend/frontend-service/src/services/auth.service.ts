@@ -7,8 +7,6 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  sendEmailVerification as firebaseSendEmailVerification,
-  sendPasswordResetEmail,
   getIdToken,
   onAuthStateChanged as firebaseOnAuthStateChanged,
   sendSignInLinkToEmail as firebaseSendSignInLinkToEmail,
@@ -18,6 +16,7 @@ import {
 } from 'firebase/auth';
 
 import { auth } from '@/lib/firebase';
+import { apiClient } from '@/lib/api-client';
 import { FirebaseUser, ActionCodeSettings } from '../types/auth.types';
 import { getFirebaseErrorMessage } from '../utils/firebase-errors';
 
@@ -166,14 +165,12 @@ export class AuthService {
    * Send email verification to current user
    */
   async sendEmailVerification(): Promise<void> {
-    try {
-      if (!auth.currentUser) {
-        throw new Error('Nessun utente attualmente autenticato');
-      }
-      await firebaseSendEmailVerification(auth.currentUser);
-    } catch (error) {
-      throw new Error(getFirebaseErrorMessage(error));
+    const email = auth.currentUser?.email;
+    if (!email) {
+      throw new Error('Nessun utente attualmente autenticato');
     }
+    // Sent server-side via our branded EmailService (not Firebase's template).
+    await apiClient.resendVerificationEmail(email);
   }
 
   /**
@@ -193,11 +190,9 @@ export class AuthService {
    * Send password reset email
    */
   async sendPasswordReset(email: string): Promise<void> {
-    try {
-      await sendPasswordResetEmail(auth, email);
-    } catch (error) {
-      throw new Error(getFirebaseErrorMessage(error));
-    }
+    // Sent server-side via our branded EmailService (not Firebase's template).
+    // The BFF generates the reset link with the Admin SDK.
+    await apiClient.sendPasswordReset(email);
   }
 
   /**
