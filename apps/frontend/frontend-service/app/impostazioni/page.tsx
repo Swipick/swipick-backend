@@ -312,7 +312,7 @@ export default function ImpostazioniPage() {
 
         {/* Danger zone: Delete account at bottom, with at least 20px gap after Gol toggle */}
         <div className="mt-5 mb-8">
-          <div className="text-sm font-semibold text-gray-800 mb-1">Pericolo</div>
+          <div className="text-sm font-semibold text-gray-800 mb-1">Attenzione</div>
           <p className="text-xs text-gray-600 mb-2">Chiudi e distruggi il tuo account</p>
           <button
             onClick={() => setShowDeleteModal(true)}
