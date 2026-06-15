@@ -121,20 +121,33 @@ class ApiClient {
     return this.request(`/fixtures/next${qs ? `?${qs}` : ''}`);
   }
 
-  // Get fixtures by week number from database
-  async getFixturesByWeek(weekNumber: number) {
-    return this.request(`/fixtures/week/${weekNumber}`);
+  // Most recent (season, week) with at least one played match. Drives the
+  // Risultati screen's initial open: during the pre-season gap it returns the
+  // previous season's last giornata (e.g. {season:2025, week:38}).
+  async getLastPlayed() {
+    return this.request(`/fixtures/last-played`);
+  }
+
+  // Get fixtures by week number from database. Pass season to read a specific
+  // season (e.g. the just-concluded one); omit to use the backend's current season.
+  async getFixturesByWeek(weekNumber: number, season?: number) {
+    const qs = season ? `?season=${season}` : '';
+    return this.request(`/fixtures/week/${weekNumber}${qs}`);
   }
 
   // Get date range for a specific week from database
-  async getWeekDateRange(weekNumber: number) {
-    return this.request(`/fixtures/week/${weekNumber}/daterange`);
+  async getWeekDateRange(weekNumber: number, season?: number) {
+    const qs = season ? `?season=${season}` : '';
+    return this.request(`/fixtures/week/${weekNumber}/daterange${qs}`);
   }
 
   // Get enriched match cards by week number (live mode equivalent of test mode match cards)
-  async getLiveMatchCardsByWeek(weekNumber: number, userId?: string) {
-    const params = userId ? `?userId=${userId}` : '';
-    return this.request(`/match-cards/week/${weekNumber}${params}`);
+  async getLiveMatchCardsByWeek(weekNumber: number, userId?: string, season?: number) {
+    const params = new URLSearchParams();
+    if (userId) params.set('userId', userId);
+    if (season) params.set('season', String(season));
+    const qs = params.toString();
+    return this.request(`/match-cards/week/${weekNumber}${qs ? `?${qs}` : ''}`);
   }
 
   // Teams API

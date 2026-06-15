@@ -140,6 +140,10 @@ function RisultatiPageContent() {
 
   // Per-game reveal state (Test Mode) - initialize with live week to avoid loading wrong week initially
   const [selectedWeek, setSelectedWeek] = useState<number>(liveWeekData?.currentWeek || 7);
+  // Season to read results from. Resolved from /fixtures/last-played: during the
+  // pre-season gap this is the just-concluded season (e.g. 2025), so Risultati
+  // shows its final giornata instead of the upcoming (Gioca) season.
+  const [selectedSeason, setSelectedSeason] = useState<number | undefined>(undefined);
   const [userId, setUserId] = useState<string | null>(null);
   const [weekCards, setWeekCards] = useState<MatchCard[]>([]);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
@@ -308,15 +312,35 @@ function RisultatiPageContent() {
     }
   }, [searchParams]);
 
-  // Set selectedWeek from live week data (unless explicitly set via URL)
+  // Default Risultati to the last *played* (season, week) — unless a week is set
+  // via URL. During the pre-season gap this is the previous season's final
+  // giornata (e.g. {2025, 38}); once the current season has a played match it
+  // becomes {currentSeason, latestWeek}. This is intentionally NOT driven by the
+  // live (Gioca) week, which points at the upcoming, not-yet-played giornata.
   useEffect(() => {
-    if (liveWeekData && !searchParams?.get('week')) {
-      setSelectedWeek(liveWeekData.currentWeek);
-      if (DEBUG_RISULTATI) {
-        try { console.log('[risultati] setting live week from useLiveWeek', { week: liveWeekData.currentWeek }); } catch {}
+    if (searchParams?.get('week')) return; // explicit URL week wins
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await apiClient.getLastPlayed();
+        const lp = (resp && typeof resp === 'object' && 'data' in (resp as Record<string, unknown>))
+          ? (resp as { data?: { season?: number; week?: number } }).data
+          : (resp as unknown as { season?: number; week?: number });
+        if (!cancelled && lp && Number.isFinite(Number(lp.week))) {
+          setSelectedSeason(typeof lp.season === 'number' ? lp.season : undefined);
+          setSelectedWeek(Number(lp.week));
+          if (DEBUG_RISULTATI) {
+            try { console.log('[risultati] last-played', lp); } catch {}
+          }
+        }
+      } catch (e) {
+        if (DEBUG_RISULTATI) {
+          try { console.warn('[risultati] last-played failed', e); } catch {}
+        }
       }
-    }
-  }, [liveWeekData, searchParams]);
+    })();
+    return () => { cancelled = true; };
+  }, [searchParams]);
 
   // Set active tab to week for live mode
   useEffect(() => {
@@ -426,7 +450,7 @@ function RisultatiPageContent() {
     const run = async () => {
       try {
         // For live mode, use fixtures table as single source of truth
-        const fixturesResp = await apiClient.getFixturesByWeek(selectedWeek) as unknown as { data?: FixtureRow[] } | FixtureRow[];
+        const fixturesResp = await apiClient.getFixturesByWeek(selectedWeek, selectedSeason) as unknown as { data?: FixtureRow[] } | FixtureRow[];
         const fixtures = Array.isArray(fixturesResp) ? fixturesResp : fixturesResp?.data ?? [];
 
         // Convert fixtures to MatchCard format for consistency
@@ -468,14 +492,14 @@ function RisultatiPageContent() {
       }
     };
     run();
-  }, [selectedWeek, userId]);
+  }, [selectedWeek, selectedSeason, userId]);
 
   // Preload next week's range for the header (placeholder only)
   useEffect(() => {
     const run = async () => {
       const nxt = selectedWeek + 1;
       try {
-        const resp = await apiClient.getLiveMatchCardsByWeek(nxt, userId ?? undefined) as unknown as { data?: MatchCard[] } | MatchCard[];
+        const resp = await apiClient.getLiveMatchCardsByWeek(nxt, userId ?? undefined, selectedSeason) as unknown as { data?: MatchCard[] } | MatchCard[];
         const arr = Array.isArray(resp) ? resp : resp?.data ?? [];
         if (Array.isArray(arr) && arr.length) {
           const times = (arr as MatchCard[]).map((m) => new Date(m.kickoff.iso).getTime());
@@ -489,14 +513,14 @@ function RisultatiPageContent() {
       } catch { setNextWeekRange(null); }
     };
     run();
-  }, [selectedWeek, userId]);
+  }, [selectedWeek, selectedSeason, userId]);
 
   // Fetch raw fixtures with scores for the selected week (fallback for result display)
   useEffect(() => {
     const run = async () => {
       try {
         // For live mode, get fixtures by specific week from fixtures table
-        const resp = await apiClient.getFixturesByWeek(selectedWeek) as unknown as { data?: Array<FixtureRow> } | Array<FixtureRow>;
+        const resp = await apiClient.getFixturesByWeek(selectedWeek, selectedSeason) as unknown as { data?: Array<FixtureRow> } | Array<FixtureRow>;
         const arr: FixtureRow[] = Array.isArray(resp) ? resp : (resp?.data ?? []);
         if (DEBUG_RISULTATI) {
           try {
@@ -562,7 +586,7 @@ function RisultatiPageContent() {
 
     setFixtureScoresLoaded(false); // Reset loading state when week changes
     run();
-  }, [selectedWeek]);
+  }, [selectedWeek, selectedSeason]);
 
   // Helper: load weekly stats when needed
   const loadWeeklyStats = useCallback(async (week: number) => {
@@ -660,7 +684,7 @@ function RisultatiPageContent() {
       try {
         const bffUrl = process.env.NEXT_PUBLIC_BFF_API_URL || 'http://localhost:9000/api';
         const response = await fetch(
-          `${bffUrl}/final-week-scores/${userId}/week/${selectedWeek}/percentile?mode=live`,
+          `${bffUrl}/final-week-scores/${userId}/week/${selectedWeek}/percentile?mode=live${selectedSeason ? `&season=${selectedSeason}` : ''}`,
         );
 
         if (response.ok) {
@@ -677,7 +701,7 @@ function RisultatiPageContent() {
     };
 
     fetchPercentile();
-  }, [userId, selectedWeek]);
+  }, [userId, selectedWeek, selectedSeason]);
 
   // Share handler (defined after meter so it can reference it safely)
   const handleShare = useCallback(async () => {
