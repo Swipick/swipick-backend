@@ -237,22 +237,28 @@ export default function ImpostazioniPage() {
         </div>
 
         {/* Subheader: Notifiche */}
-        <div className="text-sm font-semibold text-gray-800 mt-6 mb-1">Notifiche</div>
+        <div className="text-sm font-semibold text-gray-800 mt-6 mb-1">
+          Notifiche <span className="italic font-normal text-gray-500">(coming soon)</span>
+        </div>
 
         {/* Notification rows */}
         <div>
       {/* Risultati */}
-          <div className="py-3.5 flex items-center justify-between">
+          <div className="py-3.5 flex items-center justify-between opacity-50">
             <div>
               <div className="text-gray-800">Risultati</div>
               <div className="text-xs text-gray-500">Scopri il tuo punteggio a fine giornata</div>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
+            <label className="relative inline-flex items-center cursor-pointer" onClick={() => {
+              setProssimamenteToast('prossimamente');
+              setTimeout(() => setProssimamenteToast(null), 1800);
+            }}>
               <input
                 type="checkbox"
         checked={notifResults}
         onChange={(e) => optimisticUpdate({ results: e.target.checked })}
                 className="sr-only peer"
+                disabled
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-purple-600 transition-colors"></div>
               <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform peer-checked:translate-x-5"></div>
@@ -306,7 +312,8 @@ export default function ImpostazioniPage() {
 
         {/* Danger zone: Delete account at bottom, with at least 20px gap after Gol toggle */}
         <div className="mt-5 mb-8">
-          <div className="text-sm font-semibold text-gray-800 mb-2">Pericolo</div>
+          <div className="text-sm font-semibold text-gray-800 mb-1">Pericolo</div>
+          <p className="text-xs text-gray-600 mb-2">Chiudi e distruggi il tuo account</p>
           <button
             onClick={() => setShowDeleteModal(true)}
             className="w-full py-3 rounded-xl bg-red-600 text-white font-semibold shadow-sm active:scale-[0.99] disabled:opacity-60 tracking-wide"
