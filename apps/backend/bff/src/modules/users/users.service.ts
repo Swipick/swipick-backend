@@ -788,6 +788,43 @@ export class UsersService {
   /**
    * Test email sending functionality
    */
+  /**
+   * TEMP DIAGNOSTIC — pinpoints why generateEmailVerificationLink fails in prod.
+   * firebaseConfig.generateEmailVerificationLink swallows the real Firebase error
+   * code, so here we call the Admin SDK directly with several continueUrl variants
+   * and return the raw error per variant. Remove once the issue is fixed.
+   */
+  async diagnoseVerificationLink(
+    email: string,
+  ): Promise<{ email: string; results: unknown[] }> {
+    const auth = this.firebaseConfig.getAuth();
+    if (!auth) {
+      return { email, results: [{ ok: false, message: 'Admin SDK null' }] };
+    }
+    const candidates: (string | undefined)[] = [
+      undefined,
+      'https://mindful-sparkle-production.up.railway.app/loginVerified',
+      'https://www.swipick.com/loginVerified',
+    ];
+    const results: unknown[] = [];
+    for (const url of candidates) {
+      try {
+        const acs = url ? { url, handleCodeInApp: false } : undefined;
+        await auth.generateEmailVerificationLink(email, acs);
+        results.push({ url: url ?? '(default/none)', ok: true });
+      } catch (e: unknown) {
+        const err = e as { code?: string; message?: string };
+        results.push({
+          url: url ?? '(default/none)',
+          ok: false,
+          code: err?.code,
+          message: err?.message,
+        });
+      }
+    }
+    return { email, results };
+  }
+
   async testEmailSending(email: string, name: string): Promise<void> {
     this.logger.log(`🧪 Testing email sending to: ${email}`);
 
