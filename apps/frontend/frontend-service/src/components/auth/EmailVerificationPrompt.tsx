@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthContext } from '../../contexts/AuthContext';
 import Button from '../../../components/ui/Button';
@@ -15,7 +15,15 @@ const EmailVerificationPrompt: React.FC = () => {
   const [isResending, setIsResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
   const [resendError, setResendError] = useState<string | null>(null);
-  
+  // Cooldown to avoid rapid re-clicks that trip Firebase's per-IP throttle.
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
   const { firebaseUser, sendEmailVerification, logout } = useAuthContext();
 
   const handleResendVerification = async () => {
@@ -28,10 +36,17 @@ const EmailVerificationPrompt: React.FC = () => {
     try {
       await sendEmailVerification();
       setResendSuccess(true);
+      setCooldown(60);
       console.log('Verification email resent successfully');
     } catch (error) {
       console.error('Error resending verification email:', error);
-      setResendError('Errore durante l\'invio dell\'email. Riprova più tardi.');
+      // Surface the real backend message (e.g. throttle "riprova tra qualche minuto").
+      setResendError(
+        error instanceof Error && error.message
+          ? error.message
+          : "Errore durante l'invio dell'email. Riprova più tardi.",
+      );
+      setCooldown(30);
     } finally {
       setIsResending(false);
     }
@@ -132,13 +147,15 @@ const EmailVerificationPrompt: React.FC = () => {
               onClick={handleResendVerification}
               variant="secondary"
               fullWidth
-              disabled={isResending}
+              disabled={isResending || cooldown > 0}
             >
               {isResending ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#554099] mr-2"></div>
                   Invio in corso...
                 </>
+              ) : cooldown > 0 ? (
+                `Riprova tra ${cooldown}s`
               ) : (
                 'Invia Nuovamente'
               )}

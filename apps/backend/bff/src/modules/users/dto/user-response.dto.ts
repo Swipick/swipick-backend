@@ -46,6 +46,14 @@ export class UserResponseDto {
   @Transform(({ obj }) => obj.updatedAt)
   updatedAt!: Date;
 
+  /**
+   * Only set on registration: whether the verification email was actually sent.
+   * false means the account exists but the email failed (e.g. Firebase throttle)
+   * and the user should be prompted to resend.
+   */
+  @Expose()
+  verificationEmailSent?: boolean;
+
   // Exclude sensitive data
   @Exclude()
   passwordHash?: string | null;
