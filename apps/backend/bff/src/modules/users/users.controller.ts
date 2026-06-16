@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   HttpCode,
   HttpStatus,
   UsePipes,
@@ -274,6 +275,18 @@ export class UsersController {
       success: true,
       message: "Email di reset password inviata se l'indirizzo esiste",
     };
+  }
+
+  /**
+   * TEMP DIAGNOSTIC — surfaces why generateEmailVerificationLink fails in prod.
+   * Tries several continueUrl variants and returns the exact Firebase error.
+   * Remove once the email-verification issue is resolved.
+   * GET /api/users/diag/verification-link?email=...
+   */
+  @Get('diag/verification-link')
+  async diagVerificationLink(@Query('email') email: string) {
+    this.logger.log(`[DIAG] verification-link check for: ${email}`);
+    return this.usersService.diagnoseVerificationLink(email);
   }
 
   /**
