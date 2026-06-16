@@ -4,6 +4,8 @@ import {
   ConflictException,
   BadRequestException,
   NotFoundException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -105,8 +107,9 @@ export class UsersService {
       const savedUser = await queryRunner.manager.save(User, user);
       await queryRunner.commitTransaction();
 
-      // Send custom verification email via Resend
+      // Send our branded verification email (link generated via Firebase Admin SDK)
       this.logger.log('🚀 Starting email verification process...');
+      let verificationEmailSent = false;
       try {
         this.logger.log('📧 Generating Firebase verification link...');
         const verificationLink =
@@ -114,9 +117,6 @@ export class UsersService {
             createUserDto.email,
           );
 
-        this.logger.log(
-          `🔗 Firebase verification link generated: ${verificationLink}`,
-        );
         this.logger.log('📤 Calling EmailService.sendVerificationEmail...');
 
         await this.emailService.sendVerificationEmail(
@@ -125,23 +125,30 @@ export class UsersService {
           verificationLink,
         );
 
+        verificationEmailSent = true;
         this.logger.log(
           `✅ Verification email sent successfully to ${createUserDto.email}`,
         );
       } catch (emailError) {
-        this.logger.error(
-          `❌ Failed to send verification email to ${createUserDto.email}`,
-          emailError,
-        );
-        this.logger.error(
-          '📊 Email error details:',
-          JSON.stringify(emailError, null, 2),
-        );
-        // Don't fail the registration if email fails - user is created successfully
+        // Never fail the registration for an email problem — the account exists
+        // and the user can resend. But surface the outcome (verificationEmailSent)
+        // so the frontend can prompt a resend instead of a false "success".
+        if (this.isThrottleError(emailError)) {
+          this.logger.warn(
+            `⏳ Verification email throttled by Firebase for ${createUserDto.email} (TOO_MANY_ATTEMPTS). User can resend later.`,
+          );
+        } else {
+          this.logger.error(
+            `❌ Failed to send verification email to ${createUserDto.email}`,
+            emailError,
+          );
+        }
       }
 
       this.logger.log(`Traditional user created successfully: ${savedUser.id}`);
-      return this.transformToResponse(savedUser);
+      const response = this.transformToResponse(savedUser);
+      response.verificationEmailSent = verificationEmailSent;
+      return response;
     } catch (error) {
       await queryRunner.rollbackTransaction();
 
@@ -675,15 +682,24 @@ export class UsersService {
         );
         this.logger.log(`Password reset email sent to user: ${user.id}`);
       } catch (emailError) {
-        // Don't leak failures to the caller: keep the neutral response so we
-        // never reveal account existence. Log for diagnostics.
+        if (this.isThrottleError(emailError)) {
+          // Throttle is global/per-IP, not account-specific, so surfacing it
+          // doesn't meaningfully reveal account existence — and the user needs
+          // to know to retry later.
+          this.logger.warn(`Password reset throttled for ${email}`);
+          throw new HttpException(
+            'Troppi tentativi ravvicinati. Riprova tra qualche minuto.',
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
+        }
+        // Other failures: keep the neutral response (never reveal existence).
         this.logger.error(
           `Failed to send password reset email to ${email}`,
           emailError,
         );
       }
     } catch (error) {
-      if (error instanceof BadRequestException) {
+      if (error instanceof HttpException) {
         throw error;
       }
       this.logger.error('Failed to validate password reset request', error);
@@ -721,6 +737,8 @@ export class UsersService {
       return;
     }
 
+    // The resend flow is triggered by an authenticated user, so surfacing
+    // failures here doesn't leak account existence — unlike registration/reset.
     try {
       const verificationLink =
         await this.firebaseConfig.generateEmailVerificationLink(email);
@@ -731,9 +749,19 @@ export class UsersService {
       );
       this.logger.log(`Verification email re-sent to user: ${user.id}`);
     } catch (emailError) {
+      if (this.isThrottleError(emailError)) {
+        this.logger.warn(`Verification resend throttled for ${email}`);
+        throw new HttpException(
+          'Troppi tentativi ravvicinati. Riprova tra qualche minuto.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
       this.logger.error(
         `Failed to resend verification email to ${email}`,
         emailError,
+      );
+      throw new BadRequestException(
+        "Impossibile inviare l'email di verifica. Riprova più tardi.",
       );
     }
   }
@@ -789,40 +817,15 @@ export class UsersService {
    * Test email sending functionality
    */
   /**
-   * TEMP DIAGNOSTIC — pinpoints why generateEmailVerificationLink fails in prod.
-   * firebaseConfig.generateEmailVerificationLink swallows the real Firebase error
-   * code, so here we call the Admin SDK directly with several continueUrl variants
-   * and return the raw error per variant. Remove once the issue is fixed.
+   * Firebase throttles email link generation per IP. When tripped it returns
+   * auth/too-many-requests or an internal-error wrapping TOO_MANY_ATTEMPTS_TRY_LATER.
    */
-  async diagnoseVerificationLink(
-    email: string,
-  ): Promise<{ email: string; results: unknown[] }> {
-    const auth = this.firebaseConfig.getAuth();
-    if (!auth) {
-      return { email, results: [{ ok: false, message: 'Admin SDK null' }] };
-    }
-    const candidates: (string | undefined)[] = [
-      undefined,
-      'https://mindful-sparkle-production.up.railway.app/loginVerified',
-      'https://www.swipick.com/loginVerified',
-    ];
-    const results: unknown[] = [];
-    for (const url of candidates) {
-      try {
-        const acs = url ? { url, handleCodeInApp: false } : undefined;
-        await auth.generateEmailVerificationLink(email, acs);
-        results.push({ url: url ?? '(default/none)', ok: true });
-      } catch (e: unknown) {
-        const err = e as { code?: string; message?: string };
-        results.push({
-          url: url ?? '(default/none)',
-          ok: false,
-          code: err?.code,
-          message: err?.message,
-        });
-      }
-    }
-    return { email, results };
+  private isThrottleError(error: unknown): boolean {
+    const e = error as { code?: string; message?: string };
+    return (
+      e?.code === 'auth/too-many-requests' ||
+      (e?.message ?? '').includes('TOO_MANY_ATTEMPTS_TRY_LATER')
+    );
   }
 
   async testEmailSending(email: string, name: string): Promise<void> {
