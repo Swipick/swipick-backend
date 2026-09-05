@@ -22,6 +22,7 @@ import { TestModeModule } from './modules/test-mode/test-mode.module';
 import { MatchCardsModule } from './modules/match-cards/match-cards.module';
 import { FinalWeekScoresModule } from './modules/final-week-scores/final-week-scores.module';
 import { SeasonModule } from './modules/season/season.module';
+import { CalendarSyncModule } from './modules/calendar-sync/calendar-sync.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { SeasonModule } from './modules/season/season.module';
     FixturesModule,
     TeamsModule,
     LiveUpdatesModule,
+    CalendarSyncModule,
     CacheServiceModule,
     HealthModule,
     SpecsModule,

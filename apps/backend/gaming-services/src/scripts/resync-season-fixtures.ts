@@ -1,9 +1,14 @@
 /**
  * Resync fixtures di una o più giornate da API-FOOTBALL — UPDATE in place.
  *
- * A differenza dei vecchi script refresh-week-*, NON cancella nulla:
- * aggiorna date, status, punteggi, result ed external_api_id dei fixture
- * esistenti, preservando le predizioni utente (specs) collegate.
+ * Non cancella nulla: aggiorna date, status, punteggi, result ed
+ * external_api_id dei fixture esistenti, preservando le predizioni utente
+ * (specs) collegate.
+ *
+ * Le regole di abbinamento e di confronto vivono in
+ * `src/modules/calendar-sync/calendar-sync.ts`, condivise con il job
+ * schedulato: questo file e' solo la sua shell da riga di comando, per gli
+ * interventi mirati fuori dalla cadenza notturna.
  *
  * Uso:
  *   npx ts-node src/scripts/resync-season-fixtures.ts 35 36 37 38          # dry-run
@@ -15,6 +20,12 @@ import { DataSource } from 'typeorm';
 import axios from 'axios';
 import { config } from 'dotenv';
 import { resolve } from 'path';
+import {
+  ApiCalendarFixture,
+  DbCalendarFixture,
+  planRoundUpdates,
+  roundLabel,
+} from '../modules/calendar-sync/calendar-sync';
 
 config({ path: resolve(__dirname, '../../../../../.env') });
 config();
@@ -22,7 +33,7 @@ config();
 const LEAGUE_ID = 135; // Serie A
 const SEASON = parseInt(process.env.CURRENT_SEASON ?? '2025', 10);
 
-interface ApiFixture {
+interface ApiFixtureResponse {
   fixture: {
     id: number;
     date: string;
@@ -35,48 +46,6 @@ interface ApiFixture {
   };
   goals: { home: number | null; away: number | null };
 }
-
-interface DbFixture {
-  id: string;
-  week: number;
-  home_team: string;
-  away_team: string;
-  match_date: Date;
-  status: string;
-  home_score: number | null;
-  away_score: number | null;
-  result: string | null;
-  external_api_id: string | null;
-}
-
-const FINISHED = new Set(['FT', 'AET', 'PEN']);
-const LIVE = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE']);
-
-const normalize = (name: string): string =>
-  name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/\b(ac|as|ss|us|fc|calcio|1913|1909|1907)\b/g, '')
-    .replace(/[^a-z]/g, '');
-
-const mapStatus = (short: string): string => {
-  if (FINISHED.has(short)) return 'FINISHED';
-  if (LIVE.has(short)) return 'LIVE';
-  if (short === 'PST') return 'POSTPONED';
-  if (short === 'CANC') return 'CANCELLED';
-  return 'SCHEDULED';
-};
-
-const computeResult = (
-  home: number | null,
-  away: number | null,
-): string | null => {
-  if (home === null || away === null) return null;
-  if (home > away) return '1';
-  if (home < away) return '2';
-  return 'X';
-};
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -113,7 +82,6 @@ async function main(): Promise<void> {
   const unmatched: string[] = [];
 
   for (const week of weeks) {
-    const round = `Regular Season - ${week}`;
     const { data } = await axios.get(
       'https://v3.football.api-sports.io/fixtures',
       {
@@ -121,70 +89,43 @@ async function main(): Promise<void> {
           'X-RapidAPI-Key': apiKey,
           'X-RapidAPI-Host': 'v3.football.api-sports.io',
         },
-        params: { league: LEAGUE_ID, season: SEASON, round },
+        params: { league: LEAGUE_ID, season: SEASON, round: roundLabel(week) },
       },
     );
 
-    const apiFixtures: ApiFixture[] = data.response ?? [];
-    console.log(`— Giornata ${week}: ${apiFixtures.length} partite da API`);
-    if (apiFixtures.length === 0) continue;
+    const response: ApiFixtureResponse[] = data.response ?? [];
+    console.log(`— Giornata ${week}: ${response.length} partite da API`);
+    if (response.length === 0) continue;
+
+    const apiFixtures: ApiCalendarFixture[] = response.map((api) => ({
+      apiId: api.fixture.id,
+      date: api.fixture.date,
+      statusShort: api.fixture.status.short,
+      homeTeam: api.teams.home.name,
+      awayTeam: api.teams.away.name,
+      homeGoals: api.goals.home,
+      awayGoals: api.goals.away,
+    }));
 
     // Il filtro per stagione e' obbligatorio: in tabella convivono piu'
     // stagioni con gli stessi numeri di giornata, e il fallback per nome
-    // squadra piu' sotto aggancerebbe la riga della stagione sbagliata.
-    const dbFixtures: DbFixture[] = await dataSource.query(
-      'SELECT id, week, home_team, away_team, match_date, status, home_score, away_score, result, external_api_id FROM fixtures WHERE week = $1 AND season = $2',
+    // squadra aggancerebbe la riga della stagione sbagliata.
+    const dbFixtures: DbCalendarFixture[] = await dataSource.query(
+      'SELECT id, home_team, away_team, match_date, status, home_score, away_score, result, external_api_id FROM fixtures WHERE week = $1 AND season = $2',
       [week, SEASON],
     );
 
-    for (const api of apiFixtures) {
-      const apiId = `api_football_${api.fixture.id}`;
-      const db =
-        dbFixtures.find((f) => f.external_api_id === apiId) ??
-        dbFixtures.find(
-          (f) =>
-            normalize(f.home_team) === normalize(api.teams.home.name) &&
-            normalize(f.away_team) === normalize(api.teams.away.name),
-        );
+    const plan = planRoundUpdates(apiFixtures, dbFixtures);
+    unchanged += plan.unchanged;
+    unmatched.push(...plan.unmatched.map((label) => `g.${week}: ${label}`));
 
-      if (!db) {
-        unmatched.push(
-          `g.${week}: ${api.teams.home.name} vs ${api.teams.away.name}`,
+    for (const update of plan.updates) {
+      console.log(`  ${update.label}: ${update.changes.join(', ')}`);
+      if (update.imminent) {
+        console.log(
+          `    ⚠️  calcio d'inizio spostato entro 48h — probabile rinvio`,
         );
-        continue;
       }
-
-      const newStatus = mapStatus(api.fixture.status.short);
-      const newResult =
-        newStatus === 'FINISHED'
-          ? computeResult(api.goals.home, api.goals.away)
-          : db.result;
-      const newDate = new Date(api.fixture.date);
-
-      const changes: string[] = [];
-      if (new Date(db.match_date).getTime() !== newDate.getTime())
-        changes.push(
-          `date ${new Date(db.match_date).toISOString().slice(0, 16)} → ${newDate.toISOString().slice(0, 16)}`,
-        );
-      if (db.status !== newStatus)
-        changes.push(`status ${db.status} → ${newStatus}`);
-      if (db.home_score !== api.goals.home || db.away_score !== api.goals.away)
-        changes.push(
-          `score ${db.home_score ?? '-'}–${db.away_score ?? '-'} → ${api.goals.home ?? '-'}–${api.goals.away ?? '-'}`,
-        );
-      if (db.result !== newResult)
-        changes.push(`result ${db.result ?? '-'} → ${newResult ?? '-'}`);
-      if (db.external_api_id !== apiId)
-        changes.push(`external_api_id → ${apiId}`);
-
-      if (changes.length === 0) {
-        unchanged++;
-        continue;
-      }
-
-      console.log(
-        `  ${db.home_team} vs ${db.away_team}: ${changes.join(', ')}`,
-      );
       updated++;
 
       if (apply) {
@@ -194,13 +135,13 @@ async function main(): Promise<void> {
                result = $5, external_api_id = $6, updated_at = NOW()
            WHERE id = $7`,
           [
-            newDate,
-            newStatus,
-            api.goals.home,
-            api.goals.away,
-            newResult,
-            apiId,
-            db.id,
+            update.match_date,
+            update.status,
+            update.home_score,
+            update.away_score,
+            update.result,
+            update.external_api_id,
+            update.id,
           ],
         );
       }
