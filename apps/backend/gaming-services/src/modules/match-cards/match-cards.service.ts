@@ -12,6 +12,7 @@ import {
   ResultCode,
   Last5ItemDto,
 } from './dto/match-cards.dto';
+import { formatEuropeRomeDisplay } from './format-display-date';
 
 interface CacheEntry {
   data: MatchCardDto[];
@@ -411,19 +412,10 @@ export class MatchCardsService {
   }
 
   /**
-   * Format date for display in Italian locale
+   * Etichetta di calcio d'inizio in ora italiana.
+   * La logica sta in `format-display-date.ts`, dove e' verificabile.
    */
   private formatDisplayDate(date: Date): string {
-    const options: Intl.DateTimeFormatOptions = {
-      weekday: 'short',
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      // No timeZone conversion - database already stores Italian time
-    };
-
-    const formatted = date.toLocaleString('it-IT', options);
-    return formatted.replace(',', ' –');
+    return formatEuropeRomeDisplay(date);
   }
 }
