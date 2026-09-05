@@ -28,7 +28,7 @@ export class Fixture {
   @Column({ type: 'varchar', length: 100, nullable: false })
   away_team: string;
 
-  @Column({ type: 'timestamp', nullable: false })
+  @Column({ type: 'timestamptz', nullable: false })
   match_date: Date;
 
   @Column({ type: 'varchar', length: 100, nullable: true })
