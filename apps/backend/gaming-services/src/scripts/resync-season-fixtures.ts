@@ -129,9 +129,12 @@ async function main(): Promise<void> {
     console.log(`— Giornata ${week}: ${apiFixtures.length} partite da API`);
     if (apiFixtures.length === 0) continue;
 
+    // Il filtro per stagione e' obbligatorio: in tabella convivono piu'
+    // stagioni con gli stessi numeri di giornata, e il fallback per nome
+    // squadra piu' sotto aggancerebbe la riga della stagione sbagliata.
     const dbFixtures: DbFixture[] = await dataSource.query(
-      'SELECT id, week, home_team, away_team, match_date, status, home_score, away_score, result, external_api_id FROM fixtures WHERE week = $1',
-      [week],
+      'SELECT id, week, home_team, away_team, match_date, status, home_score, away_score, result, external_api_id FROM fixtures WHERE week = $1 AND season = $2',
+      [week, SEASON],
     );
 
     for (const api of apiFixtures) {
