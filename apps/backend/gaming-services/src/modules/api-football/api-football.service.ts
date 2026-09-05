@@ -178,6 +178,7 @@ export class ApiFootballService {
     league?: number;
     season?: number;
     date?: string;
+    round?: string;
   }): Promise<Fixture[]> {
     this.logger.log(
       `Calling API-Football getFixtures with params: ${JSON.stringify(params)}`,

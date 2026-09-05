@@ -28,6 +28,11 @@ export class GetFixturesDto {
   @IsOptional()
   @IsNumber()
   fixture?: number;
+
+  /** Round label, e.g. "Regular Season - 12". */
+  @IsOptional()
+  @IsString()
+  round?: string;
 }
 
 export class FixtureResponseDto {
