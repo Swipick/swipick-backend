@@ -405,6 +405,212 @@ export class EmailService {
     }
   }
 
+  /** Il nome arriva dalla registrazione: non deve poter iniettare markup. */
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  /**
+   * L'omino pixel della card di Gioca, riportato in HTML come griglia di celle
+   * colorate invece che come immagine: i client che bloccano il caricamento
+   * remoto mostrerebbero un rettangolo vuoto, una tabella la disegnano sempre.
+   * Griglia e palette vengono da src/utils/pixelPlayers.ts dell'app (10x16,
+   * posa idle); la maglia usa il viola del brand invece dei colori di squadra,
+   * perche' qui non si parla di una partita.
+   */
+  private renderPixelPlayer(
+    cell = 3,
+    kit: { shirt: string; shorts: string; trim: string } = {
+      // Maglia chiara: sul gradiente viola dell'intestazione il bianco stacca,
+      // mentre il viola del brand ci si confonderebbe.
+      shirt: '#ffffff',
+      shorts: '#3b82f6',
+      trim: '#c9a227',
+    },
+  ): string {
+    const palette: Record<string, string> = {
+      hair: '#241d18',
+      skin: '#e3b78a',
+      shirt: kit.shirt,
+      shorts: kit.shorts,
+      trim: kit.trim,
+      boot: '#141414',
+    };
+
+    // [riga, [colInizio, colFine, materiale][]]
+    const rows: Array<[number, Array<[number, number, string]>]> = [
+      [0, [[3, 6, 'hair']]],
+      [1, [[3, 6, 'hair']]],
+      [2, [[3, 6, 'skin']]],
+      [3, [[3, 6, 'skin']]],
+      [4, [[4, 5, 'skin']]],
+      [5, [[2, 7, 'shirt']]],
+      [6, [[1, 8, 'shirt']]],
+      [
+        7,
+        [
+          [1, 1, 'skin'],
+          [2, 7, 'shirt'],
+          [8, 8, 'skin'],
+        ],
+      ],
+      [8, [[2, 7, 'shirt']]],
+      [9, [[2, 7, 'shirt']]],
+      // Pantaloncini su quattro righe invece di due: gambe, calzettoni e
+      // scarpini scalano di conseguenza, quindi la griglia diventa 10x18.
+      [10, [[2, 7, 'shorts']]],
+      [11, [[2, 7, 'shorts']]],
+      [12, [[2, 7, 'shorts']]],
+      [13, [[2, 7, 'shorts']]],
+      [
+        14,
+        [
+          [2, 3, 'skin'],
+          [6, 7, 'skin'],
+        ],
+      ],
+      [
+        15,
+        [
+          [2, 3, 'skin'],
+          [6, 7, 'skin'],
+        ],
+      ],
+      [
+        16,
+        [
+          [2, 3, 'trim'],
+          [6, 7, 'trim'],
+        ],
+      ],
+      [
+        17,
+        [
+          [2, 3, 'boot'],
+          [6, 7, 'boot'],
+        ],
+      ],
+    ];
+
+    const height = Math.max(...rows.map(([r]) => r)) + 1;
+    const grid: string[][] = Array.from({ length: height }, () =>
+      Array.from({ length: 10 }, () => ''),
+    );
+    rows.forEach(([r, segments]) =>
+      segments.forEach(([from, to, material]) => {
+        for (let c = from; c <= to; c++) grid[r][c] = palette[material];
+      }),
+    );
+
+    // font-size/line-height a zero e un &nbsp; dentro ogni cella: senza, Outlook
+    // collassa le celle vuote e la figura si deforma.
+    const body = grid
+      .map(
+        (row) =>
+          `<tr>${row
+            .map(
+              (color) =>
+                `<td width="${cell}" height="${cell}" style="width:${cell}px; height:${cell}px; padding:0; font-size:0; line-height:0;${color ? ` background-color:${color};` : ''}">&nbsp;</td>`,
+            )
+            .join('')}</tr>`,
+      )
+      .join('');
+
+    return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt;">${body}</table>`;
+  }
+
+  /**
+   * Scheletro condiviso dalle transazionali. Tabelle e stili inline invece di
+   * un blocco <style>: Outlook ignora il secondo, e diversi client lo tolgono
+   * del tutto. Colori allineati a src/theme/colors.ts dell'app.
+   */
+  private renderEmailShell(options: {
+    preheader: string;
+    heading: string;
+    intro: string;
+    ctaLabel: string;
+    ctaUrl: string;
+    validity: string;
+    disclaimer: string;
+  }): string {
+    const font =
+      "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+
+    return `<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swipick</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f9fafb;">
+<div style="display:none; max-height:0; overflow:hidden; opacity:0;">${options.preheader}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f9fafb;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:600px; background-color:#ffffff; border:1px solid #e5e7eb; border-radius:16px; overflow:hidden;">
+
+        <tr>
+          <td style="background-color:#4d32b1; background-image:linear-gradient(135deg,#554099 0%,#3d2d73 100%); padding:20px 32px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="padding-right:14px; vertical-align:middle;">${this.renderPixelPlayer()}</td>
+                <td style="vertical-align:middle; white-space:nowrap;">
+                  <span style="font-family:${font}; font-size:13px; color:#ffffff; vertical-align:middle;">&#9917;</span><span style="font-family:${font}; font-size:20px; font-weight:700; color:#ffffff; letter-spacing:-0.01em; vertical-align:middle;">&nbsp;Swipick</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:36px 32px 8px 32px;">
+            <h1 style="margin:0 0 12px 0; font-family:${font}; font-size:22px; line-height:1.3; font-weight:700; color:#1f2937;">${options.heading}</h1>
+            <p style="margin:0 0 28px 0; font-family:${font}; font-size:16px; line-height:1.55; color:#4b5563;">${options.intro}</p>
+
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" bgcolor="#6f49ff" style="border-radius:12px;">
+                  <a href="${options.ctaUrl}" style="display:inline-block; padding:15px 30px; font-family:${font}; font-size:16px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:12px;">${options.ctaLabel}</a>
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin:20px 0 0 0; font-family:${font}; font-size:14px; line-height:1.55; color:#6b7280;">${options.validity}</p>
+
+            <p style="margin:24px 0 0 0; font-family:${font}; font-size:13px; line-height:1.5; color:#9ca3af;">
+              Se il pulsante non funziona, copia questo indirizzo nel browser:<br>
+              <span style="color:#5742a4; word-break:break-all;">${options.ctaUrl}</span>
+            </p>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:24px 32px 32px 32px;">
+            <div style="height:1px; background-color:#e5e7eb; margin-bottom:20px;"></div>
+            <p style="margin:0; font-family:${font}; font-size:14px; line-height:1.55; color:#6b7280;">${options.disclaimer}</p>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:16px 32px; background-color:#f9fafb; border-top:1px solid #e5e7eb;">
+            <p style="margin:0; font-family:${font}; font-size:13px; color:#9ca3af;">Swipick &mdash; pronostici di Serie A</p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`;
+  }
+
   /**
    * Generate branded verification email template
    */
@@ -412,306 +618,82 @@ export class EmailService {
     name: string,
     verificationLink: string,
   ): EmailTemplate {
-    const html = `
-      <!DOCTYPE html>
-      <html lang="it">
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Verifica Account - Swipick</title>
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            line-height: 1.6;
-            color: #333333;
-            margin: 0;
-            padding: 0;
-            background-color: #f8fafc;
-          }
-          .email-container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #ffffff;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-          }
-          .email-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 40px 20px;
-            text-align: center;
-          }
-          .logo {
-            color: #ffffff;
-            font-size: 32px;
-            font-weight: bold;
-            margin: 0;
-          }
-          .email-content {
-            padding: 40px 30px;
-            text-align: center;
-          }
-          .welcome-title {
-            color: #2d3748;
-            font-size: 28px;
-            font-weight: bold;
-            margin: 0 0 20px 0;
-          }
-          .welcome-text {
-            color: #4a5568;
-            font-size: 16px;
-            margin: 0 0 30px 0;
-            line-height: 1.6;
-          }
-          .verify-button {
-            display: inline-block;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #ffffff !important;
-            text-decoration: none;
-            padding: 16px 32px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            margin: 20px 0;
-            transition: transform 0.2s ease;
-          }
-          .verify-button:hover {
-            transform: translateY(-2px);
-          }
-          .email-footer {
-            background-color: #f7fafc;
-            padding: 30px;
-            text-align: center;
-            border-top: 1px solid #e2e8f0;
-          }
-          .footer-text {
-            color: #718096;
-            font-size: 14px;
-            margin: 0;
-          }
-          .security-note {
-            color: #718096;
-            font-size: 14px;
-            margin: 30px 0 0 0;
-            padding: 20px;
-            background-color: #f7fafc;
-            border-radius: 6px;
-            border-left: 4px solid #667eea;
-          }
-          @media (max-width: 600px) {
-            .email-content {
-              padding: 30px 20px;
-            }
-            .welcome-title {
-              font-size: 24px;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="email-container">
-          <header class="email-header">
-            <h1 class="logo">⚽ Swipick</h1>
-          </header>
-          
-          <main class="email-content">
-            <h1 class="welcome-title">Benvenuto su Swipick, ${name}!</h1>
-            <p class="welcome-text">
-              Grazie per esserti registrato! Per completare la registrazione e iniziare a giocare, 
-              clicca il pulsante qui sotto per verificare il tuo account.
-            </p>
-            
-            <a href="${verificationLink}" class="verify-button">
-              ✅ Verifica Account
-            </a>
-            
-            <div class="security-note">
-              <strong>📧 Nota di sicurezza:</strong> Se non ti sei registrato su Swipick, 
-              puoi ignorare questa email. Il tuo account non verrà creato senza la verifica.
-            </div>
-          </main>
-          
-          <footer class="email-footer">
-            <p class="footer-text">
-              <strong>Team Swipick</strong><br>
-              La tua piattaforma di gaming preferita
-            </p>
-            <p class="footer-text" style="margin-top: 10px;">
-              Questo è un messaggio automatico, non rispondere a questa email.
-            </p>
-          </footer>
-        </div>
-      </body>
-      </html>
-    `;
+    const safeName = this.escapeHtml(name);
 
-    const text = `
-Benvenuto su Swipick, ${name}!
+    const html = this.renderEmailShell({
+      preheader: 'Conferma il tuo indirizzo per iniziare a giocare su Swipick.',
+      heading: `Ciao ${safeName}, manca un passaggio`,
+      intro:
+        'Per iniziare a giocare su Swipick devi confermare che questo indirizzo è tuo.',
+      ctaLabel: "Conferma l'indirizzo",
+      ctaUrl: verificationLink,
+      validity:
+        'Il link è valido 24 ore. Se scade, puoi richiederne uno nuovo dall’app.',
+      disclaimer:
+        'Se non ti sei registrato su Swipick, ignora pure questa email: senza conferma nessuno potrà accedere all’account.',
+    });
 
-Grazie per esserti registrato! Per completare la registrazione e iniziare a giocare, visita il seguente link per verificare il tuo account:
+    const text = `Ciao ${name}, manca un passaggio
+
+Per iniziare a giocare su Swipick devi confermare che questo indirizzo è tuo.
+Apri questo link:
 
 ${verificationLink}
 
-Se non ti sei registrato su Swipick, puoi ignorare questa email.
+Il link è valido 24 ore. Se scade, puoi richiederne uno nuovo dall'app.
 
-Team Swipick
-La tua piattaforma di gaming preferita
-    `;
+Se non ti sei registrato su Swipick, ignora pure questa email: senza conferma
+nessuno potrà accedere all'account.
+
+Swipick — pronostici di Serie A`;
 
     return {
       to: '',
-      subject: 'Verifica il tuo account Swipick',
+      subject: 'Conferma il tuo indirizzo email',
       html,
       text,
     };
   }
 
   /**
-   * Generate password reset email template
+   * Generate branded password reset email template
    */
   private generatePasswordResetEmailTemplate(
     name: string,
     resetLink: string,
   ): EmailTemplate {
-    const html = `
-      <!DOCTYPE html>
-      <html lang="it">
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Reset Password - Swipick</title>
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            line-height: 1.6;
-            color: #333333;
-            margin: 0;
-            padding: 0;
-            background-color: #f8fafc;
-          }
-          .email-container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #ffffff;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-          }
-          .email-header {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            padding: 40px 20px;
-            text-align: center;
-          }
-          .logo {
-            color: #ffffff;
-            font-size: 32px;
-            font-weight: bold;
-            margin: 0;
-          }
-          .email-content {
-            padding: 40px 30px;
-            text-align: center;
-          }
-          .reset-title {
-            color: #2d3748;
-            font-size: 28px;
-            font-weight: bold;
-            margin: 0 0 20px 0;
-          }
-          .reset-text {
-            color: #4a5568;
-            font-size: 16px;
-            margin: 0 0 30px 0;
-            line-height: 1.6;
-          }
-          .reset-button {
-            display: inline-block;
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: #ffffff;
-            text-decoration: none;
-            padding: 16px 32px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            margin: 20px 0;
-            transition: transform 0.2s ease;
-          }
-          .reset-button:hover {
-            transform: translateY(-2px);
-          }
-          .email-footer {
-            background-color: #f7fafc;
-            padding: 30px;
-            text-align: center;
-            border-top: 1px solid #e2e8f0;
-          }
-          .footer-text {
-            color: #718096;
-            font-size: 14px;
-            margin: 0;
-          }
-          .security-note {
-            color: #718096;
-            font-size: 14px;
-            margin: 30px 0 0 0;
-            padding: 20px;
-            background-color: #fef5e7;
-            border-radius: 6px;
-            border-left: 4px solid #f6ad55;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="email-container">
-          <header class="email-header">
-            <h1 class="logo">⚽ Swipick</h1>
-          </header>
-          
-          <main class="email-content">
-            <h1 class="reset-title">Reset Password</h1>
-            <p class="reset-text">
-              Ciao ${name}, hai richiesto il reset della tua password. 
-              Clicca il pulsante qui sotto per impostare una nuova password.
-            </p>
-            
-            <a href="${resetLink}" class="reset-button">
-              🔐 Reset Password
-            </a>
-            
-            <div class="security-note">
-              <strong>⚠️ Importante:</strong> Se non hai richiesto il reset della password, 
-              ignora questa email. Il link scadrà tra 1 ora per sicurezza.
-            </div>
-          </main>
-          
-          <footer class="email-footer">
-            <p class="footer-text">
-              <strong>Team Swipick</strong><br>
-              La tua piattaforma di gaming preferita
-            </p>
-          </footer>
-        </div>
-      </body>
-      </html>
-    `;
+    const safeName = this.escapeHtml(name);
 
-    const text = `
-Reset Password - Swipick
+    const html = this.renderEmailShell({
+      preheader: 'Scegli una nuova password per il tuo account Swipick.',
+      heading: `Ciao ${safeName}, reimposta la password`,
+      intro: 'Hai chiesto di cambiare la password del tuo account Swipick.',
+      ctaLabel: 'Scegli una nuova password',
+      ctaUrl: resetLink,
+      validity: 'Il link è valido un’ora.',
+      // Chi riceve un reset che non ha chiesto si allarma: dirgli che non è
+      // successo nulla vale piu' di un generico "ignora questa email".
+      disclaimer:
+        'Se non sei stato tu, ignora questa email: la password attuale resta valida e nessuno può cambiarla senza aprire questo link.',
+    });
 
-Ciao ${name}, hai richiesto il reset della tua password.
+    const text = `Ciao ${name}, reimposta la password
 
-Visita il seguente link per impostare una nuova password:
+Hai chiesto di cambiare la password del tuo account Swipick.
+Apri questo link per sceglierne una nuova:
+
 ${resetLink}
 
-Se non hai richiesto il reset della password, ignora questa email. Il link scadrà tra 1 ora per sicurezza.
+Il link è valido un'ora.
 
-Team Swipick
-La tua piattaforma di gaming preferita
-    `;
+Se non sei stato tu, ignora questa email: la password attuale resta valida e
+nessuno può cambiarla senza aprire questo link.
+
+Swipick — pronostici di Serie A`;
 
     return {
       to: '',
-      subject: 'Reset della password - Swipick',
+      subject: 'Reimposta la tua password',
       html,
       text,
     };
