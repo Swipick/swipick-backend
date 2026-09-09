@@ -1,7 +1,9 @@
+import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
+import { firstValueFrom } from 'rxjs';
 
 export interface EmailTemplate {
   to: string;
@@ -10,12 +12,80 @@ export interface EmailTemplate {
   text?: string;
 }
 
+type EmailProvider = 'brevo' | 'smtp';
+
+interface Mailbox {
+  name?: string;
+  email: string;
+}
+
+const BREVO_API_BASE = 'https://api.brevo.com/v3';
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private transporter: Transporter | null = null;
+  private readonly provider: EmailProvider;
+  private readonly brevoApiKey?: string;
+  private readonly from: Mailbox;
+  private readonly replyTo: Mailbox | null;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private readonly httpService: HttpService,
+  ) {
+    // L'invio SMTP in uscita dipende dalla reputazione dell'IP condiviso di
+    // Railway, finito su Spamhaus per colpa di un altro tenant e non
+    // ripulibile da noi. Brevo spedisce via HTTPS e toglie di mezzo quella
+    // variabile; il ramo SMTP resta solo come rientro d'emergenza,
+    // selezionabile con una variabile d'ambiente invece che con un deploy.
+    this.provider =
+      this.configService.get<string>('EMAIL_PROVIDER', 'brevo') === 'smtp'
+        ? 'smtp'
+        : 'brevo';
+    this.brevoApiKey = this.configService.get<string>('BREVO_API_KEY');
+
+    // Il mittente deve appartenere al dominio autenticato presso il provider
+    // (send.swipick.com), altrimenti l'email parte senza firma DKIM. Le
+    // risposte vanno invece dirette alla casella Aruba, che continua a
+    // ricevere sull'MX di swipick.com.
+    this.from = this.parseMailbox(
+      this.configService.get<string>('MAIL_FROM_EMAIL') ||
+        this.configService.get<string>(
+          'SMTP_FROM_EMAIL',
+          'Swipick <noreply@swipick.com>',
+        ),
+    );
+    const replyTo = this.configService.get<string>('MAIL_REPLY_TO');
+    this.replyTo = replyTo ? this.parseMailbox(replyTo) : null;
+
+    this.logger.log(
+      `🔧 Initializing EmailService (provider: ${this.provider})`,
+    );
+    this.logger.log(`📤 From: ${this.formatMailbox(this.from)}`);
+    if (this.replyTo) {
+      this.logger.log(`↩️  Reply-To: ${this.formatMailbox(this.replyTo)}`);
+    }
+
+    if (this.provider === 'brevo') {
+      if (!this.brevoApiKey) {
+        this.logger.error(
+          '❌ BREVO_API_KEY mancante: il servizio email non potrà inviare.',
+        );
+      } else {
+        this.logger.log('✅ Email service initialized with Brevo API');
+      }
+      return;
+    }
+
+    this.initSmtpTransport();
+  }
+
+  /**
+   * Legacy transport: authenticated submission to Aruba. Kept behind
+   * EMAIL_PROVIDER=smtp so a rollback does not require a deploy.
+   */
+  private initSmtpTransport(): void {
     const smtpHost = this.configService.get<string>('SMTP_HOST');
     const smtpPort = this.configService.get<number>('SMTP_PORT');
     const smtpUser = this.configService.get<string>('SMTP_USER');
@@ -27,7 +97,6 @@ export class EmailService {
     );
     const smtpSecure = smtpSecureStr === 'true';
 
-    this.logger.log(`🔧 Initializing EmailService with Aruba SMTP...`);
     this.logger.log(`🔑 SMTP Host: ${smtpHost}`);
     this.logger.log(`🔑 SMTP Port: ${smtpPort}`);
     this.logger.log(`🔑 SMTP User: ${smtpUser}`);
@@ -55,8 +124,6 @@ export class EmailService {
           rejectUnauthorized: true,
           // Force TLS version
           minVersion: 'TLSv1.2',
-          // Cipher configuration for Aruba
-          ciphers: 'SSLv3',
         },
         // Extended timeout for Aruba
         connectionTimeout: 60000, // 60 seconds
@@ -74,15 +141,156 @@ export class EmailService {
     }
   }
 
+  /** Accepts both "Name <user@host>" and a bare address. */
+  private parseMailbox(value: string): Mailbox {
+    const match = /^\s*(.*?)\s*<\s*([^>]+?)\s*>\s*$/.exec(value);
+    if (match) {
+      const name = match[1].replace(/^"|"$/g, '').trim();
+      return name ? { name, email: match[2] } : { email: match[2] };
+    }
+    return { email: value.trim() };
+  }
+
+  private formatMailbox(mailbox: Mailbox): string {
+    return mailbox.name ? `${mailbox.name} <${mailbox.email}>` : mailbox.email;
+  }
+
   /**
-   * Test SMTP connection and configuration
+   * Turn a transport failure into a single readable line. The original error is
+   * always attached as `cause` by the caller: losing it is what made the
+   * September outage diagnosable only from the platform logs.
+   */
+  private describeSendError(error: unknown): string {
+    const err = error as {
+      response?: { data?: { code?: string; message?: string } };
+      code?: string;
+      responseCode?: number;
+      message?: string;
+    };
+    const apiMessage = err?.response?.data?.message;
+    const apiCode = err?.response?.data?.code;
+    if (apiMessage) {
+      return apiCode ? `${apiCode}: ${apiMessage}` : apiMessage;
+    }
+    const parts = [err?.code, err?.responseCode, err?.message].filter(Boolean);
+    return parts.length ? parts.join(' ') : String(error);
+  }
+
+  private withCause(message: string, cause: unknown): Error {
+    const error = new Error(message);
+    // ES2020 target: `new Error(msg, { cause })` is not typed yet, but the
+    // runtime (Node 20) carries the property through just the same.
+    (error as Error & { cause?: unknown }).cause = cause;
+    return error;
+  }
+
+  /** Single send path, whichever transport is active. Returns the message id. */
+  private async sendEmail(template: EmailTemplate): Promise<string> {
+    return this.provider === 'brevo'
+      ? this.sendViaBrevo(template)
+      : this.sendViaSmtp(template);
+  }
+
+  private async sendViaBrevo(template: EmailTemplate): Promise<string> {
+    if (!this.brevoApiKey) {
+      throw new Error('BREVO_API_KEY non configurata');
+    }
+
+    const payload: Record<string, unknown> = {
+      sender: this.from,
+      to: [{ email: template.to }],
+      subject: template.subject,
+      htmlContent: template.html,
+    };
+    if (template.text) {
+      payload.textContent = template.text;
+    }
+    if (this.replyTo) {
+      payload.replyTo = this.replyTo;
+    }
+
+    const response = await firstValueFrom(
+      this.httpService.post<{ messageId?: string }>(
+        `${BREVO_API_BASE}/smtp/email`,
+        payload,
+        {
+          headers: {
+            'api-key': this.brevoApiKey,
+            'content-type': 'application/json',
+            accept: 'application/json',
+          },
+          timeout: 20000,
+        },
+      ),
+    );
+
+    return response.data?.messageId ?? 'unknown';
+  }
+
+  private async sendViaSmtp(template: EmailTemplate): Promise<string> {
+    if (!this.transporter) {
+      throw new Error('SMTP transport not initialized - missing configuration');
+    }
+
+    const result = await this.transporter.sendMail({
+      from: this.formatMailbox(this.from),
+      to: template.to,
+      replyTo: this.replyTo ? this.formatMailbox(this.replyTo) : undefined,
+      subject: template.subject,
+      html: template.html,
+      text: template.text,
+    });
+
+    return result.messageId;
+  }
+
+  /**
+   * Test the active transport's configuration
    */
   async testConnection(): Promise<{
     success: boolean;
     message: string;
     details?: any;
   }> {
-    this.logger.log('🔍 Testing SMTP connection to Aruba...');
+    this.logger.log(`🔍 Testing ${this.provider} email configuration...`);
+
+    if (this.provider === 'brevo') {
+      if (!this.brevoApiKey) {
+        return { success: false, message: 'BREVO_API_KEY non configurata' };
+      }
+      try {
+        const response = await firstValueFrom(
+          this.httpService.get<{ email?: string; companyName?: string }>(
+            `${BREVO_API_BASE}/account`,
+            {
+              headers: {
+                'api-key': this.brevoApiKey,
+                accept: 'application/json',
+              },
+              timeout: 15000,
+            },
+          ),
+        );
+        this.logger.log('✅ Brevo API reachable and key accepted');
+        return {
+          success: true,
+          message: 'Brevo API connection successful',
+          details: {
+            account: response.data?.email,
+            company: response.data?.companyName,
+            from: this.formatMailbox(this.from),
+          },
+        };
+      } catch (error) {
+        const detail = this.describeSendError(error);
+        this.logger.error(`❌ Brevo API check failed: ${detail}`);
+        return {
+          success: false,
+          message: 'Brevo API connection failed',
+          details: { error: detail },
+        };
+      }
+    }
 
     if (!this.transporter) {
       return {
@@ -131,33 +339,17 @@ export class EmailService {
     verificationLink: string,
   ): Promise<void> {
     this.logger.log(`📧 Attempting to send verification email to: ${email}`);
+    this.logger.log(`📤 From email: ${this.formatMailbox(this.from)}`);
+    this.logger.log(`🔗 Verification link: ${verificationLink}`);
+
+    const emailTemplate = this.generateVerificationEmailTemplate(
+      name,
+      verificationLink,
+    );
+    this.logger.log(`📝 Email template generated for: ${name}`);
 
     try {
-      if (!this.transporter) {
-        const error = new Error(
-          'SMTP transport not initialized - missing configuration',
-        );
-        this.logger.error('❌ SMTP service not available:', error);
-        throw error;
-      }
-
-      const fromEmail = this.configService.get<string>(
-        'SMTP_FROM_EMAIL',
-        'Swipick <noreply@swipick.com>',
-      );
-
-      this.logger.log(`📤 From email: ${fromEmail}`);
-      this.logger.log(`🔗 Verification link: ${verificationLink}`);
-
-      const emailTemplate = this.generateVerificationEmailTemplate(
-        name,
-        verificationLink,
-      );
-
-      this.logger.log(`📝 Email template generated for: ${name}`);
-
-      const result = await this.transporter.sendMail({
-        from: fromEmail,
+      const messageId = await this.sendEmail({
         to: email,
         subject: 'Verifica il tuo account Swipick',
         html: emailTemplate.html,
@@ -165,16 +357,16 @@ export class EmailService {
       });
 
       this.logger.log(
-        `✅ Verification email sent successfully to ${email}. Message ID: ${result.messageId}`,
+        `✅ Verification email sent successfully to ${email}. Message ID: ${messageId}`,
       );
-      this.logger.log(`📊 SMTP response:`, JSON.stringify(result, null, 2));
     } catch (error) {
       this.logger.error(
-        `❌ Failed to send verification email to ${email}`,
+        `❌ Failed to send verification email to ${email}: ${this.describeSendError(error)}`,
+      );
+      throw this.withCause(
+        "Errore durante l'invio dell'email di verifica",
         error,
       );
-      this.logger.error(`❌ Error details:`, JSON.stringify(error, null, 2));
-      throw new Error("Errore durante l'invio dell'email di verifica");
     }
   }
 
@@ -186,25 +378,13 @@ export class EmailService {
     name: string,
     resetLink: string,
   ): Promise<void> {
+    const emailTemplate = this.generatePasswordResetEmailTemplate(
+      name,
+      resetLink,
+    );
+
     try {
-      if (!this.transporter) {
-        throw new Error(
-          'SMTP transport not initialized - missing configuration',
-        );
-      }
-
-      const fromEmail = this.configService.get<string>(
-        'SMTP_FROM_EMAIL',
-        'Swipick <noreply@swipick.com>',
-      );
-
-      const emailTemplate = this.generatePasswordResetEmailTemplate(
-        name,
-        resetLink,
-      );
-
-      const result = await this.transporter.sendMail({
-        from: fromEmail,
+      const messageId = await this.sendEmail({
         to: email,
         subject: 'Reset della password - Swipick',
         html: emailTemplate.html,
@@ -212,14 +392,16 @@ export class EmailService {
       });
 
       this.logger.log(
-        `Password reset email sent successfully to ${email}. Message ID: ${result.messageId}`,
+        `Password reset email sent successfully to ${email}. Message ID: ${messageId}`,
       );
     } catch (error) {
       this.logger.error(
-        `Failed to send password reset email to ${email}`,
+        `Failed to send password reset email to ${email}: ${this.describeSendError(error)}`,
+      );
+      throw this.withCause(
+        "Errore durante l'invio dell'email di reset password",
         error,
       );
-      throw new Error("Errore durante l'invio dell'email di reset password");
     }
   }
 
