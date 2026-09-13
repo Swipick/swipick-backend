@@ -458,6 +458,56 @@ export class UsersService {
   }
 
   /**
+   * Cambio del nickname dalle impostazioni.
+   * Diverso da completeProfile, che vale una volta sola: qui il profilo e' gia'
+   * completo e si sta correggendo un campo. Rimettere lo stesso nickname non e'
+   * un conflitto con se stessi, quindi non passa dal controllo di unicita'.
+   */
+  async updateNickname(
+    userId: string,
+    nickname: string,
+  ): Promise<UserResponseDto> {
+    try {
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+
+      if (!user) {
+        throw new NotFoundException('Utente non trovato');
+      }
+
+      if (user.nickname !== nickname) {
+        await this.checkNicknameUniqueness(nickname);
+      }
+
+      user.nickname = nickname;
+      // Chi cambia nickname prima di averne mai scelto uno sta di fatto
+      // completando il profilo: non lasciamolo nel limbo del passo 2.
+      user.profileCompleted = true;
+
+      await this.firebaseConfig.updateUserDisplayName(
+        user.firebaseUid,
+        nickname,
+      );
+
+      const savedUser = await this.userRepository.save(user);
+      this.logger.log(`Nickname updated for user: ${savedUser.id}`);
+
+      return this.transformToResponse(savedUser);
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ConflictException
+      ) {
+        throw error;
+      }
+      this.logger.error('Nickname update error', error);
+      throw new HttpException(
+        'Impossibile aggiornare il nickname',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
    * Il nickname e' libero? Serve al passo 2 della registrazione per dirlo
    * mentre l'utente scrive, invece di farglielo scoprire sul pulsante.
    */
