@@ -114,4 +114,37 @@ describe('UsersService.createUser — atomicità e gestione credenziali', () => 
     expect(firebaseConfig.createUser).not.toHaveBeenCalled();
     expect(firebaseConfig.deleteUser).not.toHaveBeenCalled();
   });
+
+  it('senza nickname crea l\'utente col profilo da completare', async () => {
+    const { nickname, ...senzaNickname } = dto;
+    const creato = await service.createUser(senzaNickname as never);
+
+    const salvato = queryRunnerManager.create.mock.calls[0][1];
+    expect(salvato.nickname).toBeNull();
+    // Il passo 2 dell'onboarding esiste proprio per questo stato.
+    expect(salvato.profileCompleted).toBe(false);
+    expect(creato).toBeDefined();
+  });
+
+  it('col nickname il profilo nasce gia\' completo', async () => {
+    await service.createUser(dto as never);
+    const salvato = queryRunnerManager.create.mock.calls[0][1];
+    expect(salvato.nickname).toBe('nuovo_nick');
+    expect(salvato.profileCompleted).toBe(true);
+  });
+
+  it('senza nome usa la parte dell\'indirizzo prima della chiocciola', async () => {
+    // `name` non e' nullable a database e finisce nel saluto dell'email.
+    const { name, nickname, ...minimo } = dto;
+    await service.createUser(minimo as never);
+
+    const salvato = queryRunnerManager.create.mock.calls[0][1];
+    expect(salvato.name).toBe('nuovo');
+    // Anche il displayName su Firebase deve ricevere lo stesso ripiego.
+    expect(firebaseConfig.createUser).toHaveBeenCalledWith(
+      'nuovo@swipick.com',
+      'Password123',
+      'nuovo',
+    );
+  });
 });

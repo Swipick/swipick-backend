@@ -4,20 +4,23 @@ import {
   Length,
   Matches,
   IsNotEmpty,
+  IsOptional,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class CreateUserDto {
-  @IsNotEmpty({ message: 'Il nome è obbligatorio' })
+  // Facoltativi entrambi: la registrazione chiede solo email e password, e il
+  // nickname arriva al passo successivo. Restano validati quando ci sono.
+  @IsOptional()
   @IsString({ message: 'Il nome deve essere una stringa' })
   @Length(2, 100, { message: 'Il nome deve essere tra 2 e 100 caratteri' })
   @Transform(({ value }) => value?.trim())
   @Matches(/^[a-zA-ZÀ-ÿ\s'.-]+$/, {
     message: 'Il nome può contenere solo lettere, spazi, apostrofi e punti',
   })
-  name!: string;
+  name?: string;
 
-  @IsNotEmpty({ message: 'Il nickname è obbligatorio' })
+  @IsOptional()
   @IsString({ message: 'Il nickname deve essere una stringa' })
   @Length(3, 50, { message: 'Il nickname deve essere tra 3 e 50 caratteri' })
   @Transform(({ value }) => value?.trim().toLowerCase())
@@ -25,7 +28,7 @@ export class CreateUserDto {
     message:
       'Il nickname può contenere solo lettere minuscole, numeri e underscore',
   })
-  nickname!: string;
+  nickname?: string;
 
   @IsNotEmpty({ message: "L'email è obbligatoria" })
   @IsEmail({}, { message: 'Inserisci un indirizzo email valido' })
