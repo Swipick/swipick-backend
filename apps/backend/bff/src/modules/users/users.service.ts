@@ -79,14 +79,22 @@ export class UsersService {
       // Check if email already exists
       await this.checkEmailUniqueness(createUserDto.email);
 
-      // Check if nickname already exists
-      await this.checkNicknameUniqueness(createUserDto.nickname);
+      // Il nickname e' facoltativo: chi non lo manda lo scegliera' al passo
+      // successivo, come gia' fanno gli utenti social.
+      if (createUserDto.nickname) {
+        await this.checkNicknameUniqueness(createUserDto.nickname);
+      }
+
+      // `name` non e' nullable a database e finisce nel saluto dell'email di
+      // benvenuto: senza, si usa la parte dell'indirizzo prima della chiocciola.
+      const displayName =
+        createUserDto.name?.trim() || createUserDto.email.split('@')[0];
 
       // Create Firebase user first
       const firebaseUser = await this.firebaseConfig.createUser(
         createUserDto.email,
         createUserDto.password,
-        createUserDto.name,
+        displayName,
       );
       createdFirebaseUid = firebaseUser.uid;
 
@@ -96,12 +104,14 @@ export class UsersService {
       const user = queryRunner.manager.create(User, {
         firebaseUid: firebaseUser.uid,
         email: createUserDto.email,
-        name: createUserDto.name,
-        nickname: createUserDto.nickname,
+        name: displayName,
+        nickname: createUserDto.nickname ?? null,
         passwordHash: null,
         authProvider: AuthProvider.EMAIL,
         emailVerified: false,
-        profileCompleted: true, // Traditional users complete profile during registration
+        // Completo solo se il nickname e' arrivato subito; altrimenti manca il
+        // passo 2, esattamente come per Google e Apple.
+        profileCompleted: !!createUserDto.nickname,
       });
 
       const savedUser = await queryRunner.manager.save(User, user);
@@ -121,7 +131,7 @@ export class UsersService {
 
         await this.emailService.sendVerificationEmail(
           createUserDto.email,
-          createUserDto.name,
+          displayName,
           verificationLink,
         );
 
@@ -345,12 +355,9 @@ export class UsersService {
         throw new NotFoundException('Utente non trovato');
       }
 
-      if (!user.isGoogleUser() && !user.isAppleUser()) {
-        throw new BadRequestException(
-          'Solo gli utenti social possono completare il profilo',
-        );
-      }
-
+      // Non piu' riservato ai social: dopo che la registrazione ha smesso di
+      // chiedere il nickname, anche un utente email arriva qui col profilo da
+      // completare. La condizione che conta e' una sola.
       if (user.profileCompleted) {
         throw new BadRequestException('Il profilo è già stato completato');
       }
@@ -448,6 +455,18 @@ export class UsersService {
     if (existingUser) {
       throw new ConflictException('Un utente con questa email esiste già');
     }
+  }
+
+  /**
+   * Il nickname e' libero? Serve al passo 2 della registrazione per dirlo
+   * mentre l'utente scrive, invece di farglielo scoprire sul pulsante.
+   */
+  async isNicknameAvailable(nickname: string): Promise<boolean> {
+    const normalized = nickname.trim().toLowerCase();
+    const existingUser = await this.userRepository.findOne({
+      where: { nickname: normalized },
+    });
+    return !existingUser;
   }
 
   private async checkNicknameUniqueness(nickname: string): Promise<void> {
@@ -725,7 +744,9 @@ export class UsersService {
     }
 
     if (user.emailVerified) {
-      this.logger.log(`Verification resend skipped (already verified): ${email}`);
+      this.logger.log(
+        `Verification resend skipped (already verified): ${email}`,
+      );
       return;
     }
 
