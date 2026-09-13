@@ -154,7 +154,27 @@ export class UsersController {
   }
 
   /**
-   * Complete profile for Google users
+   * Nickname libero? (passo 2 della registrazione)
+   * GET /api/users/nickname-available/:nickname
+   */
+  @Get('nickname-available/:nickname')
+  @HttpCode(HttpStatus.OK)
+  async isNicknameAvailable(
+    @Param('nickname') nickname: string,
+  ): Promise<{ available: boolean }> {
+    // Un formato non valido non e' "occupato", ma nemmeno utilizzabile:
+    // rispondiamo false senza interrogare il database.
+    if (!/^[a-z0-9_]{3,50}$/.test(nickname.trim().toLowerCase())) {
+      return { available: false };
+    }
+
+    const available = await this.usersService.isNicknameAvailable(nickname);
+    return { available };
+  }
+
+  /**
+   * Completa il profilo scegliendo il nickname (passo 2).
+   * Vale per ogni provider: email, Google e Apple.
    * POST /api/users/complete-profile/:id
    */
   @Post('complete-profile/:id')

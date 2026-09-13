@@ -116,12 +116,12 @@ export class User {
   }
 
   /**
-   * Check if the user needs to complete their profile
+   * Check if the user needs to complete their profile.
+   * Vale per ogni provider: dalla registrazione in due passi anche chi si
+   * iscrive con email arriva qui senza nickname.
    */
   needsProfileCompletion(): boolean {
-    return (
-      (this.isGoogleUser() || this.isAppleUser()) && !this.profileCompleted
-    );
+    return !this.profileCompleted;
   }
 
   /**

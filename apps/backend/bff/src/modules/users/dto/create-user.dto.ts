@@ -37,10 +37,9 @@ export class CreateUserDto {
 
   @IsNotEmpty({ message: 'La password è obbligatoria' })
   @IsString({ message: 'La password deve essere una stringa' })
+  // Nessuna regola di composizione: la lunghezza e' l'unico requisito che
+  // aumenta davvero la robustezza (NIST SP 800-63B). Le password esistenti
+  // non sono toccate.
   @Length(8, 128, { message: 'La password deve essere tra 8 e 128 caratteri' })
-  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
-    message:
-      'La password deve contenere almeno una lettera minuscola, una maiuscola e un numero',
-  })
   password!: string;
 }

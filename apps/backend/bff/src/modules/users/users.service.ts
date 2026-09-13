@@ -457,6 +457,18 @@ export class UsersService {
     }
   }
 
+  /**
+   * Il nickname e' libero? Serve al passo 2 della registrazione per dirlo
+   * mentre l'utente scrive, invece di farglielo scoprire sul pulsante.
+   */
+  async isNicknameAvailable(nickname: string): Promise<boolean> {
+    const normalized = nickname.trim().toLowerCase();
+    const existingUser = await this.userRepository.findOne({
+      where: { nickname: normalized },
+    });
+    return !existingUser;
+  }
+
   private async checkNicknameUniqueness(nickname: string): Promise<void> {
     const existingUser = await this.userRepository.findOne({
       where: { nickname },

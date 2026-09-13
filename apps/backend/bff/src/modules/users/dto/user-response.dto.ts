@@ -67,14 +67,12 @@ export class UserResponseDto {
   }
 
   /**
-   * Check if user needs profile completion (Google and Apple OAuth users)
+   * Check if user needs profile completion.
+   * Vale per ogni provider: con la registrazione in due passi anche un utente
+   * email può non avere ancora scelto il nickname.
    */
   @Expose()
   get needsProfileCompletion(): boolean {
-    return (
-      (this.authProvider === AuthProvider.GOOGLE ||
-        this.authProvider === AuthProvider.APPLE) &&
-      !this.profileCompleted
-    );
+    return !this.profileCompleted;
   }
 }

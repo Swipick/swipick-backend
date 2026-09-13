@@ -147,4 +147,22 @@ describe('UsersService.createUser — atomicità e gestione credenziali', () => 
       'nuovo',
     );
   });
+
+  it('dice libero un nickname che nessuno ha preso', async () => {
+    userRepository.findOne.mockResolvedValue(null);
+
+    await expect(service.isNicknameAvailable('mario_rossi')).resolves.toBe(true);
+  });
+
+  it('dice occupato un nickname gia\' assegnato, normalizzando maiuscole e spazi', async () => {
+    userRepository.findOne.mockResolvedValue({ id: 'altro-utente' });
+
+    await expect(service.isNicknameAvailable('  Mario_Rossi ')).resolves.toBe(
+      false,
+    );
+    expect(userRepository.findOne).toHaveBeenCalledWith({
+      where: { nickname: 'mario_rossi' },
+    });
+  });
+
 });
