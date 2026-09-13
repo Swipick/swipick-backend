@@ -27,6 +27,7 @@ import {
   CompleteProfileDto,
   UserResponseDto,
   EmailVerifiedDto,
+  UpdateNicknameDto,
 } from './dto';
 
 @Controller('api/users')
@@ -151,6 +152,24 @@ export class UsersController {
         ? 'Utente sincronizzato. Completa il profilo per continuare.'
         : 'Accesso effettuato con successo',
     };
+  }
+
+  /**
+   * Cambia il nickname dalle impostazioni
+   * PATCH /api/users/:id/nickname
+   */
+  @Patch(':id/nickname')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async updateNickname(
+    @Param('id', ParseUUIDPipe) userId: string,
+    @Body() body: UpdateNicknameDto,
+  ): Promise<{ success: boolean; data: UserResponseDto }> {
+    this.logger.log(`Nickname update request for user: ${userId}`);
+
+    const user = await this.usersService.updateNickname(userId, body.nickname);
+
+    return { success: true, data: user };
   }
 
   /**
