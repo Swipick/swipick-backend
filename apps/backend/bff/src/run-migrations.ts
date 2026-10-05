@@ -3,6 +3,10 @@ import { DataSource } from 'typeorm';
 import { User } from './entities/user.entity';
 import { NotificationPreferences } from './entities/notification-preferences.entity';
 import { UserAvatar } from './entities/user-avatar.entity';
+import { League } from './entities/league.entity';
+import { LeagueMember } from './entities/league-member.entity';
+import { LeagueJoinAttempt } from './entities/league-join-attempt.entity';
+import { LeagueBurnedCode } from './entities/league-burned-code.entity';
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -33,7 +37,15 @@ const dataSource = new DataSource({
   password,
   database,
   ssl: { rejectUnauthorized: true },
-  entities: [User, NotificationPreferences, UserAvatar],
+  entities: [
+    User,
+    NotificationPreferences,
+    UserAvatar,
+    League,
+    LeagueMember,
+    LeagueJoinAttempt,
+    LeagueBurnedCode,
+  ],
   migrations: [useTs ? 'src/migrations/*.ts' : 'dist/migrations/*.js'],
   migrationsTableName: 'migrations',
 });

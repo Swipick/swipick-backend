@@ -15,6 +15,8 @@ import { FinalWeekScoresService } from './final-week-scores.service';
 import {
   CreateFinalWeekScoreDto,
   FinalWeekScoreResponseDto,
+  LeaderboardQueryDto,
+  LeaderboardRowDto,
   UserFinalScoresResponseDto,
 } from './dto/final-week-scores.dto';
 
@@ -51,6 +53,22 @@ export class FinalWeekScoresController {
       this.logger.error('🎯 [FINAL_WEEK_SCORES] POST error:', error);
       throw error;
     }
+  }
+
+  /**
+   * Punteggi di un gruppo di utenti: è quello che regge le classifiche delle
+   * leghe. Dichiarata prima delle rotte con parametro per leggibilità —
+   * il metodo basta a distinguerla, ma tenerla in cima evita dubbi.
+   */
+  @Post('leaderboard')
+  @HttpCode(HttpStatus.OK)
+  async getLeaderboard(
+    @Body(ValidationPipe) query: LeaderboardQueryDto,
+  ): Promise<LeaderboardRowDto[]> {
+    this.logger.debug(
+      `[FINAL_WEEK_SCORES] leaderboard per ${query.userIds.length} utenti`,
+    );
+    return this.finalWeekScoresService.getLeaderboardScores(query);
   }
 
   @Get(':userId/week/:week')
