@@ -5,11 +5,13 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { FinalWeekScore } from '../../entities/final-week-score.entity';
 import {
   CreateFinalWeekScoreDto,
   FinalWeekScoreResponseDto,
+  LeaderboardQueryDto,
+  LeaderboardRowDto,
   UserFinalScoresResponseDto,
 } from './dto/final-week-scores.dto';
 import { SeasonConfigService } from '../season/season-config.service';
@@ -31,6 +33,40 @@ export class FinalWeekScoresService {
    */
   private seasonFor(mode: 'live' | 'test'): number {
     return mode === 'live' ? this.seasonConfig.getCurrentSeason() : 2025;
+  }
+
+  /**
+   * I punteggi di più utenti in una stagione, grezzi.
+   *
+   * Non ordina e non somma: la classifica di una lega dipende da quando ogni
+   * membro è entrato, e quel dato vive nel BFF. Qui si restituiscono le righe
+   * e basta — chi chiama sa quali scartare.
+   */
+  async getLeaderboardScores(
+    query: LeaderboardQueryDto,
+  ): Promise<LeaderboardRowDto[]> {
+    const mode = query.mode ?? 'live';
+    const season = query.season ?? this.seasonFor(mode);
+
+    const where: Record<string, unknown> = {
+      userId: In(query.userIds),
+      season,
+      mode,
+    };
+    if (query.week) where.week = query.week;
+
+    const rows = await this.finalWeekScoreRepository.find({
+      where,
+      select: ['userId', 'week', 'correct', 'revealed'],
+      order: { week: 'ASC' },
+    });
+
+    return rows.map((row) => ({
+      userId: row.userId,
+      week: row.week,
+      correct: row.correct,
+      revealed: row.revealed,
+    }));
   }
 
   async createOrUpdateFinalWeekScore(
