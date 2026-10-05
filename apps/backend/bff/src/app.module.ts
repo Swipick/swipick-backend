@@ -7,6 +7,7 @@ import { AppService } from './app.service';
 import { FirebaseModule } from './config/firebase.config';
 import { DatabaseConfigService } from './config/database.config';
 import { UsersModule } from './modules/users/users.module';
+import { LeaguesModule } from './modules/leagues/leagues.module';
 import * as path from 'path';
 
 @Module({
@@ -25,6 +26,7 @@ import * as path from 'path';
     }),
     FirebaseModule, // Import the global Firebase module
     UsersModule,
+    LeaguesModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseConfigService],
