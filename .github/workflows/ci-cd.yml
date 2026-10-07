@@ -14,7 +14,14 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
+        # Solo Node 20: è quel che dichiara `engines` in package.json, quel che
+        # dice `.node-version`, e quel che gira davvero in produzione —
+        # `node:20-alpine` nei Containerfile e `nodejs_20` in nixpacks.toml.
+        # Node 18 è in fine di vita da aprile 2025 e il CI era l'unico posto
+        # del progetto dove ancora si provava: ci cadeva il build di
+        # `frontend-service` su `next/font`, e con fail-fast portava giù anche
+        # il job 20.x, che invece passava tutto.
+        node-version: [20.x]
 
     steps:
       - name: Checkout code
