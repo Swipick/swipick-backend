@@ -15,6 +15,11 @@ import {
   UserFinalScoresResponseDto,
 } from './dto/final-week-scores.dto';
 import { SeasonConfigService } from '../season/season-config.service';
+import {
+  convertiRighe,
+  RigaGrezza,
+  sqlPunteggiDaPronostici,
+} from './punteggi-da-pronostici';
 
 @Injectable()
 export class FinalWeekScoresService {
@@ -48,25 +53,42 @@ export class FinalWeekScoresService {
     const mode = query.mode ?? 'live';
     const season = query.season ?? this.seasonFor(mode);
 
-    const where: Record<string, unknown> = {
-      userId: In(query.userIds),
-      season,
-      mode,
-    };
-    if (query.week) where.week = query.week;
+    if (mode === 'test') {
+      // La modalità di prova vive in tabelle sue e nessuna lega la interroga:
+      // resta sul percorso vecchio invece di cambiare un comportamento senza
+      // averne motivo.
+      const where: Record<string, unknown> = {
+        userId: In(query.userIds),
+        season,
+        mode,
+      };
+      if (query.week) where.week = query.week;
 
-    const rows = await this.finalWeekScoreRepository.find({
-      where,
-      select: ['userId', 'week', 'correct', 'revealed'],
-      order: { week: 'ASC' },
-    });
+      const rows = await this.finalWeekScoreRepository.find({
+        where,
+        select: ['userId', 'week', 'correct', 'revealed'],
+        order: { week: 'ASC' },
+      });
 
-    return rows.map((row) => ({
-      userId: row.userId,
-      week: row.week,
-      correct: row.correct,
-      revealed: row.revealed,
-    }));
+      return rows.map((row) => ({
+        userId: row.userId,
+        week: row.week,
+        correct: row.correct,
+        revealed: row.revealed,
+      }));
+    }
+
+    // Calcolato da `specs` unita a `fixtures`, non letto da
+    // `final_week_scores`: il perché sta in punteggi-da-pronostici.ts.
+    const parametri: unknown[] = [query.userIds, season, mode];
+    if (query.week) parametri.push(query.week);
+
+    const righe: RigaGrezza[] = await this.finalWeekScoreRepository.query(
+      sqlPunteggiDaPronostici(!!query.week),
+      parametri,
+    );
+
+    return convertiRighe(righe);
   }
 
   async createOrUpdateFinalWeekScore(
