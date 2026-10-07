@@ -182,7 +182,9 @@ export class CalendarSyncService {
         result: update.result,
         external_api_id: update.external_api_id,
       });
-      this.logger.log(`g.${week} ${update.label}: ${update.changes.join(', ')}`);
+      this.logger.log(
+        `g.${week} ${update.label}: ${update.changes.join(', ')}`,
+      );
     }
 
     return {

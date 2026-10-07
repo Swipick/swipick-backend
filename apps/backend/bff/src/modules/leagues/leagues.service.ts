@@ -697,7 +697,7 @@ export class LeaguesService {
         ),
       );
       fixtures = Array.isArray(resp.data) ? resp.data : (resp.data?.data ?? []);
-    } catch (err) {
+    } catch {
       this.logger.warn(
         `Partite della giornata ${week} non leggibili: entro dalla successiva per prudenza`,
       );

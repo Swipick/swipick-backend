@@ -108,9 +108,7 @@ export class AppController {
   @Get('api/fixtures/last-played')
   async getLastPlayed() {
     this.logger.log('Forwarding last-played request to Gaming Services');
-    return this.appService.forwardToGamingServices(
-      `/api/fixtures/last-played`,
-    );
+    return this.appService.forwardToGamingServices(`/api/fixtures/last-played`);
   }
 
   @Get('api/fixtures/week/:weekNumber')

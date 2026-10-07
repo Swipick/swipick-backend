@@ -100,8 +100,7 @@ export const computeResult = (
   return 'X';
 };
 
-export const externalApiId = (apiId: number): string =>
-  `api_football_${apiId}`;
+export const externalApiId = (apiId: number): string => `api_football_${apiId}`;
 
 /**
  * Team names differ in punctuation and honorifics between API-FOOTBALL and our
@@ -158,8 +157,7 @@ export const planFixtureUpdate = (
   const apiId = externalApiId(api.apiId);
 
   const changes: string[] = [];
-  const dateChanged =
-    new Date(db.match_date).getTime() !== matchDate.getTime();
+  const dateChanged = new Date(db.match_date).getTime() !== matchDate.getTime();
 
   if (dateChanged)
     changes.push(
@@ -228,5 +226,4 @@ export const planRoundUpdates = (
 };
 
 /** The API-FOOTBALL round label for a Serie A giornata. */
-export const roundLabel = (week: number): string =>
-  `Regular Season - ${week}`;
+export const roundLabel = (week: number): string => `Regular Season - ${week}`;
