@@ -34,7 +34,11 @@ import {
   isInviteCodeExpired,
   normalizeInviteCode,
 } from './invite-code';
-import { resolveJoinFromWeek, FixtureLike } from './join-week';
+import {
+  resolveJoinFromWeek,
+  resolveStandingsWeek,
+  FixtureLike,
+} from './join-week';
 import { buildStandings, StandingMember, WeekScore } from './standings';
 
 /** Oggi l'app segue solo la Serie A (id di API-Football). */
@@ -156,6 +160,9 @@ export class LeaguesService {
       ...this.describeLeague(league, user.id),
       memberCount: standings.length,
       standings,
+      // La giornata che mostra la classifica di giornata: l'app la usa per
+      // l'etichetta della scheda e la richiede per numero.
+      standingsWeek: await this.standingsWeek(),
     };
   }
 
@@ -168,11 +175,18 @@ export class LeaguesService {
     const league = await this.requireLeague(leagueId);
     await this.requireActiveMember(user, league);
 
-    if (scope === 'week' && (!week || week < 1)) {
+    if (scope === 'week' && week !== undefined && !(week >= 1)) {
       throw new BadRequestException('Giornata non valida');
     }
 
-    return this.standingsOf(league, { scope, week });
+    // Senza giornata si sceglie quella che ha senso guardare adesso. Le
+    // versioni dell'app uscite fino alla 1.1.1 chiedono così, senza numero.
+    const resolvedWeek =
+      scope === 'week' && week === undefined
+        ? await this.standingsWeek()
+        : week;
+
+    return this.standingsOf(league, { scope, week: resolvedWeek });
   }
 
   // ------------------------------------------------------------------ inviti
@@ -689,15 +703,8 @@ export class LeaguesService {
   }
 
   private async joinWeekFor(season: number, week: number): Promise<number> {
-    let fixtures: FixtureLike[] = [];
-    try {
-      const resp = await firstValueFrom(
-        this.httpService.get(
-          `${this.gamingServicesUrl}/api/fixtures/week/${week}?season=${season}`,
-        ),
-      );
-      fixtures = Array.isArray(resp.data) ? resp.data : (resp.data?.data ?? []);
-    } catch {
+    const fixtures = await this.fixturesOfWeek(season, week);
+    if (fixtures === null) {
       this.logger.warn(
         `Partite della giornata ${week} non leggibili: entro dalla successiva per prudenza`,
       );
@@ -707,6 +714,39 @@ export class LeaguesService {
     }
 
     return resolveJoinFromWeek(week, fixtures);
+  }
+
+  /** La giornata da mostrare nella classifica di giornata di una lega. */
+  private async standingsWeek(): Promise<number> {
+    const { season, week } = await this.currentSeasonAndWeek();
+    const fixtures = await this.fixturesOfWeek(season, week);
+    if (fixtures === null) {
+      this.logger.warn(
+        `Partite della giornata ${week} non leggibili: la classifica di giornata resta sulla ${week}`,
+      );
+      // Nel dubbio si resta sulla giornata in corso: al peggio mostra zeri
+      // finché non comincia, non punti di una giornata sbagliata.
+      return week;
+    }
+
+    return resolveStandingsWeek(week, fixtures);
+  }
+
+  /** Le partite di una giornata, o null se gaming-services non risponde. */
+  private async fixturesOfWeek(
+    season: number,
+    week: number,
+  ): Promise<FixtureLike[] | null> {
+    try {
+      const resp = await firstValueFrom(
+        this.httpService.get(
+          `${this.gamingServicesUrl}/api/fixtures/week/${week}?season=${season}`,
+        ),
+      );
+      return Array.isArray(resp.data) ? resp.data : (resp.data?.data ?? []);
+    } catch {
+      return null;
+    }
   }
 
   private async fetchScores(

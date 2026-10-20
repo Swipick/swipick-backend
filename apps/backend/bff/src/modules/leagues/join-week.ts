@@ -22,15 +22,41 @@ export function kickoffOf(fixture: FixtureLike): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+/** Vero appena una partita della giornata ha visto il fischio d'inizio. */
+export function weekHasStarted(
+  fixtures: FixtureLike[],
+  now: Date = new Date(),
+): boolean {
+  return (fixtures ?? []).some((fixture) => {
+    const kickoff = kickoffOf(fixture);
+    return kickoff !== null && kickoff.getTime() <= now.getTime();
+  });
+}
+
 export function resolveJoinFromWeek(
   currentWeek: number,
   fixturesOfCurrentWeek: FixtureLike[],
   now: Date = new Date(),
 ): number {
-  const started = (fixturesOfCurrentWeek ?? []).some((fixture) => {
-    const kickoff = kickoffOf(fixture);
-    return kickoff !== null && kickoff.getTime() <= now.getTime();
-  });
+  return weekHasStarted(fixturesOfCurrentWeek, now)
+    ? currentWeek + 1
+    : currentWeek;
+}
 
-  return started ? currentWeek + 1 : currentWeek;
+/**
+ * Quale giornata mostra la classifica di giornata di una lega.
+ *
+ * La giornata "in corso" di gaming-services è la prossima da giocare: fra un
+ * turno e l'altro non ha ancora nessun risultato, e una classifica su di lei
+ * mette tutti a zero. Finché non comincia si mostra quindi l'ultima conclusa,
+ * con la stessa regola della schermata Risultati nell'app; dal primo fischio
+ * d'inizio si passa a quella nuova, e i punti salgono partita per partita.
+ */
+export function resolveStandingsWeek(
+  currentWeek: number,
+  fixturesOfCurrentWeek: FixtureLike[],
+  now: Date = new Date(),
+): number {
+  if (weekHasStarted(fixturesOfCurrentWeek, now)) return currentWeek;
+  return Math.max(currentWeek - 1, 1);
 }
