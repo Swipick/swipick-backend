@@ -1,4 +1,8 @@
-import { resolveJoinFromWeek, kickoffOf } from '../join-week';
+import {
+  resolveJoinFromWeek,
+  resolveStandingsWeek,
+  kickoffOf,
+} from '../join-week';
 
 const ora = new Date('2026-10-03T18:00:00Z');
 
@@ -59,5 +63,41 @@ describe('resolveJoinFromWeek', () => {
       kickoffOf({ kickoff: { iso: '2026-10-03T16:00:00Z' } })?.toISOString(),
     ).toBe('2026-10-03T16:00:00.000Z');
     expect(kickoffOf({})).toBeNull();
+  });
+});
+
+describe('resolveStandingsWeek', () => {
+  it("fra un turno e l'altro mostra l'ultima giornata conclusa", () => {
+    const week = resolveStandingsWeek(
+      8,
+      [
+        { match_date: '2026-10-04T13:00:00Z' },
+        { match_date: '2026-10-05T18:45:00Z' },
+      ],
+      ora,
+    );
+    expect(week).toBe(7);
+  });
+
+  it('passa alla giornata nuova dal primo fischio di inizio', () => {
+    const week = resolveStandingsWeek(
+      8,
+      [
+        { match_date: '2026-10-03T16:00:00Z' },
+        { match_date: '2026-10-04T13:00:00Z' },
+      ],
+      ora,
+    );
+    expect(week).toBe(8);
+  });
+
+  it('alla prima giornata non scende sotto la 1', () => {
+    expect(
+      resolveStandingsWeek(1, [{ match_date: '2026-10-04T13:00:00Z' }], ora),
+    ).toBe(1);
+  });
+
+  it('senza partite resta sulla giornata precedente', () => {
+    expect(resolveStandingsWeek(8, [], ora)).toBe(7);
   });
 });
