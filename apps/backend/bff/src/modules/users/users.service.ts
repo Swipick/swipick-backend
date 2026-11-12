@@ -261,20 +261,32 @@ export class UsersService {
           `🟢 [UsersService] Existing Google user login successful: ${user.id}`,
         );
       } else {
-        // Create new Google user
-        this.logger.log(
-          '🟢 [UsersService] User not found, creating new Google user...',
-        );
-        user = await this.createGoogleUser(googleUserData);
-        this.logger.log(
-          `🟢 [UsersService] New Google user created: ${user.id}`,
-        );
+        const stessaEmail =
+          googleUserData.email && googleUserData.emailVerified
+            ? await this.userRepository.findOne({
+                where: { email: googleUserData.email },
+              })
+            : null;
+
+        if (stessaEmail) {
+          user = await this.riagganciaAGoogle(stessaEmail, googleUserData);
+        } else {
+          // Create new Google user
+          this.logger.log(
+            '🟢 [UsersService] User not found, creating new Google user...',
+          );
+          user = await this.createGoogleUser(googleUserData);
+          this.logger.log(
+            `🟢 [UsersService] New Google user created: ${user.id}`,
+          );
+        }
       }
 
       this.logger.log('🟢 [UsersService] Transforming user to response DTO');
       return this.transformToResponse(user);
     } catch (error) {
       this.logger.error('🔴 [UsersService] Failed to sync Google user', error);
+      if (error instanceof ConflictException) throw error;
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`🔴 [UsersService] Error details: ${errorMessage}`);
@@ -433,6 +445,86 @@ export class UsersService {
     });
 
     return await this.userRepository.save(user);
+  }
+
+  /**
+   * Chi entra con Google ma ha già una riga con la stessa email, legata a un
+   * UID che in Firebase non esiste più.
+   *
+   * Succede a chi si era iscritto prima del passaggio da `swipick-ab224` a
+   * `swipick-2026` (vedi identity-audit.ts): Google gli dà un UID nuovo, la
+   * riga vecchia tiene l'email, e l'indice unico su `email` faceva fallire la
+   * creazione. Firebase autenticava lo stesso, quindi la persona entrava in
+   * un'app che il BFF non riconosceva: Gioca andava, le leghe rispondevano 401.
+   *
+   * Google ha verificato l'email, quindi la riga è sua: si riscrive l'UID e
+   * ci si porta dietro i pronostici e i punteggi scritti con quello vecchio.
+   * Se però il vecchio UID esiste ancora, sono due utenze vive con la stessa
+   * email e non si sceglie al posto loro.
+   */
+  private async riagganciaAGoogle(
+    user: User,
+    googleUserData: GoogleUserData,
+  ): Promise<User> {
+    const uidVecchio = user.firebaseUid;
+    const uidNuovo = googleUserData.uid;
+
+    if (await this.firebaseConfig.utenzaEsiste(uidVecchio)) {
+      this.logger.warn(
+        `Login Google per ${user.id}: email già legata a un'utenza Firebase attiva, nessun riaggancio`,
+      );
+      throw new ConflictException(
+        'Questa email è già usata da un altro accesso: entra con quello',
+      );
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      // Dove il nuovo UID ha già una riga per la stessa partita (o settimana)
+      // vince quella nuova: è la più recente, e l'indice unico non ne vuole due.
+      await queryRunner.query(
+        `UPDATE specs SET user_id = $1
+          WHERE user_id = $2
+            AND NOT EXISTS (
+              SELECT 1 FROM specs s
+               WHERE s.user_id = $1
+                 AND s.fixture_id = specs.fixture_id
+                 AND s.mode = specs.mode)`,
+        [uidNuovo, uidVecchio],
+      );
+      await queryRunner.query(
+        `UPDATE final_week_scores SET "userId" = $1
+          WHERE "userId" = $2
+            AND NOT EXISTS (
+              SELECT 1 FROM final_week_scores f
+               WHERE f."userId" = $1
+                 AND f.week = final_week_scores.week
+                 AND f.season = final_week_scores.season
+                 AND f.mode = final_week_scores.mode)`,
+        [uidNuovo, uidVecchio],
+      );
+
+      user.firebaseUid = uidNuovo;
+      user.authProvider = AuthProvider.GOOGLE;
+      user.emailVerified = true;
+      user.googleProfileUrl =
+        user.googleProfileUrl ?? googleUserData.picture ?? null;
+      user = await queryRunner.manager.save(user);
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+
+    this.logger.log(
+      `🟢 [UsersService] Utente ${user.id} riagganciato a Google: ${uidVecchio} → ${uidNuovo}`,
+    );
+    return user;
   }
 
   private extractGoogleUserData(

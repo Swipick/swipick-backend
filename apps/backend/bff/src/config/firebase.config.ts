@@ -188,6 +188,29 @@ export class FirebaseConfigService {
   }
 
   /**
+   * Dice se un UID esiste ancora in questo progetto Firebase.
+   *
+   * A differenza di getUserByUid distingue «non esiste» (false) da un errore
+   * vero (eccezione): chi la usa per decidere se un'identità è abbandonata non
+   * deve scambiare un problema di rete per un'utenza sparita.
+   */
+  async utenzaEsiste(uid: string): Promise<boolean> {
+    const auth = this.getAuth();
+    if (!auth) {
+      throw new Error('Firebase Admin SDK non inizializzato');
+    }
+    try {
+      await auth.getUser(uid);
+      return true;
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'auth/user-not-found') {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Get Firebase user by UID
    */
   async getUserByUid(uid: string): Promise<admin.auth.UserRecord> {
