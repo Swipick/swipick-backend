@@ -211,6 +211,25 @@ export class FirebaseConfigService {
   }
 
   /**
+   * L'utenza Firebase con questa email, o null se non c'è.
+   * Come utenzaEsiste: un errore vero resta un'eccezione.
+   */
+  async utenzaPerEmail(email: string): Promise<admin.auth.UserRecord | null> {
+    const auth = this.getAuth();
+    if (!auth) {
+      throw new Error('Firebase Admin SDK non inizializzato');
+    }
+    try {
+      return await auth.getUserByEmail(email);
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'auth/user-not-found') {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Get Firebase user by UID
    */
   async getUserByUid(uid: string): Promise<admin.auth.UserRecord> {

@@ -885,17 +885,24 @@ export class UsersService {
       return;
     }
 
-    if (user.emailVerified) {
+    // Chi decide è Firebase, non `users`: è Firebase che blocca il login con
+    // password finché l'email non è verificata. Chi è entrato con Google e poi
+    // ha aggiunto una password ha in `users` "google, verificata" ma in
+    // Firebase un'email da verificare: guardando solo `users` la mail non
+    // partiva mai e il login con password restava chiuso per sempre.
+    const utenza = await this.firebaseConfig.utenzaPerEmail(email);
+    const conPassword = !!utenza?.providerData.some(
+      (p) => p.providerId === 'password',
+    );
+
+    if (!utenza || utenza.emailVerified) {
       this.logger.log(
         `Verification resend skipped (already verified): ${email}`,
       );
       return;
     }
 
-    if (
-      user.authProvider === AuthProvider.GOOGLE ||
-      user.authProvider === AuthProvider.APPLE
-    ) {
+    if (!conPassword) {
       this.logger.log(`Verification resend skipped (social account): ${email}`);
       return;
     }
