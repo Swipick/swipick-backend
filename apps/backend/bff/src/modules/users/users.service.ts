@@ -1046,7 +1046,8 @@ export class UsersService {
    * Delete a user account and related data.
    * Steps:
    * 1) Verify Firebase ID token and match with userId
-   * 2) Transactionally delete related DB rows (avatars, notification prefs, user)
+   * 2) Transactionally delete related DB rows (predictions, weekly scores,
+   *    avatars, notification prefs, user)
    * 3) Optionally reset test-mode data in gaming-services
    * 4) Delete Firebase auth user
    */
@@ -1071,6 +1072,16 @@ export class UsersService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
+      // Pronostici e punteggi stanno nelle tabelle di gaming-services, ma
+      // sono chiavati sull'UID Firebase, non su users.id: senza queste due
+      // righe resterebbero nel database dopo l'eliminazione.
+      await queryRunner.query(`DELETE FROM specs WHERE user_id = $1`, [
+        user.firebaseUid,
+      ]);
+      await queryRunner.query(
+        `DELETE FROM final_week_scores WHERE "userId" = $1`,
+        [user.firebaseUid],
+      );
       // Delete avatar (if any)
       await queryRunner.manager.delete(UserAvatar, { userId });
       // Delete notification preferences (if any)
@@ -1091,8 +1102,6 @@ export class UsersService {
       if (this.gamingServicesUrl) {
         const resetTest = `${this.gamingServicesUrl}/api/test-mode/reset/${userId}`;
         await firstValueFrom(this.httpService.delete(resetTest));
-        const purgeLive = `${this.gamingServicesUrl}/api/predictions/user/${userId}`;
-        await firstValueFrom(this.httpService.delete(purgeLive));
       }
     } catch (err) {
       this.logger.warn(
