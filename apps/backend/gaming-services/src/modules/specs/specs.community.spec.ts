@@ -1,13 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { PredictionsService } from './predictions.service';
+import { SpecsService } from './specs.service';
 import { Spec } from '../../entities/spec.entity';
-import { TestSpec } from '../../entities/test-spec.entity';
 import { Fixture } from '../../entities/fixture.entity';
 import { SeasonConfigService } from '../season/season-config.service';
 
-describe('PredictionsService — votiCommunity', () => {
-  let service: PredictionsService;
+describe('SpecsService — votiCommunity', () => {
+  let service: SpecsService;
   let qb: Record<string, jest.Mock>;
 
   beforeEach(async () => {
@@ -24,12 +23,11 @@ describe('PredictionsService — votiCommunity', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        PredictionsService,
+        SpecsService,
         {
           provide: getRepositoryToken(Spec),
           useValue: { createQueryBuilder: jest.fn().mockReturnValue(qb) },
         },
-        { provide: getRepositoryToken(TestSpec), useValue: {} },
         { provide: getRepositoryToken(Fixture), useValue: {} },
         {
           provide: SeasonConfigService,
@@ -38,7 +36,7 @@ describe('PredictionsService — votiCommunity', () => {
       ],
     }).compile();
 
-    service = module.get(PredictionsService);
+    service = module.get(SpecsService);
   });
 
   it('somma i conteggi per partita (COUNT arriva come stringa)', async () => {

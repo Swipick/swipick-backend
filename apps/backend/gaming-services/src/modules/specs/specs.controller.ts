@@ -12,7 +12,7 @@ import {
   ParseIntPipe,
   BadRequestException,
 } from '@nestjs/common';
-import { SpecsService } from './specs.service';
+import { SpecsService, VotiPartita } from './specs.service';
 import { TestModeService } from '../test-mode/test-mode.service';
 import {
   CreateSpecDto,
@@ -326,5 +326,22 @@ export class SpecsController {
 
     this.logger.debug('🗑️ [SPECS_CONTROLLER] Response:', response);
     return response;
+  }
+
+  /**
+   * GET /api/predictions/community/week/:week[?season=2026]
+   * Conteggi 1/X/2 per partita della giornata, per i post di swipick-social.
+   */
+  @Get('community/week/:week')
+  votiCommunity(
+    @Param('week', ParseIntPipe) week: number,
+    @Query('season') season?: string,
+  ): Promise<VotiPartita[]> {
+    // Una stagione non valida si ignora: vale quella corrente.
+    const stagione = Number(season);
+    return this.specsService.votiCommunity(
+      week,
+      Number.isInteger(stagione) && stagione > 0 ? stagione : undefined,
+    );
   }
 }
