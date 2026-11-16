@@ -11,6 +11,14 @@ import { Fixture } from '../../entities/fixture.entity';
 import { Spec } from '../../entities/spec.entity';
 import { TestSpec } from '../../entities/test-spec.entity';
 import { CreatePredictionDto } from './dto/create-prediction.dto';
+import { SeasonConfigService } from '../season/season-config.service';
+
+/** Quanti hanno scelto 1, X o 2 su una partita: solo numeri, nessun utente. */
+export interface VotiPartita {
+  fixtureId: string;
+  totale: number;
+  conteggi: { '1': number; X: number; '2': number };
+}
 
 @Injectable()
 export class PredictionsService {
@@ -23,7 +31,49 @@ export class PredictionsService {
     private readonly specRepository: Repository<Spec>,
     @InjectRepository(TestSpec)
     private readonly testSpecRepository: Repository<TestSpec>,
+    private readonly seasonConfig: SeasonConfigService,
   ) {}
+
+  /**
+   * I pronostici della community su una giornata, aggregati per partita.
+   *
+   * Serve ai post pubblici di swipick-social ("il 64% dice Inter"): escono
+   * solo i conteggi, mai chi ha scelto cosa. Contano solo i pronostici veri
+   * (`live`) e non gli skip. La stagione si prende dalla partita, non dalla
+   * colonna denormalizzata di `specs`, che ha un default storico.
+   */
+  async votiCommunity(week: number, season?: number): Promise<VotiPartita[]> {
+    const stagione = season ?? this.seasonConfig.getCurrentSeason();
+    const righe: { fixture_id: string; choice: '1' | 'X' | '2'; n: string }[] =
+      await this.specRepository
+        .createQueryBuilder('s')
+        .innerJoin('s.fixture', 'f')
+        .select('s.fixture_id', 'fixture_id')
+        .addSelect('s.choice', 'choice')
+        .addSelect('COUNT(*)', 'n')
+        .where('f.week = :week', { week })
+        .andWhere('f.season = :stagione', { stagione })
+        .andWhere("s.mode = 'live'")
+        .andWhere("s.choice IN ('1', 'X', '2')")
+        .groupBy('s.fixture_id')
+        .addGroupBy('s.choice')
+        .getRawMany();
+
+    const perPartita = new Map<string, VotiPartita>();
+    for (const r of righe) {
+      const v = perPartita.get(r.fixture_id) ?? {
+        fixtureId: r.fixture_id,
+        totale: 0,
+        conteggi: { '1': 0, X: 0, '2': 0 },
+      };
+      // COUNT(*) arriva da Postgres come stringa (bigint).
+      const n = Number(r.n);
+      v.conteggi[r.choice] += n;
+      v.totale += n;
+      perPartita.set(r.fixture_id, v);
+    }
+    return [...perPartita.values()];
+  }
 
   async create(
     createPredictionDto: CreatePredictionDto,
