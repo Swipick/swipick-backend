@@ -144,10 +144,13 @@ export class ApiFootballClient {
   }
 
   async getHeadToHead(team1Id: number, team2Id: number): Promise<Fixture[]> {
-    const endpoint = '/fixtures';
+    // The h2h parameter lives on /fixtures/headtohead: on plain /fixtures the
+    // API answers 200 with an empty list and "The H2h field do not exist".
+    const endpoint = '/fixtures/headtohead';
     const params = { h2h: `${team1Id}-${team2Id}` };
     // API returns nested structure: { response: Array<{ fixture, league, teams, goals, score }> }
     const response = await this.makeRequest<{
+      errors?: unknown[] | Record<string, string>;
       response: Array<{
         fixture: any;
         league: any;
@@ -156,6 +159,12 @@ export class ApiFootballClient {
         score: any;
       }>;
     }>(endpoint, params);
+
+    // API errors come back with HTTP 200: an empty list would look like "no matches".
+    const errors = response.errors ?? [];
+    if (Array.isArray(errors) ? errors.length : Object.keys(errors).length) {
+      throw new Error(`API-Football h2h error: ${JSON.stringify(errors)}`);
+    }
 
     // Transform API response to match Fixture interface (flatten structure)
     return response.response.map((item) => ({

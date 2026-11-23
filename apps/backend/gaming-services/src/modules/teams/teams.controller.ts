@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Param } from '@nestjs/common';
+import { Controller, Get, Query, Param, ParseIntPipe } from '@nestjs/common';
 import { TeamsService } from './teams.service';
 import { GetTeamsDto } from '../api-football/dto/team.dto';
 
@@ -27,8 +27,8 @@ export class TeamsController {
 
   @Get(':id1/vs/:id2')
   async getHeadToHead(
-    @Param('id1') team1Id: number,
-    @Param('id2') team2Id: number,
+    @Param('id1', ParseIntPipe) team1Id: number,
+    @Param('id2', ParseIntPipe) team2Id: number,
   ) {
     return this.teamsService.getHeadToHead(team1Id, team2Id);
   }
