@@ -20,6 +20,11 @@ interface Mailbox {
 }
 
 const BREVO_API_BASE = 'https://api.brevo.com/v3';
+const SITE_URL = 'https://www.swipick.com';
+const PRIVACY_URL =
+  'https://www.swipick.com/wp-content/themes/swipick/legal/privacy-e-cookie.html';
+const TEXT_FOOTER = `Swipick — pronostici di Serie A, gratis e senza soldi veri.
+${SITE_URL} · Privacy: ${PRIVACY_URL}`;
 
 @Injectable()
 export class EmailService {
@@ -340,7 +345,8 @@ export class EmailService {
   ): Promise<void> {
     this.logger.log(`📧 Attempting to send verification email to: ${email}`);
     this.logger.log(`📤 From email: ${this.formatMailbox(this.from)}`);
-    this.logger.log(`🔗 Verification link: ${verificationLink}`);
+    // Il link non va nei log: chi lo legge può confermare l'account al posto
+    // dell'utente.
 
     const emailTemplate = this.generateVerificationEmailTemplate(
       name,
@@ -351,7 +357,7 @@ export class EmailService {
     try {
       const messageId = await this.sendEmail({
         to: email,
-        subject: 'Verifica il tuo account Swipick',
+        subject: emailTemplate.subject,
         html: emailTemplate.html,
         text: emailTemplate.text,
       });
@@ -386,7 +392,7 @@ export class EmailService {
     try {
       const messageId = await this.sendEmail({
         to: email,
-        subject: 'Reset della password - Swipick',
+        subject: emailTemplate.subject,
         html: emailTemplate.html,
         text: emailTemplate.text,
       });
@@ -421,7 +427,7 @@ export class EmailService {
    * remoto mostrerebbero un rettangolo vuoto, una tabella la disegnano sempre.
    * Griglia e palette vengono da src/utils/pixelPlayers.ts dell'app (10x16,
    * posa idle); la maglia usa il viola del brand invece dei colori di squadra,
-   * perche' qui non si parla di una partita.
+   * perché qui non si parla di una partita.
    */
   private renderPixelPlayer(
     cell = 3,
@@ -527,7 +533,10 @@ export class EmailService {
   /**
    * Scheletro condiviso dalle transazionali. Tabelle e stili inline invece di
    * un blocco <style>: Outlook ignora il secondo, e diversi client lo tolgono
-   * del tutto. Colori allineati a src/theme/colors.ts dell'app.
+   * del tutto. Colori e marchio come su swipick.com e su Instagram (gradiente
+   * #52418d → #7a57f6, pallino verde accanto al nome); il font del brand,
+   * Sora, nelle email non si carica in modo affidabile, quindi resta quello
+   * di sistema.
    */
   private renderEmailShell(options: {
     preheader: string;
@@ -537,6 +546,8 @@ export class EmailService {
     ctaUrl: string;
     validity: string;
     disclaimer: string;
+    /** perché la si riceve, in fondo all'email */
+    reason: string;
   }): string {
     const font =
       "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
@@ -556,12 +567,17 @@ export class EmailService {
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:600px; background-color:#ffffff; border:1px solid #e5e7eb; border-radius:16px; overflow:hidden;">
 
         <tr>
-          <td style="background-color:#4d32b1; background-image:linear-gradient(135deg,#554099 0%,#3d2d73 100%); padding:20px 32px;">
+          <td style="background-color:#6a4ae8; background-image:linear-gradient(135deg,#52418d 0%,#7a57f6 100%); padding:20px 32px;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td style="padding-right:14px; vertical-align:middle;">${this.renderPixelPlayer()}</td>
                 <td style="vertical-align:middle; white-space:nowrap;">
-                  <span style="font-family:${font}; font-size:13px; color:#ffffff; vertical-align:middle;">&#9917;</span><span style="font-family:${font}; font-size:20px; font-weight:700; color:#ffffff; letter-spacing:-0.01em; vertical-align:middle;">&nbsp;Swipick</span>
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="vertical-align:middle;"><div style="width:10px; height:10px; border-radius:10px; background-color:#a7f3d0; font-size:0; line-height:0;">&nbsp;</div></td>
+                      <td style="padding-left:10px; font-family:${font}; font-size:22px; font-weight:800; color:#ffffff; letter-spacing:-0.02em;">Swipick</td>
+                    </tr>
+                  </table>
                 </td>
               </tr>
             </table>
@@ -575,7 +591,7 @@ export class EmailService {
 
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td align="center" bgcolor="#6f49ff" style="border-radius:12px;">
+                <td align="center" bgcolor="#6f49f7" style="border-radius:12px;">
                   <a href="${options.ctaUrl}" style="display:inline-block; padding:15px 30px; font-family:${font}; font-size:16px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:12px;">${options.ctaLabel}</a>
                 </td>
               </tr>
@@ -598,8 +614,10 @@ export class EmailService {
         </tr>
 
         <tr>
-          <td style="padding:16px 32px; background-color:#f9fafb; border-top:1px solid #e5e7eb;">
-            <p style="margin:0; font-family:${font}; font-size:13px; color:#9ca3af;">Swipick &mdash; pronostici di Serie A</p>
+          <td style="padding:18px 32px 20px 32px; background-color:#f9fafb; border-top:1px solid #e5e7eb;">
+            <p style="margin:0 0 6px 0; font-family:${font}; font-size:13px; line-height:1.5; color:#6b7280;">Swipick &mdash; pronostici di Serie A, gratis e senza soldi veri.</p>
+            <p style="margin:0 0 6px 0; font-family:${font}; font-size:12px; line-height:1.5; color:#9ca3af;">${options.reason}</p>
+            <p style="margin:0; font-family:${font}; font-size:12px; line-height:1.5;"><a href="${SITE_URL}" style="color:#6f49f7; text-decoration:none;">swipick.com</a><span style="color:#d1d5db;">&nbsp;&nbsp;&middot;&nbsp;&nbsp;</span><a href="${PRIVACY_URL}" style="color:#6f49f7; text-decoration:none;">Privacy</a></p>
           </td>
         </tr>
 
@@ -627,10 +645,14 @@ export class EmailService {
         'Per iniziare a giocare su Swipick devi confermare che questo indirizzo è tuo.',
       ctaLabel: "Conferma l'indirizzo",
       ctaUrl: verificationLink,
+      // Firebase non documenta la durata dei link di verifica: meglio non
+      // promettere un numero di ore che potrebbe non essere vero.
       validity:
-        'Il link è valido 24 ore. Se scade, puoi richiederne uno nuovo dall’app.',
+        'Se il link non funziona più, puoi richiederne uno nuovo dall’app.',
       disclaimer:
-        'Se non ti sei registrato su Swipick, ignora pure questa email: senza conferma nessuno potrà accedere all’account.',
+        'Se la registrazione non l’hai fatta tu, ignora pure questa email: senza conferma nessuno potrà accedere all’account.',
+      reason:
+        'Ricevi questa email perché con questo indirizzo è stato creato un account Swipick.',
     });
 
     const text = `Ciao ${name}, manca un passaggio
@@ -640,12 +662,13 @@ Apri questo link:
 
 ${verificationLink}
 
-Il link è valido 24 ore. Se scade, puoi richiederne uno nuovo dall'app.
+Se il link non funziona più, puoi richiederne uno nuovo dall'app.
 
-Se non ti sei registrato su Swipick, ignora pure questa email: senza conferma
-nessuno potrà accedere all'account.
+Se la registrazione non l'hai fatta tu, ignora pure questa email: senza
+conferma nessuno potrà accedere all'account.
 
-Swipick — pronostici di Serie A`;
+Ricevi questa email perché con questo indirizzo è stato creato un account Swipick.
+${TEXT_FOOTER}`;
 
     return {
       to: '',
@@ -672,9 +695,11 @@ Swipick — pronostici di Serie A`;
       ctaUrl: resetLink,
       validity: 'Il link è valido un’ora.',
       // Chi riceve un reset che non ha chiesto si allarma: dirgli che non è
-      // successo nulla vale piu' di un generico "ignora questa email".
+      // successo nulla vale più di un generico "ignora questa email".
       disclaimer:
-        'Se non sei stato tu, ignora questa email: la password attuale resta valida e nessuno può cambiarla senza aprire questo link.',
+        'Se la richiesta non è partita da te, ignora questa email: la password attuale resta valida e nessuno può cambiarla senza aprire questo link.',
+      reason:
+        'Ricevi questa email perché è stato chiesto il reset della password del tuo account Swipick.',
     });
 
     const text = `Ciao ${name}, reimposta la password
@@ -686,10 +711,12 @@ ${resetLink}
 
 Il link è valido un'ora.
 
-Se non sei stato tu, ignora questa email: la password attuale resta valida e
-nessuno può cambiarla senza aprire questo link.
+Se la richiesta non è partita da te, ignora questa email: la password attuale
+resta valida e nessuno può cambiarla senza aprire questo link.
 
-Swipick — pronostici di Serie A`;
+Ricevi questa email perché è stato chiesto il reset della password del tuo
+account Swipick.
+${TEXT_FOOTER}`;
 
     return {
       to: '',
