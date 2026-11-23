@@ -142,7 +142,8 @@ export class ApiFootballService {
   }
 
   async getHeadToHead(team1Id: number, team2Id: number): Promise<Fixture[]> {
-    const cacheKey = `h2h:${team1Id}:${team2Id}`;
+    // v2: entries cached under the old key were empty (wrong endpoint).
+    const cacheKey = `h2h:v2:${team1Id}:${team2Id}`;
 
     // Try cache first
     const cached = await this.cacheService.get<Fixture[]>(cacheKey);

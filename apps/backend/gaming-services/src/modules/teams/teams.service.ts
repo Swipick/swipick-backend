@@ -5,6 +5,7 @@ import {
   TeamStatistics,
 } from '../api-football/interfaces/team.interface';
 import { GetTeamsDto } from '../api-football/dto/team.dto';
+import { headToHeadSummary } from './head-to-head';
 
 @Injectable()
 export class TeamsService {
@@ -62,51 +63,7 @@ export class TeamsService {
         team2Id,
       );
 
-      // Process head-to-head data
-      const totalMatches = fixtures.length;
-      let team1Wins = 0;
-      let team2Wins = 0;
-      let draws = 0;
-
-      fixtures.forEach((fixture) => {
-        if (fixture.teams.home.winner === true) {
-          if (fixture.teams.home.id === team1Id) {
-            team1Wins++;
-          } else {
-            team2Wins++;
-          }
-        } else if (fixture.teams.away.winner === true) {
-          if (fixture.teams.away.id === team1Id) {
-            team1Wins++;
-          } else {
-            team2Wins++;
-          }
-        } else {
-          draws++;
-        }
-      });
-
-      const lastMatch = fixtures.length > 0 ? fixtures[0] : null;
-
-      return {
-        totalMatches,
-        team1Wins,
-        team2Wins,
-        draws,
-        lastMatch: lastMatch
-          ? {
-              date: lastMatch.date,
-              result: `${lastMatch.goals.home}-${lastMatch.goals.away}`,
-              winner:
-                lastMatch.teams.home.winner === true
-                  ? 'home'
-                  : lastMatch.teams.away.winner === true
-                    ? 'away'
-                    : 'draw',
-            }
-          : null,
-        fixtures,
-      };
+      return headToHeadSummary(fixtures, team1Id);
     } catch (error) {
       this.logger.error(
         `Failed to get head-to-head for teams ${team1Id} vs ${team2Id}`,
