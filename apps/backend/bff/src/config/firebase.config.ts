@@ -1,6 +1,7 @@
 import { Injectable, Logger, Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
+import { DEFAULT_ACTION_HANDLER_URL, toActionHandlerLink } from './action-link';
 
 export interface FirebaseConfig {
   projectId: string;
@@ -288,6 +289,18 @@ export class FirebaseConfigService {
   }
 
   /**
+   * ACTION_HANDLER_URL vuoto riporta i link alla pagina di Firebase senza un
+   * deploy, se quella su swipick.com dovesse avere problemi.
+   */
+  private toOurHandler(link: string): string {
+    const handler = this.configService.get<string>(
+      'ACTION_HANDLER_URL',
+      DEFAULT_ACTION_HANDLER_URL,
+    );
+    return toActionHandlerLink(link, handler.trim());
+  }
+
+  /**
    * Generate email verification link for a user
    * Note: This generates a link but doesn't send the email automatically
    */
@@ -298,19 +311,11 @@ export class FirebaseConfigService {
         throw new Error('Firebase Admin SDK non inizializzato');
       }
 
-      const actionCodeSettings = {
-        url: `https://mindful-sparkle-production.up.railway.app/loginVerified`,
-        handleCodeInApp: false,
-      };
-
-      this.logger.log(`🔍 REDIRECT URL CONFIRMED: ${actionCodeSettings.url}`);
-
-      const link = await auth.generateEmailVerificationLink(
-        email,
-        actionCodeSettings,
-      );
+      // Niente continueUrl: rimandava alla vecchia web app su Railway. La
+      // pagina su swipick.com dice già di tornare nell'app.
+      const link = await auth.generateEmailVerificationLink(email);
       this.logger.log(`Email verification link generated for: ${email}`);
-      return link;
+      return this.toOurHandler(link);
     } catch (error) {
       this.logger.error('Failed to generate email verification link', error);
       throw new Error('Errore durante la generazione del link di verifica');
@@ -330,7 +335,7 @@ export class FirebaseConfigService {
 
       const link = await auth.generatePasswordResetLink(email);
       this.logger.log(`Password reset link generated for: ${email}`);
-      return link;
+      return this.toOurHandler(link);
     } catch (error) {
       this.logger.error('Failed to generate password reset link', error);
       throw new Error(
