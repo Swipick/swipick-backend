@@ -23,7 +23,14 @@ const BREVO_API_BASE = 'https://api.brevo.com/v3';
 const SITE_URL = 'https://www.swipick.com';
 const PRIVACY_URL =
   'https://www.swipick.com/wp-content/themes/swipick/legal/privacy-e-cookie.html';
-const TEXT_FOOTER = `Swipick — pronostici di Serie A, gratis e senza soldi veri.
+const INSTAGRAM_URL = 'https://www.instagram.com/swipick.app/';
+// Ospitata su swipick.com: con le immagini bloccate resta il testo alternativo
+// e il pulsante, che porta allo stesso indirizzo.
+const INSTAGRAM_ICON_URL =
+  'https://www.swipick.com/wp-content/themes/swipick/assets/email/instagram.png';
+const TEXT_FOOTER = `Segui Swipick su Instagram: ${INSTAGRAM_URL}
+
+Swipick — pronostici di Serie A, gratis e senza soldi veri.
 ${SITE_URL} · Privacy: ${PRIVACY_URL}`;
 
 @Injectable()
@@ -614,10 +621,37 @@ export class EmailService {
         </tr>
 
         <tr>
+          <td style="padding:0 32px 32px 32px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f4f0ff" style="background-color:#f4f0ff; border:1px solid #e4dcff; border-radius:14px;">
+              <tr>
+                <td style="padding:18px 20px 20px 20px;">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td width="48" style="vertical-align:middle;"><a href="${INSTAGRAM_URL}"><img src="${INSTAGRAM_ICON_URL}" width="48" height="48" alt="Instagram" style="display:block; width:48px; height:48px; border:0; border-radius:12px;"></a></td>
+                      <td style="padding-left:14px; vertical-align:middle;">
+                        <p style="margin:0; font-family:${font}; font-size:16px; line-height:1.3; font-weight:700; color:#1f2937;">Segui Swipick su Instagram</p>
+                        <p style="margin:4px 0 0 0; font-family:${font}; font-size:14px; line-height:1.45; color:#6b7280;">Le card della giornata, i precedenti delle sfide più sentite e i pronostici della community, ogni settimana.</p>
+                      </td>
+                    </tr>
+                  </table>
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;">
+                    <tr>
+                      <td align="center" bgcolor="#6f49f7" style="border-radius:999px;">
+                        <a href="${INSTAGRAM_URL}" style="display:inline-block; padding:11px 22px; font-family:${font}; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:999px;">Seguici su @swipick.app</a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr>
           <td style="padding:18px 32px 20px 32px; background-color:#f9fafb; border-top:1px solid #e5e7eb;">
             <p style="margin:0 0 6px 0; font-family:${font}; font-size:13px; line-height:1.5; color:#6b7280;">Swipick &mdash; pronostici di Serie A, gratis e senza soldi veri.</p>
             <p style="margin:0 0 6px 0; font-family:${font}; font-size:12px; line-height:1.5; color:#9ca3af;">${options.reason}</p>
-            <p style="margin:0; font-family:${font}; font-size:12px; line-height:1.5;"><a href="${SITE_URL}" style="color:#6f49f7; text-decoration:none;">swipick.com</a><span style="color:#d1d5db;">&nbsp;&nbsp;&middot;&nbsp;&nbsp;</span><a href="${PRIVACY_URL}" style="color:#6f49f7; text-decoration:none;">Privacy</a></p>
+            <p style="margin:0; font-family:${font}; font-size:12px; line-height:1.5;"><a href="${SITE_URL}" style="color:#6f49f7; text-decoration:none;">swipick.com</a><span style="color:#d1d5db;">&nbsp;&nbsp;&middot;&nbsp;&nbsp;</span><a href="${PRIVACY_URL}" style="color:#6f49f7; text-decoration:none;">Privacy</a><span style="color:#d1d5db;">&nbsp;&nbsp;&middot;&nbsp;&nbsp;</span><a href="${INSTAGRAM_URL}" style="color:#6f49f7; text-decoration:none;">Instagram</a></p>
           </td>
         </tr>
 
