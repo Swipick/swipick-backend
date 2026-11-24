@@ -15,6 +15,7 @@ import {
   Headers,
 } from '@nestjs/common';
 import { UnauthorizedException } from '@nestjs/common';
+import { linguaDaHeader } from '../../i18n/lingua';
 import { UsersService } from './users.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadedFile, UseInterceptors } from '@nestjs/common';
@@ -43,7 +44,10 @@ export class UsersController {
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async register(@Body() createUserDto: CreateUserDto): Promise<{
+  async register(
+    @Body() createUserDto: CreateUserDto,
+    @Headers('accept-language') acceptLanguage?: string,
+  ): Promise<{
     success: boolean;
     data: UserResponseDto;
     message: string;
@@ -52,7 +56,10 @@ export class UsersController {
       `Traditional registration attempt for email: ${createUserDto.email}`,
     );
 
-    const user = await this.usersService.createUser(createUserDto);
+    const user = await this.usersService.createUser(
+      createUserDto,
+      linguaDaHeader(acceptLanguage),
+    );
 
     return {
       success: true,
@@ -301,13 +308,19 @@ export class UsersController {
   @Post('send-password-reset')
   @HttpCode(HttpStatus.OK)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async sendPasswordReset(@Body() body: { email: string }): Promise<{
+  async sendPasswordReset(
+    @Body() body: { email: string },
+    @Headers('accept-language') acceptLanguage?: string,
+  ): Promise<{
     success: boolean;
     message: string;
   }> {
     this.logger.log(`Password reset request for email: ${body.email}`);
 
-    await this.usersService.sendPasswordReset(body.email);
+    await this.usersService.sendPasswordReset(
+      body.email,
+      linguaDaHeader(acceptLanguage),
+    );
 
     return {
       success: true,
@@ -322,13 +335,19 @@ export class UsersController {
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async resendVerification(@Body() body: { email: string }): Promise<{
+  async resendVerification(
+    @Body() body: { email: string },
+    @Headers('accept-language') acceptLanguage?: string,
+  ): Promise<{
     success: boolean;
     message: string;
   }> {
     this.logger.log(`Verification resend request for email: ${body.email}`);
 
-    await this.usersService.resendVerificationEmail(body.email);
+    await this.usersService.resendVerificationEmail(
+      body.email,
+      linguaDaHeader(acceptLanguage),
+    );
 
     return {
       success: true,

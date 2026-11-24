@@ -115,7 +115,7 @@ describe('UsersService.createUser — atomicità e gestione credenziali', () => 
     expect(firebaseConfig.deleteUser).not.toHaveBeenCalled();
   });
 
-  it('senza nickname crea l\'utente col profilo da completare', async () => {
+  it("senza nickname crea l'utente col profilo da completare", async () => {
     const { nickname, ...senzaNickname } = dto;
     const creato = await service.createUser(senzaNickname as never);
 
@@ -126,14 +126,14 @@ describe('UsersService.createUser — atomicità e gestione credenziali', () => 
     expect(creato).toBeDefined();
   });
 
-  it('col nickname il profilo nasce gia\' completo', async () => {
+  it("col nickname il profilo nasce gia' completo", async () => {
     await service.createUser(dto as never);
     const salvato = queryRunnerManager.create.mock.calls[0][1];
     expect(salvato.nickname).toBe('nuovo_nick');
     expect(salvato.profileCompleted).toBe(true);
   });
 
-  it('senza nome usa la parte dell\'indirizzo prima della chiocciola', async () => {
+  it("senza nome usa la parte dell'indirizzo prima della chiocciola", async () => {
     // `name` non e' nullable a database e finisce nel saluto dell'email.
     const { name, nickname, ...minimo } = dto;
     await service.createUser(minimo as never);
@@ -151,10 +151,12 @@ describe('UsersService.createUser — atomicità e gestione credenziali', () => 
   it('dice libero un nickname che nessuno ha preso', async () => {
     userRepository.findOne.mockResolvedValue(null);
 
-    await expect(service.isNicknameAvailable('mario_rossi')).resolves.toBe(true);
+    await expect(service.isNicknameAvailable('mario_rossi')).resolves.toBe(
+      true,
+    );
   });
 
-  it('dice occupato un nickname gia\' assegnato, normalizzando maiuscole e spazi', async () => {
+  it("dice occupato un nickname gia' assegnato, normalizzando maiuscole e spazi", async () => {
     userRepository.findOne.mockResolvedValue({ id: 'altro-utente' });
 
     await expect(service.isNicknameAvailable('  Mario_Rossi ')).resolves.toBe(
@@ -164,5 +166,4 @@ describe('UsersService.createUser — atomicità e gestione credenziali', () => 
       where: { nickname: 'mario_rossi' },
     });
   });
-
 });

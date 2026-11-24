@@ -11,6 +11,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { User, AuthProvider } from '../../entities/user.entity';
 import { FirebaseConfigService } from '../../config/firebase.config';
+import { Lingua } from '../../i18n/lingua';
 import { EmailService } from '../../services/email.service';
 import { NotificationPreferences } from '../../entities/notification-preferences.entity';
 import { UserAvatar } from '../../entities/user-avatar.entity';
@@ -66,7 +67,10 @@ export class UsersService {
   /**
    * Traditional email/password registration
    */
-  async createUser(createUserDto: CreateUserDto): Promise<UserResponseDto> {
+  async createUser(
+    createUserDto: CreateUserDto,
+    lingua: Lingua = 'it',
+  ): Promise<UserResponseDto> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -133,6 +137,7 @@ export class UsersService {
           createUserDto.email,
           displayName,
           verificationLink,
+          lingua,
         );
 
         verificationEmailSent = true;
@@ -809,7 +814,7 @@ export class UsersService {
    * Send password reset email via Firebase (client-side only)
    * This method validates the user exists and provides appropriate response
    */
-  async sendPasswordReset(email: string): Promise<void> {
+  async sendPasswordReset(email: string, lingua: Lingua = 'it'): Promise<void> {
     try {
       // Check if user exists in database
       const user = await this.userRepository.findOne({ where: { email } });
@@ -840,6 +845,7 @@ export class UsersService {
           email,
           user.name,
           resetLink,
+          lingua,
         );
         this.logger.log(`Password reset email sent to user: ${user.id}`);
       } catch (emailError) {
@@ -875,7 +881,10 @@ export class UsersService {
    * (replaces Firebase's default verification template). Neutral on missing /
    * already-verified / social accounts so it never reveals account state.
    */
-  async resendVerificationEmail(email: string): Promise<void> {
+  async resendVerificationEmail(
+    email: string,
+    lingua: Lingua = 'it',
+  ): Promise<void> {
     const user = await this.userRepository.findOne({ where: { email } });
 
     if (!user) {
@@ -916,6 +925,7 @@ export class UsersService {
         email,
         user.name,
         verificationLink,
+        lingua,
       );
       this.logger.log(`Verification email re-sent to user: ${user.id}`);
     } catch (emailError) {

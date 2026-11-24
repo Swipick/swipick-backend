@@ -71,6 +71,22 @@ describe('UsersService - resendVerificationEmail', () => {
       EMAIL,
       'Persona',
       'link',
+      'it',
+    );
+  });
+
+  it("passa la lingua dell'app all'email", async () => {
+    firebase.utenzaPerEmail.mockResolvedValue(
+      utenza(false, ['google.com', 'password']),
+    );
+
+    await service.resendVerificationEmail(EMAIL, 'en');
+
+    expect(email.sendVerificationEmail).toHaveBeenCalledWith(
+      EMAIL,
+      'Persona',
+      'link',
+      'en',
     );
   });
 

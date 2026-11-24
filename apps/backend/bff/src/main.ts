@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { TraduzioneErroriFilter } from './i18n/traduzione-errori.filter';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -15,6 +16,9 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  // I messaggi d'errore nella lingua dell'app (Accept-Language).
+  app.useGlobalFilters(new TraduzioneErroriFilter());
 
   // CORS configuration - Production ready with explicit origin setting
   const defaultOrigins = [
