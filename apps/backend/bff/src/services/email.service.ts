@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
 import { firstValueFrom } from 'rxjs';
+import { Lingua } from '../i18n/lingua';
 
 export interface EmailTemplate {
   to: string;
@@ -28,9 +29,100 @@ const INSTAGRAM_URL = 'https://www.instagram.com/swipick.app/';
 // e il pulsante, che porta allo stesso indirizzo.
 const INSTAGRAM_ICON_URL =
   'https://www.swipick.com/wp-content/themes/swipick/assets/email/instagram.png';
-const TEXT_FOOTER = `Segui Swipick su Instagram: ${INSTAGRAM_URL}
+/**
+ * I testi delle email nelle due lingue dell'app. La lingua arriva dalla
+ * richiesta che fa partire l'email (Accept-Language dell'app): niente lingua
+ * salvata sul profilo, perché ogni email nasce da un gesto dell'utente.
+ */
+const TESTI = {
+  it: {
+    pulsanteNonVa:
+      'Se il pulsante non funziona, copia questo indirizzo nel browser:',
+    instagramTitolo: 'Segui Swipick su Instagram',
+    instagramTesto:
+      'Le card della giornata, i precedenti delle sfide più sentite e i pronostici della community, ogni settimana.',
+    instagramPulsante: 'Seguici su @swipick.app',
+    piede: 'Swipick &mdash; pronostici di Serie A, gratis e senza soldi veri.',
+    piedeTesto: 'Swipick — pronostici di Serie A, gratis e senza soldi veri.',
+    instagramTestoSemplice: 'Segui Swipick su Instagram',
+    apriLink: 'Apri questo link:',
+    verifica: {
+      oggetto: 'Conferma il tuo indirizzo email',
+      preheader: 'Conferma il tuo indirizzo per iniziare a giocare su Swipick.',
+      titolo: (nome: string) => `Ciao ${nome}, manca un passaggio`,
+      intro:
+        'Per iniziare a giocare su Swipick devi confermare che questo indirizzo è tuo.',
+      pulsante: "Conferma l'indirizzo",
+      // Firebase non documenta la durata dei link di verifica: meglio non
+      // promettere un numero di ore che potrebbe non essere vero.
+      validita:
+        'Se il link non funziona più, puoi richiederne uno nuovo dall’app.',
+      avvertenza:
+        'Se la registrazione non l’hai fatta tu, ignora pure questa email: senza conferma nessuno potrà accedere all’account.',
+      motivo:
+        'Ricevi questa email perché con questo indirizzo è stato creato un account Swipick.',
+    },
+    reset: {
+      oggetto: 'Reimposta la tua password',
+      preheader: 'Scegli una nuova password per il tuo account Swipick.',
+      titolo: (nome: string) => `Ciao ${nome}, reimposta la password`,
+      intro: 'Hai chiesto di cambiare la password del tuo account Swipick.',
+      pulsante: 'Scegli una nuova password',
+      validita: 'Il link è valido un’ora.',
+      // Chi riceve un reset che non ha chiesto si allarma: dirgli che non è
+      // successo nulla vale più di un generico "ignora questa email".
+      avvertenza:
+        'Se la richiesta non è partita da te, ignora questa email: la password attuale resta valida e nessuno può cambiarla senza aprire questo link.',
+      motivo:
+        'Ricevi questa email perché è stato chiesto il reset della password del tuo account Swipick.',
+    },
+  },
+  en: {
+    pulsanteNonVa:
+      "If the button doesn't work, copy this address into your browser:",
+    instagramTitolo: 'Follow Swipick on Instagram',
+    instagramTesto:
+      "The matchday cards, the head-to-heads of the biggest fixtures and the community's predictions, every week.",
+    instagramPulsante: 'Follow @swipick.app',
+    piede: 'Swipick &mdash; Serie A predictions, free and with no real money.',
+    piedeTesto: 'Swipick — Serie A predictions, free and with no real money.',
+    instagramTestoSemplice: 'Follow Swipick on Instagram',
+    apriLink: 'Open this link:',
+    verifica: {
+      oggetto: 'Confirm your email address',
+      preheader: 'Confirm your address to start playing on Swipick.',
+      titolo: (nome: string) => `Hi ${nome}, one more step`,
+      intro:
+        'To start playing on Swipick, please confirm that this address is yours.',
+      pulsante: 'Confirm address',
+      validita:
+        'If the link no longer works, you can request a new one from the app.',
+      avvertenza:
+        "If you didn't sign up, just ignore this email: without confirmation nobody can access the account.",
+      motivo:
+        "You're receiving this email because a Swipick account was created with this address.",
+    },
+    reset: {
+      oggetto: 'Reset your password',
+      preheader: 'Choose a new password for your Swipick account.',
+      titolo: (nome: string) => `Hi ${nome}, reset your password`,
+      intro: 'You asked to change the password of your Swipick account.',
+      pulsante: 'Choose a new password',
+      validita: 'The link is valid for one hour.',
+      avvertenza:
+        "If you didn't ask for this, ignore this email: your current password still works and nobody can change it without opening this link.",
+      motivo:
+        "You're receiving this email because a password reset was requested for your Swipick account.",
+    },
+  },
+} as const;
 
-Swipick — pronostici di Serie A, gratis e senza soldi veri.
+/** Il piè di pagina della versione solo testo. */
+const textFooter = (
+  lingua: Lingua,
+) => `${TESTI[lingua].instagramTestoSemplice}: ${INSTAGRAM_URL}
+
+${TESTI[lingua].piedeTesto}
 ${SITE_URL} · Privacy: ${PRIVACY_URL}`;
 
 @Injectable()
@@ -349,6 +441,7 @@ export class EmailService {
     email: string,
     name: string,
     verificationLink: string,
+    lingua: Lingua = 'it',
   ): Promise<void> {
     this.logger.log(`📧 Attempting to send verification email to: ${email}`);
     this.logger.log(`📤 From email: ${this.formatMailbox(this.from)}`);
@@ -358,6 +451,7 @@ export class EmailService {
     const emailTemplate = this.generateVerificationEmailTemplate(
       name,
       verificationLink,
+      lingua,
     );
     this.logger.log(`📝 Email template generated for: ${name}`);
 
@@ -390,10 +484,12 @@ export class EmailService {
     email: string,
     name: string,
     resetLink: string,
+    lingua: Lingua = 'it',
   ): Promise<void> {
     const emailTemplate = this.generatePasswordResetEmailTemplate(
       name,
       resetLink,
+      lingua,
     );
 
     try {
@@ -555,12 +651,14 @@ export class EmailService {
     disclaimer: string;
     /** perché la si riceve, in fondo all'email */
     reason: string;
+    lingua: Lingua;
   }): string {
+    const testi = TESTI[options.lingua];
     const font =
       "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
     return `<!DOCTYPE html>
-<html lang="it">
+<html lang="${options.lingua}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -607,7 +705,7 @@ export class EmailService {
             <p style="margin:20px 0 0 0; font-family:${font}; font-size:14px; line-height:1.55; color:#6b7280;">${options.validity}</p>
 
             <p style="margin:24px 0 0 0; font-family:${font}; font-size:13px; line-height:1.5; color:#9ca3af;">
-              Se il pulsante non funziona, copia questo indirizzo nel browser:<br>
+              ${testi.pulsanteNonVa}<br>
               <span style="color:#5742a4; word-break:break-all;">${options.ctaUrl}</span>
             </p>
           </td>
@@ -629,15 +727,15 @@ export class EmailService {
                     <tr>
                       <td width="48" style="vertical-align:middle;"><a href="${INSTAGRAM_URL}"><img src="${INSTAGRAM_ICON_URL}" width="48" height="48" alt="Instagram" style="display:block; width:48px; height:48px; border:0; border-radius:12px;"></a></td>
                       <td style="padding-left:14px; vertical-align:middle;">
-                        <p style="margin:0; font-family:${font}; font-size:16px; line-height:1.3; font-weight:700; color:#1f2937;">Segui Swipick su Instagram</p>
-                        <p style="margin:4px 0 0 0; font-family:${font}; font-size:14px; line-height:1.45; color:#6b7280;">Le card della giornata, i precedenti delle sfide più sentite e i pronostici della community, ogni settimana.</p>
+                        <p style="margin:0; font-family:${font}; font-size:16px; line-height:1.3; font-weight:700; color:#1f2937;">${testi.instagramTitolo}</p>
+                        <p style="margin:4px 0 0 0; font-family:${font}; font-size:14px; line-height:1.45; color:#6b7280;">${testi.instagramTesto}</p>
                       </td>
                     </tr>
                   </table>
                   <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;">
                     <tr>
                       <td align="center" bgcolor="#6f49f7" style="border-radius:999px;">
-                        <a href="${INSTAGRAM_URL}" style="display:inline-block; padding:11px 22px; font-family:${font}; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:999px;">Seguici su @swipick.app</a>
+                        <a href="${INSTAGRAM_URL}" style="display:inline-block; padding:11px 22px; font-family:${font}; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:999px;">${testi.instagramPulsante}</a>
                       </td>
                     </tr>
                   </table>
@@ -649,7 +747,7 @@ export class EmailService {
 
         <tr>
           <td style="padding:18px 32px 20px 32px; background-color:#f9fafb; border-top:1px solid #e5e7eb;">
-            <p style="margin:0 0 6px 0; font-family:${font}; font-size:13px; line-height:1.5; color:#6b7280;">Swipick &mdash; pronostici di Serie A, gratis e senza soldi veri.</p>
+            <p style="margin:0 0 6px 0; font-family:${font}; font-size:13px; line-height:1.5; color:#6b7280;">${testi.piede}</p>
             <p style="margin:0 0 6px 0; font-family:${font}; font-size:12px; line-height:1.5; color:#9ca3af;">${options.reason}</p>
             <p style="margin:0; font-family:${font}; font-size:12px; line-height:1.5;"><a href="${SITE_URL}" style="color:#6f49f7; text-decoration:none;">swipick.com</a><span style="color:#d1d5db;">&nbsp;&nbsp;&middot;&nbsp;&nbsp;</span><a href="${PRIVACY_URL}" style="color:#6f49f7; text-decoration:none;">Privacy</a><span style="color:#d1d5db;">&nbsp;&nbsp;&middot;&nbsp;&nbsp;</span><a href="${INSTAGRAM_URL}" style="color:#6f49f7; text-decoration:none;">Instagram</a></p>
           </td>
@@ -663,100 +761,56 @@ export class EmailService {
 </html>`;
   }
 
-  /**
-   * Generate branded verification email template
-   */
+  /** Le due transazionali hanno la stessa forma: cambiano solo i testi. */
+  private generaTransazionale(
+    tipo: 'verifica' | 'reset',
+    name: string,
+    link: string,
+    lingua: Lingua,
+  ): EmailTemplate {
+    const t = TESTI[lingua][tipo];
+    const html = this.renderEmailShell({
+      preheader: t.preheader,
+      heading: t.titolo(this.escapeHtml(name)),
+      intro: t.intro,
+      ctaLabel: t.pulsante,
+      ctaUrl: link,
+      validity: t.validita,
+      disclaimer: t.avvertenza,
+      reason: t.motivo,
+      lingua,
+    });
+
+    const text = `${t.titolo(name)}
+
+${t.intro}
+${TESTI[lingua].apriLink}
+
+${link}
+
+${t.validita}
+
+${t.avvertenza}
+
+${t.motivo}
+${textFooter(lingua)}`;
+
+    return { to: '', subject: t.oggetto, html, text };
+  }
+
   private generateVerificationEmailTemplate(
     name: string,
     verificationLink: string,
+    lingua: Lingua = 'it',
   ): EmailTemplate {
-    const safeName = this.escapeHtml(name);
-
-    const html = this.renderEmailShell({
-      preheader: 'Conferma il tuo indirizzo per iniziare a giocare su Swipick.',
-      heading: `Ciao ${safeName}, manca un passaggio`,
-      intro:
-        'Per iniziare a giocare su Swipick devi confermare che questo indirizzo è tuo.',
-      ctaLabel: "Conferma l'indirizzo",
-      ctaUrl: verificationLink,
-      // Firebase non documenta la durata dei link di verifica: meglio non
-      // promettere un numero di ore che potrebbe non essere vero.
-      validity:
-        'Se il link non funziona più, puoi richiederne uno nuovo dall’app.',
-      disclaimer:
-        'Se la registrazione non l’hai fatta tu, ignora pure questa email: senza conferma nessuno potrà accedere all’account.',
-      reason:
-        'Ricevi questa email perché con questo indirizzo è stato creato un account Swipick.',
-    });
-
-    const text = `Ciao ${name}, manca un passaggio
-
-Per iniziare a giocare su Swipick devi confermare che questo indirizzo è tuo.
-Apri questo link:
-
-${verificationLink}
-
-Se il link non funziona più, puoi richiederne uno nuovo dall'app.
-
-Se la registrazione non l'hai fatta tu, ignora pure questa email: senza
-conferma nessuno potrà accedere all'account.
-
-Ricevi questa email perché con questo indirizzo è stato creato un account Swipick.
-${TEXT_FOOTER}`;
-
-    return {
-      to: '',
-      subject: 'Conferma il tuo indirizzo email',
-      html,
-      text,
-    };
+    return this.generaTransazionale('verifica', name, verificationLink, lingua);
   }
 
-  /**
-   * Generate branded password reset email template
-   */
   private generatePasswordResetEmailTemplate(
     name: string,
     resetLink: string,
+    lingua: Lingua = 'it',
   ): EmailTemplate {
-    const safeName = this.escapeHtml(name);
-
-    const html = this.renderEmailShell({
-      preheader: 'Scegli una nuova password per il tuo account Swipick.',
-      heading: `Ciao ${safeName}, reimposta la password`,
-      intro: 'Hai chiesto di cambiare la password del tuo account Swipick.',
-      ctaLabel: 'Scegli una nuova password',
-      ctaUrl: resetLink,
-      validity: 'Il link è valido un’ora.',
-      // Chi riceve un reset che non ha chiesto si allarma: dirgli che non è
-      // successo nulla vale più di un generico "ignora questa email".
-      disclaimer:
-        'Se la richiesta non è partita da te, ignora questa email: la password attuale resta valida e nessuno può cambiarla senza aprire questo link.',
-      reason:
-        'Ricevi questa email perché è stato chiesto il reset della password del tuo account Swipick.',
-    });
-
-    const text = `Ciao ${name}, reimposta la password
-
-Hai chiesto di cambiare la password del tuo account Swipick.
-Apri questo link per sceglierne una nuova:
-
-${resetLink}
-
-Il link è valido un'ora.
-
-Se la richiesta non è partita da te, ignora questa email: la password attuale
-resta valida e nessuno può cambiarla senza aprire questo link.
-
-Ricevi questa email perché è stato chiesto il reset della password del tuo
-account Swipick.
-${TEXT_FOOTER}`;
-
-    return {
-      to: '',
-      subject: 'Reimposta la tua password',
-      html,
-      text,
-    };
+    return this.generaTransazionale('reset', name, resetLink, lingua);
   }
 }
