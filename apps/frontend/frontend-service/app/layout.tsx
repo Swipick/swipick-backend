@@ -1,14 +1,23 @@
 import type { Metadata } from "next";
-import { Roboto } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import "./globals-height-responsive.css";
 import { AuthProvider } from "@/src/contexts/AuthContext";
 import { GameModeProvider } from "@/src/contexts/GameModeContext";
 
-const roboto = Roboto({
+// Roboto dentro il progetto invece che da Google Fonts: con next/font/google
+// il build scaricava i font da Google e falliva quando Google rispondeva
+// male (Railway, 24/11/2026: "Cannot read properties of null (reading '1')").
+// File latin dal pacchetto @fontsource/roboto 5.2.5, licenza in fonts/roboto/OFL.txt.
+const roboto = localFont({
   variable: "--font-roboto",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "700"],
+  display: "swap",
+  src: [
+    { path: "./fonts/roboto/roboto-latin-300-normal.woff2", weight: "300", style: "normal" },
+    { path: "./fonts/roboto/roboto-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/roboto/roboto-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/roboto/roboto-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
 });
 
 export const metadata: Metadata = {
